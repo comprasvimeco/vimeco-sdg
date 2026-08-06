@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Sistema de Gestión</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+</head>
+<body>
+  <header class="hdr">
+    <span class="hdr-title">VIMECO — Sistema de Gestión</span>
+    <div class="hdr-drop-version">v001</div>
+  </header>
+
+  <main class="app-main">
+    <p>Esqueleto listo. Acá arranca la primera pantalla real.</p>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/Sistema-de-Gestion/sw.js', { updateViaCache: 'none' }).catch(() => {});
+    }
+  </script>
+</body>
+</html>
