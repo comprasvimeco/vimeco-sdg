@@ -3,7 +3,7 @@ const GEMINI_API_KEY = "%%GEMINI_API_KEY%%";
 
 // Configuración de Firebase
 var FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyA_m5dk_lqun9zXd1R6tEqY5XN4lJX4_p4",
+  apiKey:            "AIzaSyDZvB1KGgM9TZyVifLoH0xMNs-v1f6ITTg",
   authDomain:        "vimeco-sdg.firebaseapp.com",
   databaseURL:       "https://vimeco-sdg-default-rtdb.firebaseio.com",
   projectId:         "vimeco-sdg",
