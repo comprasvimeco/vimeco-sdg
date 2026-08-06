@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Materiales</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='app.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <span class="header-title">Materiales</span>
+    </div>
+    <button class="btn btn-sm btn-outline" onclick="window.location.href='app.html'">Volver</button>
+  </header>
+
+  <main class="app-main">
+    <div class="list-toolbar">
+      <span class="list-toolbar-title">Catálogo de materiales</span>
+      <button class="btn btn-primary btn-sm" id="btn-add-material">+ Agregar material</button>
+    </div>
+    <div class="form-group">
+      <input type="text" id="materiales-search" class="form-control" placeholder="Buscar material...">
+    </div>
+    <div id="materiales-list" class="list-container">
+      <div class="list-loading">Cargando materiales…</div>
+    </div>
+  </main>
+
+  <!-- Modal: Agregar / Editar material -->
+  <div class="modal-overlay hidden" id="modal-material">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-material-title">Agregar material</span>
+        <button class="modal-close" id="modal-material-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="material-nombre">Nombre *</label>
+          <input type="text" id="material-nombre" class="form-control" placeholder="Ej: Cemento Portland x50kg">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="material-unidad">Unidad *</label>
+            <input type="text" id="material-unidad" class="form-control" placeholder="Ej: kg, m3, u">
+          </div>
+          <div class="form-group">
+            <label for="material-precio">Precio actual ($) *</label>
+            <input type="text" id="material-precio" class="form-control" placeholder="Ej: 5000 o =50*100">
+            <span class="form-hint">Podés escribir una fórmula empezando con "="</span>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="material-proveedor">Proveedor</label>
+            <input type="text" id="material-proveedor" class="form-control" placeholder="Opcional">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="material-fecha">Fecha del precio</label>
+            <input type="date" id="material-fecha" class="form-control">
+          </div>
+        </div>
+
+        <div id="modal-material-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-material-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-material-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/materiales.js"></script>
+</body>
+</html>
