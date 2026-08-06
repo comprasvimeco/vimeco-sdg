@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Obras</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='app.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <span class="header-title">Obras</span>
+    </div>
+    <button class="btn btn-sm btn-outline" onclick="window.location.href='app.html'">Volver</button>
+  </header>
+
+  <main class="app-main">
+    <div class="list-toolbar">
+      <span class="list-toolbar-title">Obras del sistema</span>
+      <button class="btn btn-primary btn-sm" id="btn-add-obra">+ Agregar obra</button>
+    </div>
+    <div id="obras-list" class="list-container">
+      <div class="list-loading">Cargando obras…</div>
+    </div>
+  </main>
+
+  <!-- Modal: Agregar / Editar obra -->
+  <div class="modal-overlay hidden" id="modal-obra">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-obra-title">Agregar obra</span>
+        <button class="modal-close" id="modal-obra-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="obra-nombre">Nombre de la obra *</label>
+          <input type="text" id="obra-nombre" class="form-control" placeholder="Ej: Edificio San Martín">
+        </div>
+        <div class="form-group">
+          <label for="obra-cliente">Cliente / Comitente</label>
+          <input type="text" id="obra-cliente" class="form-control" placeholder="Ej: Fuerza Aérea Argentina">
+        </div>
+        <div class="form-group">
+          <label for="obra-ubicacion">Ubicación</label>
+          <input type="text" id="obra-ubicacion" class="form-control" placeholder="Ej: Río Cuarto, Córdoba">
+        </div>
+        <div class="form-group u-mb-0">
+          <label for="obra-estado">Estado</label>
+          <select id="obra-estado" class="form-control">
+            <option value="preparacion">En preparación</option>
+            <option value="ejecucion">En ejecución</option>
+            <option value="terminada">Terminada</option>
+          </select>
+        </div>
+
+        <div id="modal-obra-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-obra-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-obra-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/obras.js"></script>
+</body>
+</html>

@@ -114,6 +114,7 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .modal-footer { padding: .75rem 1.25rem; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; gap: .5rem; flex-shrink: 0; }
 .modal-close { background: none; border: none; font-size: 1.1rem; cursor: pointer; color: var(--gray-400); padding: .3rem; border-radius: var(--radius); }
 .modal-close:hover { background: var(--gray-100); color: var(--gray-700); }
+.modal--sm { max-width: 340px; }
 
 /* ===== TOAST ===== */
 .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 1000; display: flex; flex-direction: column; gap: .5rem; }
@@ -125,6 +126,35 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 /* ===== EMPTY STATE ===== */
 .empty-state { text-align: center; padding: 2.5rem 1rem; color: var(--gray-400); }
 .empty-state p { font-size: .88rem; }
+
+/* ===== BADGES ===== */
+.u-badge { display: inline-flex; align-items: center; padding: .15rem .5rem; border-radius: 999px; font-size: .7rem; font-weight: 600; }
+.u-badge-activo   { background: #dcfce7; color: #166534; }
+.u-badge-inactivo { background: #fee2e2; color: #991b1b; }
+.u-badge-neutro   { background: var(--gray-200); color: var(--gray-600); }
+.u-badge-info     { background: #dbeafe; color: #1e40af; }
+
+/* ===== MENU CARDS (dashboard) ===== */
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.menu-card { background: var(--glass-bg-strong); border: 1px solid var(--glass-border); box-shadow: var(--shadow-glass); backdrop-filter: blur(var(--glass-blur)) saturate(150%); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%); border-radius: var(--radius-lg); padding: 1.4rem 1.25rem; position: relative; overflow: hidden; transition: transform .22s var(--ease-spring), box-shadow .22s, border-color .22s; cursor: pointer; text-decoration: none; display: block; }
+.menu-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--grad-accent); opacity: 0; transition: opacity .22s; }
+.menu-card:hover { transform: translateY(-6px) scale(1.015); border-color: rgba(37,87,167,.4); box-shadow: var(--shadow-glow); }
+.menu-card:hover::before { opacity: 1; }
+.menu-card-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; background: var(--grad-header); box-shadow: 0 6px 16px -6px rgba(37,87,167,.7); margin-bottom: .8rem; }
+.menu-card:hover .menu-card-icon { background: var(--grad-accent); transform: scale(1.06) rotate(-3deg); }
+.menu-card h3 { font-size: 1rem; color: var(--primary); margin-bottom: .2rem; }
+.menu-card p { font-size: .8rem; color: var(--gray-500); }
+
+/* ===== LIST TOOLBAR / ITEM CARDS (listados CRUD: obras, materiales, etc.) ===== */
+.list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.list-toolbar-title { font-weight: 600; color: var(--gray-700); }
+.list-container { display: flex; flex-direction: column; gap: .6rem; }
+.item-card { background: var(--glass-bg-strong); border: 1px solid var(--glass-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: .85rem 1.1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.item-card-info { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+.item-card-title { font-weight: 600; color: var(--gray-900); }
+.item-card-meta { font-size: .8rem; color: var(--gray-500); }
+.item-card-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+.list-loading, .list-empty { text-align: center; padding: 2rem 1rem; color: var(--gray-400); font-size: .88rem; }
 
 /* ===== SVG ICONS ===== */
 .icon { display: inline-block; width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.15em; flex-shrink: 0; pointer-events: none; }
@@ -142,6 +172,9 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .items-center { align-items: center; }
 .gap-2 { gap: .5rem; }
 .gap-3 { gap: .75rem; }
+.u-flex-1 { flex: 1; }
+.u-pointer { cursor: pointer; }
+.u-mb-0 { margin-bottom: 0; }
 
 /* ===== UPDATE BANNER (nueva versión disponible) ===== */
 .update-banner {
