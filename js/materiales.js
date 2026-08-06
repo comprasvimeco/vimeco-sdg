@@ -2,7 +2,6 @@
 
 const $ = id => document.getElementById(id);
 
-const fmtPrecio = n => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 const fmtFecha  = iso => {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
@@ -19,7 +18,7 @@ function renderMateriales(list) {
     return;
   }
   container.innerHTML = list.map(m => {
-    const meta = [m.unidad, fmtPrecio(m.precio), m.proveedor, m.fecha ? fmtFecha(m.fecha) : '']
+    const meta = [m.unidad, fmtUSDConEquivalente(m.precioUSD), m.proveedor, m.fecha ? fmtFecha(m.fecha) : '']
       .filter(Boolean).join(' · ');
     return `
       <div class="item-card" data-key="${escHtml(m.key)}">
@@ -85,7 +84,7 @@ function openEditModal(material) {
   $('modal-material-error').classList.add('hidden');
   $('material-nombre').value = material.nombre || '';
   $('material-unidad').value = material.unidad || '';
-  $('material-precio').value = material.precio ?? '';
+  $('material-precio').value = material.precioUSD ?? '';
   $('material-proveedor').value = material.proveedor || '';
   $('material-fecha').value = material.fecha || todayIso();
   $('modal-material').classList.remove('hidden');
@@ -101,7 +100,7 @@ async function saveMaterialModal() {
 
   const precioInput = $('material-precio');
   if (precioInput.value.trim().startsWith('=')) precioInput.blur();
-  const precio = parseFloat(precioInput.value.replace(',', '.'));
+  const precioUSD = parseFloat(precioInput.value.replace(',', '.'));
 
   if (!nombre) {
     errEl.textContent = 'El nombre es requerido.';
@@ -113,7 +112,7 @@ async function saveMaterialModal() {
     errEl.classList.remove('hidden');
     return;
   }
-  if (isNaN(precio) || precio < 0) {
+  if (isNaN(precioUSD) || precioUSD < 0) {
     errEl.textContent = 'El precio no es válido.';
     errEl.classList.remove('hidden');
     return;
@@ -125,13 +124,13 @@ async function saveMaterialModal() {
 
   try {
     if (editingKey) {
-      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precio, proveedor, fecha });
+      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precioUSD, proveedor, fecha });
     } else {
       const key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precio, proveedor, fecha, creadoEn: Date.now() });
+      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precioUSD, proveedor, fecha, creadoEn: Date.now() });
     }
     $('modal-material').classList.add('hidden');
     showToast(editingKey ? 'Material actualizado.' : 'Material creado.');
@@ -168,4 +167,5 @@ document.addEventListener('DOMContentLoaded', () => {
   $('materiales-search').addEventListener('input', applyFilter);
 
   loadMateriales();
+  getDolarSnapshot().then(() => applyFilter()).catch(() => {});
 });

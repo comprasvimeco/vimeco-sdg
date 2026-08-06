@@ -120,17 +120,15 @@ function equipoKey(codigo) {
     .replace(/^_|_$/g, '');
 }
 
-const fmtMoney = n => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
-
 let allEquipos = [];
 let editingKey = null;
 
 function metaLine(e) {
   const parts = [];
-  if (e.potencia)     parts.push(`${e.potencia} HP`);
-  if (e.usoAnual)      parts.push(`${e.usoAnual} hs/año`);
-  if (e.vidaUtil)     parts.push(`vida útil ${e.vidaUtil} hs`);
-  if (e.costo)          parts.push(fmtMoney(e.costo));
+  if (e.potencia)  parts.push(`${e.potencia} HP`);
+  if (e.usoAnual)  parts.push(`${e.usoAnual} hs/año`);
+  if (e.vidaUtil)  parts.push(`vida útil ${e.vidaUtil} hs`);
+  if (e.costoUSD)  parts.push(fmtUSDConEquivalente(e.costoUSD));
   return parts.join(' · ') || 'Sin datos de costo cargados';
 }
 
@@ -206,7 +204,7 @@ function openEditModal(equipo) {
   $('equipo-potencia').value = equipo.potencia ?? '';
   $('equipo-uso-anual').value = equipo.usoAnual ?? '';
   $('equipo-vida-util').value = equipo.vidaUtil ?? '';
-  $('equipo-costo').value = equipo.costo ?? '';
+  $('equipo-costo').value = equipo.costoUSD ?? '';
   $('modal-equipo').classList.remove('hidden');
   setTimeout(() => $('equipo-codigo').focus(), 50);
 }
@@ -240,14 +238,14 @@ async function saveEquipoModal() {
   const potencia = numOrNull($('equipo-potencia'));
   const usoAnual = numOrNull($('equipo-uso-anual'));
   const vidaUtil = numOrNull($('equipo-vida-util'));
-  const costo    = numOrNull($('equipo-costo'));
+  const costoUSD = numOrNull($('equipo-costo'));
 
   const saveBtn = $('modal-equipo-save');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Guardando…';
 
   try {
-    const data = { codigo, tipo, potencia, usoAnual, vidaUtil, costo };
+    const data = { codigo, tipo, potencia, usoAnual, vidaUtil, costoUSD };
     if (editingKey) {
       await _fbPatch(`/equipos/${editingKey}.json`, data);
     } else {
@@ -316,4 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('equipos-search').addEventListener('input', applyFilter);
 
   loadEquipos();
+  // Refresca la cotización y repinta la lista una vez que llega (para mostrar
+  // el equivalente en pesos aunque no hubiera nada cacheado al entrar).
+  getDolarSnapshot().then(() => applyFilter()).catch(() => {});
 });
