@@ -146,7 +146,7 @@ function renderEquipos(list) {
   container.innerHTML = list.map(e => `
     <div class="item-card" data-key="${escHtml(e.key)}">
       <div class="item-card-info">
-        <span class="item-card-title">${escHtml(e.codigo)} — ${escHtml(e.tipo || '')}</span>
+        <span class="item-card-title">${escHtml(e.tipo || '')} <span class="text-muted">${escHtml(e.codigo)}</span></span>
         <span class="item-card-meta">${escHtml(metaLine(e))}</span>
       </div>
       <div class="item-card-actions">
