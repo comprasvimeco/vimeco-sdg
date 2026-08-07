@@ -1,4 +1,8 @@
-/* VIMECO S.A. — Sistema de Gestión — Mano de Obra (roles + costo diario en $) */
+/* VIMECO S.A. — Sistema de Gestión — Mano de Obra
+   Desglose: Básico ($/hs) -> + Asistencia perfecta (%) -> + Cargas Sociales/ART (%)
+   -> + Comida no remunerativa (mensual / (días·8)) = Costo horario -> x8 = Jornal.
+   Asistencia perfecta, Cargas Sociales y días laborables son parámetros generales
+   (un solo valor para todos los roles, como el dólar). */
 
 const $ = id => document.getElementById(id);
 
@@ -11,6 +15,39 @@ const fmtFecha = iso => {
 
 let allRoles = [];
 let editingKey = null;
+let params = { asistenciaPct: 20, cargasPct: 100, diasMes: 22 };
+
+function calcCosto(basico, noRemunerativoMensual) {
+  const conAsistencia = basico * (1 + params.asistenciaPct / 100);
+  const conCargas = conAsistencia * (1 + params.cargasPct / 100);
+  const comidaPorHora = (noRemunerativoMensual || 0) / (params.diasMes * 8);
+  const costoHorario = conCargas + comidaPorHora;
+  return { costoHorario, costoJornal: costoHorario * 8, comidaPorHora };
+}
+
+async function loadParams() {
+  try {
+    const data = await _fbGet('/config/manoDeObra.json');
+    if (data) params = { ...params, ...data };
+  } catch (_) {}
+  $('param-asistencia').value = params.asistenciaPct;
+  $('param-cargas').value = params.cargasPct;
+  $('param-dias').value = params.diasMes;
+}
+
+async function saveParams() {
+  const asistenciaPct = parseFloat($('param-asistencia').value.replace(',', '.'));
+  const cargasPct     = parseFloat($('param-cargas').value.replace(',', '.'));
+  const diasMes        = parseFloat($('param-dias').value.replace(',', '.'));
+  if ([asistenciaPct, cargasPct, diasMes].some(n => isNaN(n) || n < 0)) return;
+  params = { asistenciaPct, cargasPct, diasMes };
+  try {
+    await _fbPut('/config/manoDeObra.json', params);
+    applyFilter();
+  } catch (_) {
+    showToast('Error al guardar los parámetros.', 'error');
+  }
+}
 
 function renderRoles(list) {
   const container = $('mo-list');
@@ -19,8 +56,18 @@ function renderRoles(list) {
     return;
   }
   container.innerHTML = list.map(r => {
-    const meta = [fmtARSLocal(r.costoDiario) + '/día', r.fecha ? fmtFecha(r.fecha) : '']
-      .filter(Boolean).join(' · ');
+    let meta;
+    if (r.basico) {
+      const c = calcCosto(r.basico, r.noRemunerativoMensual);
+      meta = [
+        `Básico ${fmtARSLocal(r.basico)}/hs`,
+        `Costo horario ${fmtARSLocal(c.costoHorario)}/hs`,
+        `Jornal (8hs) ${fmtARSLocal(c.costoJornal)}`,
+        r.fecha ? fmtFecha(r.fecha) : ''
+      ].filter(Boolean).join(' · ');
+    } else {
+      meta = 'Sin datos de costo cargados';
+    }
     return `
       <div class="item-card" data-key="${escHtml(r.key)}">
         <div class="item-card-info">
@@ -66,13 +113,28 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function updatePreview() {
+  const basico = parseFloat($('rol-basico').value.replace(',', '.'));
+  const noRem  = parseFloat($('rol-no-remunerativo').value.replace(',', '.')) || 0;
+  const preview = $('rol-preview');
+  if (isNaN(basico) || basico <= 0) {
+    preview.textContent = 'Completá el básico para ver el costo calculado.';
+    return;
+  }
+  const c = calcCosto(basico, noRem);
+  preview.textContent =
+    `Costo horario: ${fmtARSLocal(c.costoHorario)}/hs · Jornal (8hs): ${fmtARSLocal(c.costoJornal)}`;
+}
+
 function openAddModal() {
   editingKey = null;
   $('modal-rol-title').textContent = 'Agregar rol';
   $('modal-rol-error').classList.add('hidden');
   $('rol-nombre').value = '';
-  $('rol-costo').value = '';
+  $('rol-basico').value = '';
+  $('rol-no-remunerativo').value = '';
   $('rol-fecha').value = todayIso();
+  updatePreview();
   $('modal-rol').classList.remove('hidden');
   setTimeout(() => $('rol-nombre').focus(), 50);
 }
@@ -82,8 +144,10 @@ function openEditModal(rol) {
   $('modal-rol-title').textContent = 'Editar rol';
   $('modal-rol-error').classList.add('hidden');
   $('rol-nombre').value = rol.nombre || '';
-  $('rol-costo').value = rol.costoDiario ?? '';
+  $('rol-basico').value = rol.basico ?? '';
+  $('rol-no-remunerativo').value = rol.noRemunerativoMensual ?? '';
   $('rol-fecha').value = rol.fecha || todayIso();
+  updatePreview();
   $('modal-rol').classList.remove('hidden');
   setTimeout(() => $('rol-nombre').focus(), 50);
 }
@@ -93,17 +157,22 @@ async function saveRolModal() {
   const fecha  = $('rol-fecha').value || todayIso();
   const errEl  = $('modal-rol-error');
 
-  const costoInput = $('rol-costo');
-  if (costoInput.value.trim().startsWith('=')) costoInput.blur();
-  const costoDiario = parseFloat(costoInput.value.replace(',', '.'));
+  const basicoInput = $('rol-basico');
+  if (basicoInput.value.trim().startsWith('=')) { basicoInput.blur(); updatePreview(); }
+  const basico = parseFloat(basicoInput.value.replace(',', '.'));
+
+  const noRemInput = $('rol-no-remunerativo');
+  if (noRemInput.value.trim().startsWith('=')) { noRemInput.blur(); updatePreview(); }
+  const noRemStr = noRemInput.value.trim();
+  const noRemunerativoMensual = noRemStr ? parseFloat(noRemStr.replace(',', '.')) : null;
 
   if (!nombre) {
     errEl.textContent = 'El rol es requerido.';
     errEl.classList.remove('hidden');
     return;
   }
-  if (isNaN(costoDiario) || costoDiario < 0) {
-    errEl.textContent = 'El costo diario no es válido.';
+  if (isNaN(basico) || basico < 0) {
+    errEl.textContent = 'El básico no es válido.';
     errEl.classList.remove('hidden');
     return;
   }
@@ -113,14 +182,15 @@ async function saveRolModal() {
   saveBtn.textContent = 'Guardando…';
 
   try {
+    const data = { nombre, basico, noRemunerativoMensual, fecha };
     if (editingKey) {
-      await _fbPatch(`/manoDeObra/${editingKey}.json`, { nombre, costoDiario, fecha });
+      await _fbPatch(`/manoDeObra/${editingKey}.json`, data);
     } else {
       const key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      await _fbPut(`/manoDeObra/${key}.json`, { nombre, costoDiario, fecha, creadoEn: Date.now() });
+      await _fbPut(`/manoDeObra/${key}.json`, { ...data, creadoEn: Date.now() });
     }
     $('modal-rol').classList.add('hidden');
     showToast(editingKey ? 'Rol actualizado.' : 'Rol creado.');
@@ -147,7 +217,16 @@ async function deleteRol(rol) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  attachCalcInput($('rol-costo'));
+  attachCalcInput($('rol-basico'));
+  attachCalcInput($('rol-no-remunerativo'));
+  $('rol-basico').addEventListener('input', updatePreview);
+  $('rol-no-remunerativo').addEventListener('input', updatePreview);
+  $('rol-basico').addEventListener('blur', updatePreview);
+  $('rol-no-remunerativo').addEventListener('blur', updatePreview);
+
+  $('param-asistencia').addEventListener('blur', saveParams);
+  $('param-cargas').addEventListener('blur', saveParams);
+  $('param-dias').addEventListener('blur', saveParams);
 
   $('btn-add-rol').addEventListener('click', openAddModal);
   $('modal-rol-close').addEventListener('click',  () => $('modal-rol').classList.add('hidden'));
@@ -156,5 +235,5 @@ document.addEventListener('DOMContentLoaded', () => {
   $('rol-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') saveRolModal(); });
   $('mo-search').addEventListener('input', applyFilter);
 
-  loadRoles();
+  loadParams().then(loadRoles);
 });

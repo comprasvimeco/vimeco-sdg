@@ -21,8 +21,31 @@
   </header>
 
   <main class="app-main">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Parámetros generales</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="param-asistencia">Asistencia perfecta (%)</label>
+            <input type="text" id="param-asistencia" class="form-control" placeholder="Ej: 20">
+          </div>
+          <div class="form-group">
+            <label for="param-cargas">Cargas Sociales + ART (%)</label>
+            <input type="text" id="param-cargas" class="form-control" placeholder="Ej: 100">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="param-dias">Días laborables / mes</label>
+            <input type="text" id="param-dias" class="form-control" placeholder="Ej: 22">
+          </div>
+        </div>
+        <span class="form-hint">Se aplican a todos los roles. Se guardan solos al salir del campo.</span>
+      </div>
+    </div>
+
     <div class="list-toolbar">
-      <span class="list-toolbar-title">Roles y costo diario</span>
+      <span class="list-toolbar-title">Roles y costo horario</span>
       <button class="btn btn-primary btn-sm" id="btn-add-rol">+ Agregar rol</button>
     </div>
     <div class="form-group">
@@ -47,15 +70,21 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label for="rol-costo">Costo diario ($) *</label>
-            <input type="text" id="rol-costo" class="form-control" placeholder="Ej: 137000 o =17000*8">
-            <span class="form-hint">Podés escribir una fórmula empezando con "="</span>
+            <label for="rol-basico">Básico ($/hs) *</label>
+            <input type="text" id="rol-basico" class="form-control" placeholder="Ej: 7420">
           </div>
           <div class="form-group u-mb-0">
-            <label for="rol-fecha">Fecha del valor</label>
-            <input type="date" id="rol-fecha" class="form-control">
+            <label for="rol-no-remunerativo">No remunerativo ($/mes)</label>
+            <input type="text" id="rol-no-remunerativo" class="form-control" placeholder="Ej: 148000">
+            <span class="form-hint">Cambia todos los meses — actualizalo cuando tengas el valor del mes.</span>
           </div>
         </div>
+        <div class="form-group u-mb-0">
+          <label for="rol-fecha">Fecha del valor</label>
+          <input type="date" id="rol-fecha" class="form-control">
+        </div>
+
+        <div class="alert alert-info" id="rol-preview" style="margin-top:1rem;"></div>
 
         <div id="modal-rol-error" class="alert alert-error hidden"></div>
       </div>
