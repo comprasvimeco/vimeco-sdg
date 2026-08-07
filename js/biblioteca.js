@@ -1,7 +1,9 @@
-/* VIMECO S.A. — Sistema de Gestión — Ítems (catálogo, lista)
+/* VIMECO S.A. — Sistema de Gestión — Biblioteca (catálogo de ítems + rubros)
    El Análisis de Precios de cada ítem (líneas de materiales/equipos/mano de
    obra) se edita en item.html?key=... — acá sólo viven los datos básicos y el
-   precio unitario ya calculado (cache que se actualiza al guardar la receta). */
+   costo unitario ya calculado (cache que se actualiza al guardar la receta).
+   Es costo, no precio: el beneficio se aplica recién al incorporar el ítem
+   al presupuesto de una obra puntual. */
 
 const $ = id => document.getElementById(id);
 
@@ -9,33 +11,14 @@ let allItems = [];
 let allRubros = [];
 let rubrosMap = {};
 let editingKey = null;
-let params = { utilidadPct: 10 };
-
-async function loadParams() {
-  try {
-    const data = await _fbGet('/config/itemsPrecios.json');
-    if (data) params = { ...params, ...data };
-  } catch (_) {}
-  $('param-utilidad').value = params.utilidadPct;
-}
-
-async function saveParams() {
-  const utilidadPct = parseFloat($('param-utilidad').value.replace(',', '.'));
-  if (isNaN(utilidadPct) || utilidadPct < 0) return;
-  params = { utilidadPct };
-  try {
-    await _fbPut('/config/itemsPrecios.json', params);
-  } catch (_) {
-    showToast('Error al guardar el parámetro.', 'error');
-  }
-}
+let editingRubroKey = null;
 
 function metaLine(it) {
   const parts = [];
   if (it.rubroKey && rubrosMap[it.rubroKey]) parts.push(rubrosMap[it.rubroKey]);
   parts.push(it.unidad);
   if (it.rendimiento) parts.push(`rendimiento ${it.rendimiento}/jornada`);
-  if (it.precioUnitarioCache != null) parts.push(`Precio unitario ${fmtARS(it.precioUnitarioCache)}`);
+  if (it.costoUnitarioCache != null) parts.push(`Costo unitario ${fmtARS(it.costoUnitarioCache)}`);
   else parts.push('Sin Análisis de Precios cargado');
   return parts.filter(Boolean).join(' · ');
 }
@@ -49,7 +32,7 @@ function renderItems(list) {
   container.innerHTML = list.map(it => `
     <div class="item-card" data-key="${escHtml(it.key)}">
       <div class="item-card-info">
-        <span class="item-card-title">${escHtml(it.nombre)}${it.codigo ? ` <span class="text-muted">${escHtml(it.codigo)}</span>` : ''}</span>
+        <span class="item-card-title">${escHtml(it.nombre)}</span>
         <span class="item-card-meta">${escHtml(metaLine(it))}</span>
       </div>
       <div class="item-card-actions">
@@ -75,8 +58,7 @@ function applyFilter() {
   const rubro = $('items-filtro-rubro').value;
   let list = allItems;
   if (rubro) list = list.filter(it => it.rubroKey === rubro);
-  if (q) list = list.filter(it =>
-    it.nombre.toLowerCase().includes(q) || (it.codigo || '').toLowerCase().includes(q));
+  if (q) list = list.filter(it => it.nombre.toLowerCase().includes(q));
   renderItems(list);
 }
 
@@ -94,7 +76,83 @@ async function loadRubros() {
     rubrosMap = {};
     allRubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
     populateRubroSelects();
+    renderRubrosModal();
   } catch (_) {}
+}
+
+function renderRubrosModal() {
+  const container = $('rubros-modal-list');
+  if (!allRubros.length) {
+    container.innerHTML = '<div class="list-empty">No hay rubros cargados todavía.</div>';
+    return;
+  }
+  container.innerHTML = allRubros.map(r => `
+    <div class="item-card" data-key="${escHtml(r.key)}">
+      <div class="item-card-info">
+        <span class="item-card-title">${escHtml(r.nombre)}</span>
+      </div>
+      <div class="item-card-actions">
+        <button class="btn btn-sm btn-outline btn-edit-rubro">Editar</button>
+        <button class="btn btn-sm btn-danger btn-del-rubro">Eliminar</button>
+      </div>
+    </div>`).join('');
+
+  container.querySelectorAll('.item-card').forEach(card => {
+    const key = card.dataset.key;
+    const rubro = allRubros.find(r => r.key === key);
+    card.querySelector('.btn-edit-rubro').addEventListener('click', () => {
+      editingRubroKey = rubro.key;
+      $('rubro-nombre').value = rubro.nombre;
+      $('rubro-nombre').focus();
+    });
+    card.querySelector('.btn-del-rubro').addEventListener('click', () => deleteRubro(rubro));
+  });
+}
+
+async function saveRubro() {
+  const nombre = $('rubro-nombre').value.trim();
+  const errEl = $('modal-rubro-error');
+  if (!nombre) {
+    errEl.textContent = 'El nombre es requerido.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  errEl.classList.add('hidden');
+
+  const saveBtn = $('btn-guardar-rubro');
+  saveBtn.disabled = true;
+  try {
+    if (editingRubroKey) {
+      await _fbPatch(`/rubros/${editingRubroKey}.json`, { nombre });
+    } else {
+      const key = nombre.toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+        + '_' + Date.now();
+      await _fbPut(`/rubros/${key}.json`, { nombre, creadoEn: Date.now() });
+    }
+    editingRubroKey = null;
+    $('rubro-nombre').value = '';
+    showToast('Rubro guardado.');
+    await loadRubros();
+  } catch (_) {
+    errEl.textContent = 'Error al guardar. Intentá de nuevo.';
+    errEl.classList.remove('hidden');
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+async function deleteRubro(rubro) {
+  const ok = await showConfirm('Eliminar rubro', `¿Eliminar "${rubro.nombre}"? Esta acción no se puede deshacer.`);
+  if (!ok) return;
+  try {
+    await _fbDel(`/rubros/${rubro.key}.json`);
+    showToast('Rubro eliminado.');
+    await loadRubros();
+  } catch (_) {
+    showToast('Error al eliminar el rubro.', 'error');
+  }
 }
 
 async function loadItems() {
@@ -113,7 +171,6 @@ function openAddModal() {
   editingKey = null;
   $('modal-item-title').textContent = 'Agregar ítem';
   $('modal-item-error').classList.add('hidden');
-  $('item-codigo').value = '';
   $('item-nombre').value = '';
   $('item-unidad').value = '';
   $('item-rubro').value = '';
@@ -126,7 +183,6 @@ function openEditModal(it) {
   editingKey = it.key;
   $('modal-item-title').textContent = 'Editar datos del ítem';
   $('modal-item-error').classList.add('hidden');
-  $('item-codigo').value = it.codigo || '';
   $('item-nombre').value = it.nombre || '';
   $('item-unidad').value = it.unidad || '';
   $('item-rubro').value = it.rubroKey || '';
@@ -136,7 +192,6 @@ function openEditModal(it) {
 }
 
 async function saveItemModal() {
-  const codigo = $('item-codigo').value.trim();
   const nombre = $('item-nombre').value.trim();
   const unidad = $('item-unidad').value.trim();
   const rubroKey = $('item-rubro').value;
@@ -167,7 +222,7 @@ async function saveItemModal() {
   saveBtn.textContent = 'Guardando…';
 
   try {
-    const data = { codigo, nombre, unidad, rubroKey, rendimiento };
+    const data = { nombre, unidad, rubroKey, rendimiento };
     if (editingKey) {
       await _fbPatch(`/items/${editingKey}.json`, data);
     } else {
@@ -201,6 +256,13 @@ async function deleteItem(it) {
   }
 }
 
+function closeRubrosModal() {
+  editingRubroKey = null;
+  $('rubro-nombre').value = '';
+  $('modal-rubro-error').classList.add('hidden');
+  $('modal-rubros').classList.add('hidden');
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   attachCalcInput($('item-rendimiento'));
 
@@ -210,9 +272,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-item-save').addEventListener('click', saveItemModal);
   $('items-search').addEventListener('input', applyFilter);
   $('items-filtro-rubro').addEventListener('change', applyFilter);
-  $('param-utilidad').addEventListener('blur', saveParams);
+
+  $('btn-rubros').addEventListener('click', () => $('modal-rubros').classList.remove('hidden'));
+  $('modal-rubros-close').addEventListener('click', closeRubrosModal);
+  $('btn-guardar-rubro').addEventListener('click', saveRubro);
+  $('rubro-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') saveRubro(); });
 
   await loadRubros();
-  await loadParams();
   await loadItems();
 });

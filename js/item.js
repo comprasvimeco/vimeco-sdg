@@ -17,7 +17,6 @@ let rubros = [];
 let rubrosMap = {};
 let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
-let paramsItems = { utilidadPct: 10 };
 
 const HINTS = {
   material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
@@ -71,14 +70,13 @@ function calcularResumen() {
   });
   const rendimiento = item.rendimiento || 1;
   const costoEquiposMOPorUnidad = costoDiarioEquiposMO / rendimiento;
-  const subtotal = costoMateriales + costoEquiposMOPorUnidad;
-  const precioUnitario = subtotal * (1 + paramsItems.utilidadPct / 100);
-  return { costoMateriales, costoEquiposMOPorUnidad, subtotal, precioUnitario };
+  const costoUnitario = costoMateriales + costoEquiposMOPorUnidad;
+  return { costoMateriales, costoEquiposMOPorUnidad, costoUnitario };
 }
 
 function renderDatos() {
   $('header-item-nombre').textContent = item.nombre;
-  $('item-titulo-card').textContent = item.nombre + (item.codigo ? ` (${item.codigo})` : '');
+  $('item-titulo-card').textContent = item.nombre;
   const rubroNombre = item.rubroKey && rubrosMap[item.rubroKey] ? rubrosMap[item.rubroKey] : 'Sin rubro';
   $('item-datos-resumen').innerHTML =
     `<span class="item-card-meta">${escHtml(rubroNombre)} · Unidad: ${escHtml(item.unidad)} · Rendimiento: ${escHtml(String(item.rendimiento))} uds./jornada</span>`;
@@ -129,10 +127,8 @@ function renderResumen() {
   $('resumen').innerHTML = `
     <div class="ap-resumen-row"><span>Costo Materiales</span><span>${fmtARS(r.costoMateriales)}</span></div>
     <div class="ap-resumen-row"><span>Costo Equipos + Mano de Obra (por unidad)</span><span>${fmtARS(r.costoEquiposMOPorUnidad)}</span></div>
-    <div class="ap-resumen-row"><span>Subtotal (costo directo)</span><span>${fmtARS(r.subtotal)}</span></div>
-    <div class="ap-resumen-row"><span>Beneficio (${paramsItems.utilidadPct}%)</span><span>${fmtARS(r.precioUnitario - r.subtotal)}</span></div>
-    <div class="ap-resumen-row total"><span>Precio unitario</span><span>${fmtARS(r.precioUnitario)}</span></div>
-    <p class="form-hint" style="margin-top:.5rem;">No incluye Gastos Generales — se calculan por obra en Cómputo/Presupuesto.</p>`;
+    <div class="ap-resumen-row total"><span>Costo unitario</span><span>${fmtARS(r.costoUnitario)}</span></div>
+    <p class="form-hint" style="margin-top:.5rem;">No incluye Gastos Generales ni beneficio — eso se aplica al incorporar el ítem al presupuesto de la obra.</p>`;
   return r;
 }
 
@@ -148,8 +144,7 @@ async function persistLineasYCache() {
   try {
     await _fbPut(`/items/${itemKey}/lineas.json`, lineas);
     await _fbPatch(`/items/${itemKey}.json`, {
-      precioUnitarioCache: r.precioUnitario,
-      costoDirectoCache: r.subtotal,
+      costoUnitarioCache: r.costoUnitario,
     });
   } catch (_) {
     showToast('Error al guardar el Análisis de Precios.', 'error');
@@ -182,7 +177,6 @@ async function deleteLinea(lineaKey) {
 }
 
 function openEditDatosModal() {
-  $('item-codigo').value = item.codigo || '';
   $('item-nombre').value = item.nombre || '';
   $('item-unidad').value = item.unidad || '';
   $('item-rubro').value = item.rubroKey || '';
@@ -192,7 +186,6 @@ function openEditDatosModal() {
 }
 
 async function saveDatosModal() {
-  const codigo = $('item-codigo').value.trim();
   const nombre = $('item-nombre').value.trim();
   const unidad = $('item-unidad').value.trim();
   const rubroKey = $('item-rubro').value;
@@ -214,7 +207,7 @@ async function saveDatosModal() {
   }
 
   try {
-    const data = { codigo, nombre, unidad, rubroKey, rendimiento };
+    const data = { nombre, unidad, rubroKey, rendimiento };
     await _fbPatch(`/items/${itemKey}.json`, data);
     item = { ...item, ...data };
     $('modal-item').classList.add('hidden');
@@ -238,7 +231,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
   }
-  const [itemData, lineasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO, cfgItems] = await Promise.all([
+  const [itemData, lineasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO] = await Promise.all([
     _fbGet(`/items/${itemKey}.json`),
     _fbGet(`/items/${itemKey}/lineas.json`),
     _fbGet('/materiales.json'),
@@ -247,7 +240,6 @@ async function loadAll() {
     _fbGet('/rubros.json'),
     _fbGet('/config/equipos.json'),
     _fbGet('/config/manoDeObra.json'),
-    _fbGet('/config/itemsPrecios.json'),
   ]);
 
   if (!itemData) {
@@ -264,7 +256,6 @@ async function loadAll() {
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
   if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
   if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
-  if (cfgItems) paramsItems = { ...paramsItems, ...cfgItems };
 
   populateRubroSelect();
   renderDatos();

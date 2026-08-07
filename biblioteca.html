@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIMECO — Ítems</title>
+  <title>VIMECO — Biblioteca</title>
   <link rel="stylesheet" href="css/styles.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
@@ -12,7 +12,7 @@
   <header class="app-header">
     <div class="header-brand u-pointer" onclick="window.location.href='app.html'">
       <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
-      <span class="header-title">Ítems</span>
+      <span class="header-title">Biblioteca</span>
     </div>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
@@ -21,22 +21,12 @@
   </header>
 
   <main class="app-main">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">Parámetros generales</span>
-      </div>
-      <div class="card-body">
-        <div class="form-group u-mb-0" style="max-width:200px;">
-          <label for="param-utilidad">Beneficio (%)</label>
-          <input type="text" id="param-utilidad" class="form-control" placeholder="Ej: 10">
-        </div>
-        <span class="form-hint">Se aplica sobre el costo directo (materiales+equipos+mano de obra) de todos los ítems. No incluye Gastos Generales — esos se prorratean por obra en Cómputo/Presupuesto.</span>
-      </div>
-    </div>
-
     <div class="list-toolbar">
       <span class="list-toolbar-title">Catálogo de ítems</span>
-      <button class="btn btn-primary btn-sm" id="btn-add-item">+ Agregar ítem</button>
+      <div class="flex gap-2">
+        <button class="btn btn-sm btn-outline" id="btn-rubros" title="Administrar rubros"><svg class="icon" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg> Rubros</button>
+        <button class="btn btn-primary btn-sm" id="btn-add-item">+ Agregar ítem</button>
+      </div>
     </div>
     <div class="form-row">
       <div class="form-group">
@@ -61,32 +51,26 @@
         <button class="modal-close" id="modal-item-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="item-codigo">Código</label>
-            <input type="text" id="item-codigo" class="form-control" placeholder="Ej: PR-01">
-          </div>
-          <div class="form-group u-mb-0">
-            <label for="item-unidad">Unidad *</label>
-            <input type="text" id="item-unidad" class="form-control" placeholder="Ej: m2, m3, gl">
-          </div>
-        </div>
         <div class="form-group">
           <label for="item-nombre">Nombre *</label>
           <input type="text" id="item-nombre" class="form-control" placeholder="Ej: Contrapiso H°A° e=10cm">
         </div>
         <div class="form-row">
           <div class="form-group">
+            <label for="item-unidad">Unidad *</label>
+            <input type="text" id="item-unidad" class="form-control" placeholder="Ej: m2, m3, gl">
+          </div>
+          <div class="form-group u-mb-0">
             <label for="item-rubro">Rubro</label>
             <select id="item-rubro" class="form-control">
               <option value="">— Sin rubro —</option>
             </select>
           </div>
-          <div class="form-group u-mb-0">
-            <label for="item-rendimiento">Rendimiento (uds./jornada) *</label>
-            <input type="text" id="item-rendimiento" class="form-control" placeholder="Ej: 0.2">
-            <span class="form-hint">Cuánto produce la cuadrilla/equipo en una jornada.</span>
-          </div>
+        </div>
+        <div class="form-group u-mb-0" style="max-width:260px;">
+          <label for="item-rendimiento">Rendimiento (uds./jornada) *</label>
+          <input type="text" id="item-rendimiento" class="form-control" placeholder="Ej: 0.2">
+          <span class="form-hint">Cuánto produce la cuadrilla/equipo en una jornada.</span>
         </div>
 
         <div id="modal-item-error" class="alert alert-error hidden"></div>
@@ -94,6 +78,26 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" id="modal-item-cancel">Cancelar</button>
         <button class="btn btn-primary" id="modal-item-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Administrar rubros -->
+  <div class="modal-overlay hidden" id="modal-rubros">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Rubros</span>
+        <button class="modal-close" id="modal-rubros-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row" style="align-items:flex-start;">
+          <div class="form-group u-mb-0" style="flex:1;">
+            <input type="text" id="rubro-nombre" class="form-control" placeholder="Nombre del rubro">
+          </div>
+          <button class="btn btn-primary btn-sm" id="btn-guardar-rubro" style="white-space:nowrap;">Guardar</button>
+        </div>
+        <div id="modal-rubro-error" class="alert alert-error hidden" style="margin-top:.5rem;"></div>
+        <div id="rubros-modal-list" class="list-container" style="margin-top:1rem;"></div>
       </div>
     </div>
   </div>
@@ -124,6 +128,6 @@
   <script src="js/calcCostos.js"></script>
   <script src="js/config.js"></script>
   <script src="js/firebase.js"></script>
-  <script src="js/items.js"></script>
+  <script src="js/biblioteca.js"></script>
 </body>
 </html>
