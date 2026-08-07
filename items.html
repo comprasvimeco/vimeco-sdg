@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Ítems</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='app.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <span class="header-title">Ítems</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline" onclick="window.location.href='app.html'">Volver</button>
+    </div>
+  </header>
+
+  <main class="app-main">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Parámetros generales</span>
+      </div>
+      <div class="card-body">
+        <div class="form-group u-mb-0" style="max-width:200px;">
+          <label for="param-utilidad">Beneficio (%)</label>
+          <input type="text" id="param-utilidad" class="form-control" placeholder="Ej: 10">
+        </div>
+        <span class="form-hint">Se aplica sobre el costo directo (materiales+equipos+mano de obra) de todos los ítems. No incluye Gastos Generales — esos se prorratean por obra en Cómputo/Presupuesto.</span>
+      </div>
+    </div>
+
+    <div class="list-toolbar">
+      <span class="list-toolbar-title">Catálogo de ítems</span>
+      <button class="btn btn-primary btn-sm" id="btn-add-item">+ Agregar ítem</button>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <input type="text" id="items-search" class="form-control" placeholder="Buscar ítem...">
+      </div>
+      <div class="form-group u-mb-0">
+        <select id="items-filtro-rubro" class="form-control">
+          <option value="">Todos los rubros</option>
+        </select>
+      </div>
+    </div>
+    <div id="items-list" class="list-container">
+      <div class="list-loading">Cargando ítems…</div>
+    </div>
+  </main>
+
+  <!-- Modal: Agregar / Editar datos del ítem -->
+  <div class="modal-overlay hidden" id="modal-item">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-item-title">Agregar ítem</span>
+        <button class="modal-close" id="modal-item-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="item-codigo">Código</label>
+            <input type="text" id="item-codigo" class="form-control" placeholder="Ej: PR-01">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="item-unidad">Unidad *</label>
+            <input type="text" id="item-unidad" class="form-control" placeholder="Ej: m2, m3, gl">
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="item-nombre">Nombre *</label>
+          <input type="text" id="item-nombre" class="form-control" placeholder="Ej: Contrapiso H°A° e=10cm">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="item-rubro">Rubro</label>
+            <select id="item-rubro" class="form-control">
+              <option value="">— Sin rubro —</option>
+            </select>
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="item-rendimiento">Rendimiento (uds./jornada) *</label>
+            <input type="text" id="item-rendimiento" class="form-control" placeholder="Ej: 0.2">
+            <span class="form-hint">Cuánto produce la cuadrilla/equipo en una jornada.</span>
+          </div>
+        </div>
+
+        <div id="modal-item-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-item-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-item-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/calcCostos.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/items.js"></script>
+</body>
+</html>
