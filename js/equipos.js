@@ -125,21 +125,6 @@ let editingKey = null;
 let params = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
 let jornadaHoras = 8; // se toma de /config/manoDeObra.json (misma jornada que las cuadrillas)
 
-// Costo de uso por día de un equipo: amortización + intereses + reparaciones +
-// combustible + lubricantes. Fórmula verificada contra la planilla de
-// referencia (CyP Taller Río Cuarto, hoja A.P.) hasta coincidir centavo a centavo.
-function calcCostoDiarioEquipo(e) {
-  const venta = window.dolarOficialVenta();
-  if (!e.costoUSD || !e.vidaUtil || !e.usoAnual || !venta) return null;
-  const costoActual = e.costoUSD * venta;
-  const amortizacionDia = costoActual * jornadaHoras / e.vidaUtil;
-  const interesesDia = (costoActual * params.tasaInteresPct / 100 / 2) / e.usoAnual * jornadaHoras;
-  const reparacionesDia = amortizacionDia * params.reparacionesPct / 100;
-  const combustibleDia = (params.combustibleLtsPorHp * (e.potencia || 0) * jornadaHoras) * params.precioCombustibleLitro;
-  const lubricantesDia = combustibleDia * params.lubricantesPct / 100;
-  return amortizacionDia + interesesDia + reparacionesDia + combustibleDia + lubricantesDia;
-}
-
 async function loadParams() {
   try {
     const data = await _fbGet('/config/equipos.json');
@@ -178,7 +163,7 @@ function metaLine(e) {
   if (e.usoAnual)  parts.push(`${e.usoAnual} hs/año`);
   if (e.vidaUtil)  parts.push(`vida útil ${e.vidaUtil} hs`);
   if (e.costoUSD)  parts.push(fmtUSDConEquivalente(e.costoUSD));
-  const costoDiario = calcCostoDiarioEquipo(e);
+  const costoDiario = window.calcCostoDiarioEquipo(e, params, jornadaHoras);
   if (costoDiario != null) parts.push(`Costo de uso ${fmtARS(costoDiario)}/día`);
   return parts.join(' · ') || 'Sin datos de costo cargados';
 }

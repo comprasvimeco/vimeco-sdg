@@ -18,12 +18,7 @@ let editingKey = null;
 let params = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 
 function calcCosto(basico, noRemunerativoMensual, extraPct) {
-  const basicoEfectivo = basico * (1 + (extraPct || 0) / 100);
-  const conAsistencia = basicoEfectivo * (1 + params.asistenciaPct / 100);
-  const conCargas = conAsistencia * (1 + params.cargasPct / 100);
-  const comidaPorHora = (noRemunerativoMensual || 0) / (params.diasMes * params.jornadaHoras);
-  const costoHorario = conCargas + comidaPorHora;
-  return { costoHorario, costoJornal: costoHorario * params.jornadaHoras, comidaPorHora };
+  return window.calcCostoManoDeObra({ basico, extraPct, noRemunerativoMensual }, params);
 }
 
 async function loadParams() {
