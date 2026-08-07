@@ -40,6 +40,10 @@
             <input type="text" id="param-dias" class="form-control" placeholder="Ej: 22">
           </div>
         </div>
+        <div class="form-group u-mb-0" style="max-width:200px;">
+          <label for="param-jornada">Jornada (hs)</label>
+          <input type="text" id="param-jornada" class="form-control" placeholder="Ej: 8">
+        </div>
         <span class="form-hint">Se aplican a todos los roles. Se guardan solos al salir del campo.</span>
       </div>
     </div>
@@ -58,7 +62,7 @@
 
   <!-- Modal: Agregar / Editar rol -->
   <div class="modal-overlay hidden" id="modal-rol">
-    <div class="modal modal--sm">
+    <div class="modal">
       <div class="modal-header">
         <span class="modal-title" id="modal-rol-title">Agregar rol</span>
         <button class="modal-close" id="modal-rol-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -73,16 +77,22 @@
             <label for="rol-basico">Básico ($/hs) *</label>
             <input type="text" id="rol-basico" class="form-control" placeholder="Ej: 7420">
           </div>
-          <div class="form-group u-mb-0">
-            <label for="rol-no-remunerativo">No remunerativo ($/mes)</label>
-            <input type="text" id="rol-no-remunerativo" class="form-control" placeholder="Ej: 148000">
-            <span class="form-hint">Cambia todos los meses — actualizalo cuando tengas el valor del mes.</span>
+          <div class="form-group">
+            <label for="rol-extra">Extra sobre básico (%)</label>
+            <input type="text" id="rol-extra" class="form-control" placeholder="0">
           </div>
         </div>
-        <div class="form-group u-mb-0">
-          <label for="rol-fecha">Fecha del valor</label>
-          <input type="date" id="rol-fecha" class="form-control">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rol-no-remunerativo">No remunerativo ($/mes)</label>
+            <input type="text" id="rol-no-remunerativo" class="form-control" placeholder="Ej: 148000">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="rol-fecha">Fecha del valor</label>
+            <input type="date" id="rol-fecha" class="form-control">
+          </div>
         </div>
+        <span class="form-hint">El no remunerativo cambia todos los meses — actualizalo cuando tengas el valor del mes.</span>
 
         <div class="alert alert-info" id="rol-preview" style="margin-top:1rem;"></div>
 

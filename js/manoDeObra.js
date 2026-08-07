@@ -15,14 +15,15 @@ const fmtFecha = iso => {
 
 let allRoles = [];
 let editingKey = null;
-let params = { asistenciaPct: 20, cargasPct: 100, diasMes: 22 };
+let params = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 
-function calcCosto(basico, noRemunerativoMensual) {
-  const conAsistencia = basico * (1 + params.asistenciaPct / 100);
+function calcCosto(basico, noRemunerativoMensual, extraPct) {
+  const basicoEfectivo = basico * (1 + (extraPct || 0) / 100);
+  const conAsistencia = basicoEfectivo * (1 + params.asistenciaPct / 100);
   const conCargas = conAsistencia * (1 + params.cargasPct / 100);
-  const comidaPorHora = (noRemunerativoMensual || 0) / (params.diasMes * 8);
+  const comidaPorHora = (noRemunerativoMensual || 0) / (params.diasMes * params.jornadaHoras);
   const costoHorario = conCargas + comidaPorHora;
-  return { costoHorario, costoJornal: costoHorario * 8, comidaPorHora };
+  return { costoHorario, costoJornal: costoHorario * params.jornadaHoras, comidaPorHora };
 }
 
 async function loadParams() {
@@ -33,14 +34,16 @@ async function loadParams() {
   $('param-asistencia').value = params.asistenciaPct;
   $('param-cargas').value = params.cargasPct;
   $('param-dias').value = params.diasMes;
+  $('param-jornada').value = params.jornadaHoras;
 }
 
 async function saveParams() {
   const asistenciaPct = parseFloat($('param-asistencia').value.replace(',', '.'));
-  const cargasPct     = parseFloat($('param-cargas').value.replace(',', '.'));
-  const diasMes        = parseFloat($('param-dias').value.replace(',', '.'));
-  if ([asistenciaPct, cargasPct, diasMes].some(n => isNaN(n) || n < 0)) return;
-  params = { asistenciaPct, cargasPct, diasMes };
+  const cargasPct      = parseFloat($('param-cargas').value.replace(',', '.'));
+  const diasMes         = parseFloat($('param-dias').value.replace(',', '.'));
+  const jornadaHoras    = parseFloat($('param-jornada').value.replace(',', '.'));
+  if ([asistenciaPct, cargasPct, diasMes, jornadaHoras].some(n => isNaN(n) || n < 0)) return;
+  params = { asistenciaPct, cargasPct, diasMes, jornadaHoras };
   try {
     await _fbPut('/config/manoDeObra.json', params);
     applyFilter();
@@ -58,11 +61,12 @@ function renderRoles(list) {
   container.innerHTML = list.map(r => {
     let meta;
     if (r.basico) {
-      const c = calcCosto(r.basico, r.noRemunerativoMensual);
+      const c = calcCosto(r.basico, r.noRemunerativoMensual, r.extraPct);
       meta = [
         `Básico ${fmtARSLocal(r.basico)}/hs`,
+        r.extraPct ? `+${r.extraPct}% extra` : '',
         `Costo horario ${fmtARSLocal(c.costoHorario)}/hs`,
-        `Jornal (8hs) ${fmtARSLocal(c.costoJornal)}`,
+        `Jornal (${params.jornadaHoras}hs) ${fmtARSLocal(c.costoJornal)}`,
         r.fecha ? fmtFecha(r.fecha) : ''
       ].filter(Boolean).join(' · ');
     } else {
@@ -115,15 +119,16 @@ function todayIso() {
 
 function updatePreview() {
   const basico = parseFloat($('rol-basico').value.replace(',', '.'));
+  const extra  = parseFloat($('rol-extra').value.replace(',', '.')) || 0;
   const noRem  = parseFloat($('rol-no-remunerativo').value.replace(',', '.')) || 0;
   const preview = $('rol-preview');
   if (isNaN(basico) || basico <= 0) {
     preview.textContent = 'Completá el básico para ver el costo calculado.';
     return;
   }
-  const c = calcCosto(basico, noRem);
+  const c = calcCosto(basico, noRem, extra);
   preview.textContent =
-    `Costo horario: ${fmtARSLocal(c.costoHorario)}/hs · Jornal (8hs): ${fmtARSLocal(c.costoJornal)}`;
+    `Costo horario: ${fmtARSLocal(c.costoHorario)}/hs · Jornal (${params.jornadaHoras}hs): ${fmtARSLocal(c.costoJornal)}`;
 }
 
 function openAddModal() {
@@ -132,6 +137,7 @@ function openAddModal() {
   $('modal-rol-error').classList.add('hidden');
   $('rol-nombre').value = '';
   $('rol-basico').value = '';
+  $('rol-extra').value = '0';
   $('rol-no-remunerativo').value = '';
   $('rol-fecha').value = todayIso();
   updatePreview();
@@ -145,6 +151,7 @@ function openEditModal(rol) {
   $('modal-rol-error').classList.add('hidden');
   $('rol-nombre').value = rol.nombre || '';
   $('rol-basico').value = rol.basico ?? '';
+  $('rol-extra').value = rol.extraPct ?? 0;
   $('rol-no-remunerativo').value = rol.noRemunerativoMensual ?? '';
   $('rol-fecha').value = rol.fecha || todayIso();
   updatePreview();
@@ -161,6 +168,11 @@ async function saveRolModal() {
   if (basicoInput.value.trim().startsWith('=')) { basicoInput.blur(); updatePreview(); }
   const basico = parseFloat(basicoInput.value.replace(',', '.'));
 
+  const extraInput = $('rol-extra');
+  if (extraInput.value.trim().startsWith('=')) { extraInput.blur(); updatePreview(); }
+  const extraStr = extraInput.value.trim();
+  const extraPct = extraStr ? parseFloat(extraStr.replace(',', '.')) : 0;
+
   const noRemInput = $('rol-no-remunerativo');
   if (noRemInput.value.trim().startsWith('=')) { noRemInput.blur(); updatePreview(); }
   const noRemStr = noRemInput.value.trim();
@@ -176,13 +188,18 @@ async function saveRolModal() {
     errEl.classList.remove('hidden');
     return;
   }
+  if (isNaN(extraPct) || extraPct < 0) {
+    errEl.textContent = 'El extra sobre básico no es válido.';
+    errEl.classList.remove('hidden');
+    return;
+  }
 
   const saveBtn = $('modal-rol-save');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Guardando…';
 
   try {
-    const data = { nombre, basico, noRemunerativoMensual, fecha };
+    const data = { nombre, basico, extraPct, noRemunerativoMensual, fecha };
     if (editingKey) {
       await _fbPatch(`/manoDeObra/${editingKey}.json`, data);
     } else {
@@ -218,15 +235,17 @@ async function deleteRol(rol) {
 
 document.addEventListener('DOMContentLoaded', () => {
   attachCalcInput($('rol-basico'));
+  attachCalcInput($('rol-extra'));
   attachCalcInput($('rol-no-remunerativo'));
-  $('rol-basico').addEventListener('input', updatePreview);
-  $('rol-no-remunerativo').addEventListener('input', updatePreview);
-  $('rol-basico').addEventListener('blur', updatePreview);
-  $('rol-no-remunerativo').addEventListener('blur', updatePreview);
+  ['rol-basico', 'rol-extra', 'rol-no-remunerativo'].forEach(id => {
+    $(id).addEventListener('input', updatePreview);
+    $(id).addEventListener('blur', updatePreview);
+  });
 
   $('param-asistencia').addEventListener('blur', saveParams);
   $('param-cargas').addEventListener('blur', saveParams);
   $('param-dias').addEventListener('blur', saveParams);
+  $('param-jornada').addEventListener('blur', saveParams);
 
   $('btn-add-rol').addEventListener('click', openAddModal);
   $('modal-rol-close').addEventListener('click',  () => $('modal-rol').classList.add('hidden'));
