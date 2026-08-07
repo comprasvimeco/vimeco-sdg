@@ -21,6 +21,37 @@
   </header>
 
   <main class="app-main">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Parámetros generales</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="param-interes">Tasa de interés anual (%)</label>
+            <input type="text" id="param-interes" class="form-control" placeholder="Ej: 10">
+          </div>
+          <div class="form-group">
+            <label for="param-reparaciones">Reparaciones (% de amortización)</label>
+            <input type="text" id="param-reparaciones" class="form-control" placeholder="Ej: 75">
+          </div>
+          <div class="form-group">
+            <label for="param-lubricantes">Lubricantes (% de combustible)</label>
+            <input type="text" id="param-lubricantes" class="form-control" placeholder="Ej: 50">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="param-consumo">Consumo (lts/HP.h)</label>
+            <input type="text" id="param-consumo" class="form-control" placeholder="Ej: 0.100">
+          </div>
+        </div>
+        <div class="form-group u-mb-0" style="max-width:260px;">
+          <label for="param-combustible">Precio combustible ($/lt)</label>
+          <input type="text" id="param-combustible" class="form-control" placeholder="Ej: 1995">
+        </div>
+        <span class="form-hint">Se aplican a todos los equipos. Se guardan solos al salir del campo. La jornada (hs/día) se toma de Mano de Obra.</span>
+      </div>
+    </div>
+
     <div class="list-toolbar">
       <span class="list-toolbar-title">Costo de equipos</span>
       <div class="flex gap-2">
