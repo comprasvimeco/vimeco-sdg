@@ -226,7 +226,7 @@ function renderLineasSeccion(tipo) {
     createSearchableSelect(row.querySelector('.linea-select-container'), {
       options,
       value: linea.refKey,
-      placeholder: `Buscar ${tipo === 'manoDeObra' ? 'rol' : tipo}…`,
+      placeholder: `Buscar ${tipo}…`,
       onChange: v => updateLinea(lineaKey, { refKey: v }),
       onCreateNew: tipo === 'material' ? texto => openQuickMaterialModal(texto, lineaKey) : null,
     });
@@ -245,10 +245,53 @@ function renderLineasSeccion(tipo) {
   });
 }
 
+// Mano de Obra no usa buscador: se muestran fijas TODAS las categorías del
+// catálogo (roles), cada una con su cantidad para completar — no hace falta
+// elegir "cuál" agregar porque ya están todas. Vaciar la cantidad borra esa
+// línea (si existía); no afecta el costo de todas formas si queda vacía.
+function renderManoDeObraSeccion() {
+  const container = $('lineas-manoDeObra');
+  let html = `<p class="form-hint" style="margin-bottom:.75rem;">${HINTS.manoDeObra}</p>`;
+  if (!roles.length) {
+    html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo de Mano de Obra cargado todavía.</p>';
+  } else {
+    html += roles.map(rol => {
+      const entry = Object.entries(lineas).find(([, l]) => l.tipo === 'manoDeObra' && l.refKey === rol.key);
+      const cantidad = entry ? entry[1].cantidad : null;
+      return `
+        <div class="ap-linea-mo" data-rol="${escHtml(rol.key)}">
+          <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}">
+        </div>`;
+    }).join('');
+  }
+  container.innerHTML = html;
+
+  container.querySelectorAll('.ap-linea-mo').forEach(row => {
+    const rolKey = row.dataset.rol;
+    const cantidadInput = row.querySelector('.linea-cantidad');
+    const entry = Object.entries(lineas).find(([, l]) => l.tipo === 'manoDeObra' && l.refKey === rolKey);
+    const linea = entry ? entry[1] : null;
+
+    attachCalcInput(cantidadInput, linea ? linea.cantidadFormula : null);
+    cantidadInput.addEventListener('blur', () => {
+      if (cantidadInput.value.trim() === '') {
+        if (entry) deleteLinea(entry[0]);
+        return;
+      }
+      const n = parseFloat(cantidadInput.value.replace(',', '.'));
+      if (isNaN(n)) { cantidadInput.value = linea && linea.cantidad != null ? linea.cantidad : ''; return; }
+      const lineaKey = entry ? entry[0] : `mo_${rolKey}`;
+      updateLinea(lineaKey, { tipo: 'manoDeObra', refKey: rolKey, cantidad: n, cantidadFormula: getCalcFormula(cantidadInput) });
+    });
+    cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
+  });
+}
+
 function renderTodasLasLineas() {
   renderLineasSeccion('material');
   renderLineasSeccion('equipo');
-  renderLineasSeccion('manoDeObra');
+  renderManoDeObraSeccion();
   renderResumenCosto();
 }
 
@@ -468,7 +511,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('btn-add-linea-material').addEventListener('click', () => addLinea('material'));
   $('btn-add-linea-equipo').addEventListener('click', () => addLinea('equipo'));
-  $('btn-add-linea-manoDeObra').addEventListener('click', () => addLinea('manoDeObra'));
 
   $('modal-material-quick-close').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
   $('modal-material-quick-cancel').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
