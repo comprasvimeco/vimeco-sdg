@@ -167,6 +167,36 @@ completa copiada, el costo se recalculó en vivo y coincidió entre
 `item.html` y `computo.js`/`carga-fija.js`, y la Teórica quedó intacta.
 Datos de prueba limpiados de la RTDB al terminar.
 
+### 3b. Cómputo totalmente libre + "Análisis de Precio" como pantalla propia — ✅ Hecho (2026-08-10)
+
+Ampliación pedida después de usar el punto 2/3 en la práctica: una línea de
+Cómputo ya no necesita apuntar a un ítem de Biblioteca desde que se crea.
+Pasa a tener **Rubro + Ítem + Unidad de texto libre** (sin buscador, sin
+validar contra la Biblioteca) + Cantidad, con **costo $0 de base**. El
+mecanismo de rubro-por-grupo del punto 2 (`computoRubros`) quedó obsoleto y
+se sacó del código — el agrupamiento visual con subtotal ahora es por el
+campo `rubro` de cada línea, editable ahí mismo.
+
+El botón "Ver/editar rendimientos" pasa a llamarse **"Análisis de Precio"**
+y navega en la **misma pestaña** (antes abría en una nueva): si la línea ya
+tiene ítem vinculado, va al flujo del punto 3 de siempre
+(`item.html?key=...&obra=...`); si no, a un modo nuevo
+(`item.html?linea=...&obra=...`, sin `key`) que muestra un buscador de
+ítems existentes en Biblioteca + alta rápida (con **rubro obligatorio**,
+a diferencia del alta desde Biblioteca donde es opcional) — al vincular o
+crear, la línea de Cómputo queda con `itemKey` y cae en el AP normal de esa
+obra. `item.html` también suma costo por línea (costo unitario del
+material/equipo/rol + costo total) visible en las pestañas de obra —
+Teórico sigue sin mostrar ningún costo. Al crear un ítem (desde Biblioteca
+o desde el AP) se abre directo su Rendimientos en vez de quedarse en la
+lista.
+
+**Migración automática:** las líneas viejas (con `itemKey` obligatorio,
+`nombreOverride`, rubro heredado del ítem) se completan solas la primera
+vez que se cargan (`rubro`/`nombre`/`unidad` derivados del ítem vinculado +
+`computoRubros` viejo) y quedan fijas — verificado con las 5 líneas reales
+que ya tenía la obra "Prueba", sin perder nada.
+
 ## 4. Cotizaciones (entidad + pantalla)
 
 Confirmado con el dueño del proyecto: Cotizaciones es una **entidad real**

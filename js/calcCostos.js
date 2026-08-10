@@ -46,32 +46,39 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     if (!mat || !mat.precioUSD || !venta) return null;
     return mat.precioUSD * venta;
   }
-  function costoLinea(linea) {
+  // costoUnitario acá es el precio de LA UNIDAD del material/equipo/rol
+  // (ej. $/kg, costo diario del equipo, costo del jornal) — no el costo
+  // unitario del ítem (eso es el agregado, más abajo). costoTotal es
+  // cantidad × ese precio, sin dividir por rendimiento — para mostrar en
+  // la fila de cada línea, no para el agregado.
+  function costoLineaDetalle(linea) {
     const cat = catalogoFor(linea.tipo);
     const entidad = cat.find(c => c.key === linea.refKey);
     if (!entidad || linea.cantidad == null || isNaN(linea.cantidad)) return null;
+    let costoUnitario;
     if (linea.tipo === 'material') {
-      const precio = precioUnitarioMaterial(entidad);
-      return precio == null ? null : linea.cantidad * precio;
+      costoUnitario = precioUnitarioMaterial(entidad);
+    } else if (linea.tipo === 'equipo') {
+      costoUnitario = window.calcCostoDiarioEquipo(entidad, paramsEquipos, paramsMO.jornadaHoras);
+    } else {
+      costoUnitario = window.calcCostoManoDeObra(entidad, paramsMO).costoJornal;
     }
-    if (linea.tipo === 'equipo') {
-      const costoDiario = window.calcCostoDiarioEquipo(entidad, paramsEquipos, paramsMO.jornadaHoras);
-      return costoDiario == null ? null : linea.cantidad * costoDiario;
-    }
-    const c = window.calcCostoManoDeObra(entidad, paramsMO);
-    return linea.cantidad * c.costoJornal;
+    if (costoUnitario == null) return null;
+    return { costoUnitario, costoTotal: linea.cantidad * costoUnitario };
   }
 
+  const rendimiento = item.rendimiento || 1;
   let costoMateriales = 0;
   let costoDiarioEquiposMO = 0;
-  Object.values(lineasItem || {}).forEach(l => {
-    const c = costoLinea(l);
-    if (c == null) return;
-    if (l.tipo === 'material') costoMateriales += c;
-    else costoDiarioEquiposMO += c;
+  const detallePorLinea = {};   // { lineaKey: { costoUnitario, costoTotal } }
+  Object.entries(lineasItem || {}).forEach(([lineaKey, l]) => {
+    const d = costoLineaDetalle(l);
+    if (!d) return;
+    detallePorLinea[lineaKey] = d;
+    if (l.tipo === 'material') costoMateriales += d.costoTotal;
+    else costoDiarioEquiposMO += d.costoTotal;
   });
-  const rendimiento = item.rendimiento || 1;
   const costoEquiposMOPorUnidad = costoDiarioEquiposMO / rendimiento;
   const costoUnitario = costoMateriales + costoEquiposMOPorUnidad;
-  return { costoMateriales, costoEquiposMOPorUnidad, costoUnitario };
+  return { costoMateriales, costoEquiposMOPorUnidad, costoUnitario, detallePorLinea };
 };

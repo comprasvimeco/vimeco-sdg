@@ -14,6 +14,8 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(window.location.search);
 const itemKey = params.get('key');
 const obraParam = params.get('obra');
+const lineaParam = params.get('linea');
+const modoVincular = !itemKey && !!lineaParam && !!obraParam;
 
 let item = null;
 let lineasTeorico = {};
@@ -27,6 +29,7 @@ let versionExisteEnServidor = true;
 let lineas = {};       // { lineaKey: { tipo, refKey, cantidad } } — de la versión activa
 let rendimientoActivo = null;
 let rendimientoFormulaActiva = null;
+let detallePorLineaActivo = {};   // { lineaKey: { costoUnitario, costoTotal } } — sólo en pestañas de obra
 
 let materiales = [];
 let equipos = [];
@@ -52,6 +55,97 @@ function catalogoFor(tipo) {
   if (tipo === 'material') return materiales;
   if (tipo === 'equipo') return equipos;
   return roles;
+}
+
+// -- Modo "vincular ítem" (línea de Cómputo sin itemKey todavía) ----------
+
+function populateNiRubroSelect() {
+  const opts = rubros.map(r => `<option value="${escHtml(r.key)}">${escHtml(r.nombre)}</option>`).join('');
+  $('ni-rubro').innerHTML = '<option value="">— Elegir rubro —</option>' + opts;
+}
+
+async function vincularItem(key) {
+  try {
+    const cambios = { itemKey: key };
+    const itemVinculado = items.find(i => i.key === key);
+    const lineaActual = await _fbGet(`/obras/${obraParam}/computo/${lineaParam}.json`);
+    if (itemVinculado && (!lineaActual || !lineaActual.unidad)) cambios.unidad = itemVinculado.unidad;
+    await _fbPatch(`/obras/${obraParam}/computo/${lineaParam}.json`, cambios);
+    window.location.href = `item.html?key=${encodeURIComponent(key)}&obra=${encodeURIComponent(obraParam)}`;
+  } catch (_) {
+    showToast('Error al vincular el ítem. Intentá de nuevo.', 'error');
+  }
+}
+
+let niPendiente = false;
+
+function openNuevoItemModal(texto) {
+  $('ni-nombre').value = texto || '';
+  $('ni-unidad').value = '';
+  $('ni-rubro').value = '';
+  $('ni-rendimiento').value = '';
+  setCalcFormula($('ni-rendimiento'), null);
+  $('modal-item-nuevo-error').classList.add('hidden');
+  $('modal-item-nuevo').classList.remove('hidden');
+  setTimeout(() => $('ni-nombre').focus(), 50);
+}
+
+async function saveNuevoItem() {
+  const nombre = $('ni-nombre').value.trim();
+  const unidad = $('ni-unidad').value.trim();
+  const rubroKey = $('ni-rubro').value;
+  const errEl = $('modal-item-nuevo-error');
+
+  const rendInput = $('ni-rendimiento');
+  if (rendInput.value.trim().startsWith('=')) rendInput.blur();
+  const rendimiento = parseFloat(rendInput.value.replace(',', '.'));
+
+  if (!nombre || !unidad) {
+    errEl.textContent = 'Nombre y unidad son requeridos.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (!rubroKey) {
+    errEl.textContent = 'El rubro es requerido.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (isNaN(rendimiento) || rendimiento <= 0) {
+    errEl.textContent = 'El rendimiento tiene que ser un número mayor a 0.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const key = nombre.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+    + '_' + Date.now();
+  const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput), creadoEn: Date.now() };
+
+  if (niPendiente) return;
+  niPendiente = true;
+  try {
+    await _fbPut(`/items/${key}.json`, data);
+    items.push({ key, ...data });
+    $('modal-item-nuevo').classList.add('hidden');
+    await vincularItem(key);
+  } catch (_) {
+    errEl.textContent = 'Error al guardar. Intentá de nuevo.';
+    errEl.classList.remove('hidden');
+    niPendiente = false;
+  }
+}
+
+function renderVincularUI() {
+  $('header-item-nombre').textContent = 'Análisis de Precio';
+  const options = items.map(it => ({ value: it.key, label: it.nombre, sublabel: rubrosMap[it.rubroKey] || 'Sin rubro' }));
+  createSearchableSelect($('link-item-select'), {
+    options,
+    value: null,
+    placeholder: 'Buscar ítem…',
+    onChange: v => vincularItem(v),
+    onCreateNew: texto => openNuevoItemModal(texto),
+  });
 }
 
 function renderDatos() {
@@ -143,12 +237,21 @@ function renderVersionRendimiento() {
   });
 }
 
-function renderResumenCosto() {
-  const card = $('resumen-card');
-  if (activeVersion === 'teorico') { card.classList.add('hidden'); return; }
-  card.classList.remove('hidden');
+// Calcula (una sola vez por render) el costo agregado y el detalle por
+// línea de la versión activa — lo usan tanto el resumen como cada sección
+// de líneas, para no repetir el cálculo. En Teórico no calcula nada.
+function calcularDetalleActivo() {
+  if (activeVersion === 'teorico') { detallePorLineaActivo = {}; return null; }
   const catalogos = { materiales, equipos, roles };
   const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo }, lineas, catalogos, paramsEquipos, paramsMO);
+  detallePorLineaActivo = r.detallePorLinea;
+  return r;
+}
+
+function renderResumenCosto(r) {
+  const card = $('resumen-card');
+  if (activeVersion === 'teorico' || !r) { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
   $('resumen').innerHTML = `
     <div class="ap-resumen-row"><span>Costo Materiales</span><span>${fmtARS(r.costoMateriales)}</span></div>
     <div class="ap-resumen-row"><span>Costo Equipos + Mano de Obra (por unidad)</span><span>${fmtARS(r.costoEquiposMOPorUnidad)}</span></div>
@@ -192,6 +295,7 @@ function renderLineasSeccion(tipo) {
   const container = $(`lineas-${tipo}`);
   const cat = catalogoFor(tipo);
   const entradas = Object.entries(lineas).filter(([, l]) => l.tipo === tipo);
+  const conCosto = activeVersion !== 'teorico';
 
   let html = `<p class="form-hint" style="margin-bottom:.75rem;">${HINTS[tipo]}</p>`;
   if (!entradas.length) {
@@ -199,19 +303,24 @@ function renderLineasSeccion(tipo) {
   } else if (!cat.length && tipo !== 'material') {
     html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo cargado para este tipo.</p>';
   } else {
-    html += entradas.map(([lineaKey]) => `
-        <div class="ap-linea" data-key="${escHtml(lineaKey)}">
+    if (conCosto) html += `<div class="ap-linea ap-linea-header con-costo"><span></span><span>Cantidad</span><span>Costo unitario</span><span>Costo total</span><span></span></div>`;
+    html += entradas.map(([lineaKey]) => {
+      const d = detallePorLineaActivo[lineaKey];
+      return `
+        <div class="ap-linea${conCosto ? ' con-costo' : ''}" data-key="${escHtml(lineaKey)}">
           <div class="linea-select-wrap">
             <div class="linea-select-container"></div>
             ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
+          ${conCosto ? `<span class="ap-linea-costo-unit">${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total">${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
-        </div>`).join('');
+        </div>`;
+    }).join('');
   }
   container.innerHTML = html;
 
-  container.querySelectorAll('.ap-linea').forEach(row => {
+  container.querySelectorAll('.ap-linea[data-key]').forEach(row => {
     const lineaKey = row.dataset.key;
     const linea = lineas[lineaKey];
     const cantidadInput = row.querySelector('.linea-cantidad');
@@ -251,23 +360,27 @@ function renderLineasSeccion(tipo) {
 // línea (si existía); no afecta el costo de todas formas si queda vacía.
 function renderManoDeObraSeccion() {
   const container = $('lineas-manoDeObra');
+  const conCosto = activeVersion !== 'teorico';
   let html = `<p class="form-hint" style="margin-bottom:.75rem;">${HINTS.manoDeObra}</p>`;
   if (!roles.length) {
     html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo de Mano de Obra cargado todavía.</p>';
   } else {
+    if (conCosto) html += `<div class="ap-linea-mo ap-linea-header con-costo"><span></span><span>Cantidad</span><span>Costo unitario</span><span>Costo total</span></div>`;
     html += roles.map(rol => {
       const entry = Object.entries(lineas).find(([, l]) => l.tipo === 'manoDeObra' && l.refKey === rol.key);
       const cantidad = entry ? entry[1].cantidad : null;
+      const d = entry ? detallePorLineaActivo[entry[0]] : null;
       return `
-        <div class="ap-linea-mo" data-rol="${escHtml(rol.key)}">
+        <div class="ap-linea-mo${conCosto ? ' con-costo' : ''}" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}">
+          ${conCosto ? `<span class="ap-linea-costo-unit">${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total">${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
         </div>`;
     }).join('');
   }
   container.innerHTML = html;
 
-  container.querySelectorAll('.ap-linea-mo').forEach(row => {
+  container.querySelectorAll('.ap-linea-mo[data-rol]').forEach(row => {
     const rolKey = row.dataset.rol;
     const cantidadInput = row.querySelector('.linea-cantidad');
     const entry = Object.entries(lineas).find(([, l]) => l.tipo === 'manoDeObra' && l.refKey === rolKey);
@@ -289,10 +402,11 @@ function renderManoDeObraSeccion() {
 }
 
 function renderTodasLasLineas() {
+  const r = calcularDetalleActivo();
   renderLineasSeccion('material');
   renderLineasSeccion('equipo');
   renderManoDeObraSeccion();
-  renderResumenCosto();
+  renderResumenCosto(r);
 }
 
 async function persistLineas() {
@@ -455,7 +569,27 @@ function populateRubroSelect() {
   $('item-rubro').innerHTML = '<option value="">— Sin rubro —</option>' + opts;
 }
 
+async function loadVincular() {
+  const [itemsData, rubrosData] = await Promise.all([
+    _fbGet('/items.json'),
+    _fbGet('/rubros.json'),
+  ]);
+  items = Object.entries(itemsData || {}).map(([key, it]) => ({ key, ...it })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  rubrosMap = {};
+  rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
+
+  populateNiRubroSelect();
+  $('link-item-card').classList.remove('hidden');
+  $('normal-content').classList.add('hidden');
+  renderVincularUI();
+
+  $('main-loading').style.display = 'none';
+  $('main-content').style.display = '';
+}
+
 async function loadAll() {
+  if (modoVincular) { await loadVincular(); return; }
   if (!itemKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
@@ -502,6 +636,16 @@ async function loadAll() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Volver: si venimos de un Cómputo (?obra=), vuelve ahí; si no, a Biblioteca.
+  const hrefVolver = obraParam ? `computo.html?obra=${encodeURIComponent(obraParam)}` : 'biblioteca.html';
+  $('btn-header-volver').addEventListener('click', () => window.location.href = hrefVolver);
+  $('btn-volver').addEventListener('click', () => window.location.href = hrefVolver);
+
+  $('modal-item-nuevo-close').addEventListener('click', () => $('modal-item-nuevo').classList.add('hidden'));
+  $('modal-item-nuevo-cancel').addEventListener('click', () => $('modal-item-nuevo').classList.add('hidden'));
+  $('modal-item-nuevo-save').addEventListener('click', saveNuevoItem);
+  attachCalcInput($('ni-rendimiento'));
+
   attachCalcInput($('item-rendimiento'));
 
   $('btn-editar-datos').addEventListener('click', openEditDatosModal);

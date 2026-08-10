@@ -9,8 +9,12 @@
   <meta name="theme-color" content="#1a3a5c">
   <style>
     .ap-linea { display: grid; grid-template-columns: minmax(280px, 2fr) 110px 40px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
+    .ap-linea.con-costo { grid-template-columns: minmax(220px, 2fr) 90px 100px 110px 40px; }
     .ap-linea:last-child { border-bottom: none; }
     .ap-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
+    .ap-linea-costo-unit, .ap-linea-costo-total { text-align: right; font-size: .85rem; color: var(--gray-600); white-space: nowrap; }
+    .ap-linea-costo-total { font-weight: 600; color: var(--gray-700); }
+    .ap-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .3rem; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
@@ -20,6 +24,7 @@
     .linea-unidad-badge { font-size: .75rem; color: var(--gray-500); white-space: nowrap; flex-shrink: 0; }
 
     .ap-linea-mo { display: grid; grid-template-columns: 1fr 110px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
+    .ap-linea-mo.con-costo { grid-template-columns: 1fr 90px 100px 110px; }
     .ap-linea-mo:last-child { border-bottom: none; }
     .ap-linea-mo-nombre { font-size: .9rem; color: var(--gray-700); }
 
@@ -37,48 +42,59 @@
 </head>
 <body>
   <header class="app-header">
-    <div class="header-brand u-pointer" onclick="window.location.href='biblioteca.html'">
+    <div class="header-brand u-pointer" id="btn-header-volver">
       <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
       <span class="header-title" id="header-item-nombre">Rendimientos</span>
     </div>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
-      <button class="btn btn-sm btn-outline" onclick="window.location.href='biblioteca.html'">Volver</button>
+      <button class="btn btn-sm btn-outline" id="btn-volver">Volver</button>
     </div>
   </header>
 
   <main class="app-main" id="main-content" style="display:none;">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title" id="item-titulo-card">Ítem</span>
-        <button class="btn btn-sm btn-outline" id="btn-editar-datos">Editar datos</button>
-      </div>
+    <!-- Modo "vincular ítem": línea de Cómputo sin itemKey todavía (?linea=&obra=, sin ?key) -->
+    <div class="card hidden" id="link-item-card">
+      <div class="card-header"><span class="card-title">Análisis de Precio — elegir ítem</span></div>
       <div class="card-body">
-        <div id="item-datos-resumen"></div>
-        <div id="version-tabs" class="version-tabs"></div>
-        <div id="version-aviso" class="form-hint hidden" style="margin-top:.5rem;"></div>
-        <div id="version-rendimiento" class="version-rendimiento hidden"></div>
+        <p class="form-hint" style="margin-bottom:.75rem;">Buscá un ítem ya cargado en la Biblioteca para vincular a esta línea, o escribí uno nuevo para crearlo.</p>
+        <div class="linea-select-container" id="link-item-select"></div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><button class="btn btn-sm btn-primary" id="btn-add-linea-material">+ Agregar</button></span></div>
-      <div class="card-body" id="lineas-material"></div>
-    </div>
+    <div id="normal-content">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title" id="item-titulo-card">Ítem</span>
+          <button class="btn btn-sm btn-outline" id="btn-editar-datos">Editar datos</button>
+        </div>
+        <div class="card-body">
+          <div id="item-datos-resumen"></div>
+          <div id="version-tabs" class="version-tabs"></div>
+          <div id="version-aviso" class="form-hint hidden" style="margin-top:.5rem;"></div>
+          <div id="version-rendimiento" class="version-rendimiento hidden"></div>
+        </div>
+      </div>
 
-    <div class="card">
-      <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Equipos</span><button class="btn btn-sm btn-primary" id="btn-add-linea-equipo">+ Agregar</button></span></div>
-      <div class="card-body" id="lineas-equipo"></div>
-    </div>
+      <div class="card">
+        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><button class="btn btn-sm btn-primary" id="btn-add-linea-material">+ Agregar</button></span></div>
+        <div class="card-body" id="lineas-material"></div>
+      </div>
 
-    <div class="card">
-      <div class="card-header"><span class="card-title">Mano de Obra</span></div>
-      <div class="card-body" id="lineas-manoDeObra"></div>
-    </div>
+      <div class="card">
+        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Equipos</span><button class="btn btn-sm btn-primary" id="btn-add-linea-equipo">+ Agregar</button></span></div>
+        <div class="card-body" id="lineas-equipo"></div>
+      </div>
 
-    <div class="card hidden" id="resumen-card">
-      <div class="card-header"><span class="card-title">Resumen de costo en esta obra</span></div>
-      <div class="card-body" id="resumen"></div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Mano de Obra</span></div>
+        <div class="card-body" id="lineas-manoDeObra"></div>
+      </div>
+
+      <div class="card hidden" id="resumen-card">
+        <div class="card-header"><span class="card-title">Resumen de costo en esta obra</span></div>
+        <div class="card-body" id="resumen"></div>
+      </div>
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando ítem…</div></div>
@@ -118,6 +134,44 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" id="modal-item-cancel">Cancelar</button>
         <button class="btn btn-primary" id="modal-item-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Alta de ítem nuevo (desde el buscador del modo "vincular ítem") -->
+  <div class="modal-overlay hidden" id="modal-item-nuevo">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Nuevo ítem</span>
+        <button class="modal-close" id="modal-item-nuevo-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="ni-nombre">Nombre *</label>
+          <input type="text" id="ni-nombre" class="form-control" placeholder="Ej: Contrapiso H°A° e=10cm">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="ni-unidad">Unidad *</label>
+            <input type="text" id="ni-unidad" class="form-control" placeholder="Ej: m2, m3, gl">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="ni-rubro">Rubro *</label>
+            <select id="ni-rubro" class="form-control">
+              <option value="">— Elegir rubro —</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group u-mb-0" style="max-width:260px;">
+          <label for="ni-rendimiento">Rendimiento (uds./jornada) *</label>
+          <input type="text" id="ni-rendimiento" class="form-control" placeholder="Ej: 0.2">
+          <span class="form-hint">La receta se carga después, en la pantalla que se abre al guardar.</span>
+        </div>
+        <div id="modal-item-nuevo-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-item-nuevo-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-item-nuevo-save">Guardar</button>
       </div>
     </div>
   </div>

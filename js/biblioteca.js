@@ -225,16 +225,18 @@ async function saveItemModal() {
     const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
     if (editingKey) {
       await _fbPatch(`/items/${editingKey}.json`, data);
+      $('modal-item').classList.add('hidden');
+      showToast('Ítem actualizado.');
+      await loadItems();
     } else {
       const key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
       await _fbPut(`/items/${key}.json`, { ...data, creadoEn: Date.now() });
+      // Ítem nuevo: se abre directo su Rendimientos en vez de quedarse en la lista.
+      window.location.href = `item.html?key=${encodeURIComponent(key)}`;
     }
-    $('modal-item').classList.add('hidden');
-    showToast(editingKey ? 'Ítem actualizado.' : 'Ítem creado.');
-    await loadItems();
   } catch (_) {
     errEl.textContent = 'Error al guardar. Intentá de nuevo.';
     errEl.classList.remove('hidden');
