@@ -260,6 +260,7 @@ async function loadAll() {
   populateRubroSelect();
   renderDatos();
   renderTodasLasLineas();
+  if (Object.keys(lineas).length) await persistLineasYCache();
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
