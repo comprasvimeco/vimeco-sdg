@@ -1,8 +1,9 @@
 /* VIMECO S.A. — Sistema de Gestión — Biblioteca (catálogo de ítems + rubros)
-   La receta de cada ítem (líneas de materiales/equipos/mano de obra) se
-   edita en item.html?key=... — acá sólo viven los datos básicos y el
-   rendimiento. Sin costo: el costo se arma en vivo en el Cómputo de cada
-   obra, a partir de esta receta + precios generales. */
+   Los Rendimientos de cada ítem (receta de materiales/equipos/mano de obra
+   + rendimiento) se editan en item.html?key=... — acá sólo viven los datos
+   básicos y el rendimiento teórico. Un ítem puede tener, además de la
+   versión Teórica, una versión de Rendimientos propia por cada obra donde
+   se usó (con su propio costo) — se editan desde item.html también. */
 
 const $ = id => document.getElementById(id);
 
@@ -34,7 +35,7 @@ function renderItems(list) {
       </div>
       <div class="item-card-actions">
         <button class="btn btn-sm btn-outline btn-edit-item">Datos</button>
-        <button class="btn btn-sm btn-primary btn-open-item">Receta</button>
+        <button class="btn btn-sm btn-primary btn-open-item">Rendimientos</button>
         <button class="btn btn-sm btn-danger btn-del-item">Eliminar</button>
       </div>
     </div>`).join('');

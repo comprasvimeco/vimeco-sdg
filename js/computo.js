@@ -1,11 +1,12 @@
 /* VIMECO S.A. — Sistema de Gestión — Cómputo de obra
    Cantidad de cada ítem de la Biblioteca que compone la obra, agrupado por
-   rubro (con subtotales). El costo unitario se calcula en vivo a partir de
-   la receta del ítem (líneas + rendimiento) y los precios generales de
-   materiales/equipos/mano de obra (ver js/calcCostos.js,
-   calcCostoUnitarioItem) — la Biblioteca no cachea ningún costo. Es costo
-   total de obra sin carga (sin %GG, beneficio, financiero ni IVA) — eso se
-   aplica en el Presupuesto, etapa siguiente.
+   rubro (con subtotales). El costo unitario se calcula en vivo: si el ítem
+   tiene una versión de Rendimientos propia para ESTA obra
+   (/items/{key}/versionesObra/{obraKey}, ver item.js), se usa esa receta +
+   rendimiento; si no, se usa la Teórica — mismo criterio en ambos casos
+   (calcCostoUnitarioItem, js/calcCostos.js). La Biblioteca no cachea ningún
+   costo. Es costo total de obra sin carga (sin %GG, beneficio, financiero
+   ni IVA) — eso se aplica en el Presupuesto, etapa siguiente.
 
    El rubro de cada línea sigue siendo el rubroKey del ítem (no se guarda
    por línea) — lo que se puede personalizar por obra es sólo el NOMBRE que
@@ -32,11 +33,18 @@ let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8
 let editingRubroKey = null;
 let pendingLineaKey = null;
 
+function versionDe(it) {
+  const propia = it.versionesObra && it.versionesObra[obraKey];
+  return propia || it;
+}
+
 function costoUnitarioDe(itemKey) {
   const it = items.find(i => i.key === itemKey);
-  if (!it || !it.lineas || !Object.keys(it.lineas).length) return null;
+  if (!it) return null;
+  const version = versionDe(it);
+  if (!version.lineas || !Object.keys(version.lineas).length) return null;
   const catalogos = { materiales, equipos, roles };
-  const r = window.calcCostoUnitarioItem(it, it.lineas, catalogos, paramsEquipos, paramsMO);
+  const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO);
   return r.costoUnitario;
 }
 
@@ -109,6 +117,9 @@ function renderLineaRow(lineaKey, linea) {
   const it = items.find(i => i.key === linea.itemKey);
   const costo = costoUnitarioDe(linea.itemKey);
   const total = totalLinea(linea);
+  const linkRendimientos = it
+    ? `<a class="computo-linea-rend" href="item.html?key=${encodeURIComponent(it.key)}&obra=${encodeURIComponent(obraKey)}" target="_blank" title="Ver/editar rendimientos de esta obra">${icSvg('layers')}</a>`
+    : '';
   return `
     <div class="computo-linea" data-key="${escHtml(lineaKey)}">
       <div class="linea-select-container"></div>
@@ -117,7 +128,7 @@ function renderLineaRow(lineaKey, linea) {
       <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
       <span class="computo-linea-costo">${costo != null ? fmtARS(costo) : '—'}</span>
       <span class="computo-linea-total">${total != null ? fmtARS(total) : '—'}</span>
-      <button class="computo-linea-del" title="Eliminar línea">${icSvg('x')}</button>
+      <span class="computo-linea-acciones">${linkRendimientos}<button class="computo-linea-del" title="Eliminar línea">${icSvg('x')}</button></span>
     </div>`;
 }
 

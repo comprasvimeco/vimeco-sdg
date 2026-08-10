@@ -1,21 +1,40 @@
-/* VIMECO S.A. — Sistema de Gestión — Ítem: Receta
-   Editor de la receta del ítem (líneas de materiales/equipos/mano de obra con
-   cantidades) y su rendimiento. Sin precio: el costo se arma en vivo en el
-   Cómputo de cada obra, a partir de esta receta + precios generales (ver
-   js/calcCostos.js, calcCostoUnitarioItem). */
+/* VIMECO S.A. — Sistema de Gestión — Ítem: Rendimientos
+   Un ítem tiene varias VERSIONES de rendimiento+receta: la "Teórica" (la de
+   referencia, vive en los campos de siempre de /items/{key}) y opcionalmente
+   una por cada obra donde se usó (/items/{key}/versionesObra/{obraKey}),
+   cada una con su propia receta completa — no comparten líneas. La versión
+   de una obra se crea sola la primera vez que se edita algo estando parado
+   en esa obra (arranca como copia en memoria de la teórica). La Teórica no
+   muestra costo (mismo criterio de siempre); las versiones de obra sí,
+   calculado en vivo con calcCostoUnitarioItem (js/calcCostos.js) — para
+   poder comparar costo real entre obras. */
 
 const $ = id => document.getElementById(id);
 
 const params = new URLSearchParams(window.location.search);
 const itemKey = params.get('key');
+const obraParam = params.get('obra');
 
 let item = null;
-let lineas = {};       // { lineaKey: { tipo, refKey, cantidad } }
+let lineasTeorico = {};
+let rendimientoTeorico = null;
+let rendimientoFormulaTeorico = null;
+let versionesObra = {};    // { obraKey: { rendimiento, rendimientoFormula, lineas } }
+let obrasMap = {};
+let activeVersion = 'teorico';
+let versionExisteEnServidor = true;
+
+let lineas = {};       // { lineaKey: { tipo, refKey, cantidad } } — de la versión activa
+let rendimientoActivo = null;
+let rendimientoFormulaActiva = null;
+
 let materiales = [];
 let equipos = [];
 let roles = [];
 let rubros = [];
 let rubrosMap = {};
+let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
+let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 
 const HINTS = {
   material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
@@ -40,7 +59,133 @@ function renderDatos() {
   $('item-titulo-card').textContent = item.nombre;
   const rubroNombre = item.rubroKey && rubrosMap[item.rubroKey] ? rubrosMap[item.rubroKey] : 'Sin rubro';
   $('item-datos-resumen').innerHTML =
-    `<span class="item-card-meta">${escHtml(rubroNombre)} · Unidad: ${escHtml(item.unidad)} · Rendimiento: ${escHtml(String(item.rendimiento))} uds./jornada</span>`;
+    `<span class="item-card-meta">${escHtml(rubroNombre)} · Unidad: ${escHtml(item.unidad)} · Rendimiento teórico: ${escHtml(String(rendimientoTeorico))} uds./jornada</span>`;
+}
+
+// -- Versiones (Teórico / obra) -------------------------------------------
+
+function basePath() {
+  return activeVersion === 'teorico' ? `/items/${itemKey}` : `/items/${itemKey}/versionesObra/${activeVersion}`;
+}
+
+function activarVersion(key) {
+  activeVersion = key;
+  if (key === 'teorico') {
+    lineas = lineasTeorico;
+    rendimientoActivo = rendimientoTeorico;
+    rendimientoFormulaActiva = rendimientoFormulaTeorico;
+    versionExisteEnServidor = true;
+  } else {
+    const v = versionesObra[key];
+    if (v) {
+      lineas = v.lineas || {};
+      rendimientoActivo = v.rendimiento;
+      rendimientoFormulaActiva = v.rendimientoFormula;
+      versionExisteEnServidor = true;
+    } else {
+      // No existe todavía: arranca como copia en memoria de la teórica.
+      lineas = JSON.parse(JSON.stringify(lineasTeorico));
+      rendimientoActivo = rendimientoTeorico;
+      rendimientoFormulaActiva = rendimientoFormulaTeorico;
+      versionExisteEnServidor = false;
+    }
+  }
+  renderVersionTabs();
+  renderVersionRendimiento();
+  renderTodasLasLineas();
+}
+
+function renderVersionTabs() {
+  const tabs = [{ key: 'teorico', label: 'Teórico' }];
+  Object.keys(versionesObra).forEach(k => tabs.push({ key: k, label: obrasMap[k] || k }));
+  if (obraParam && !versionesObra[obraParam]) tabs.push({ key: obraParam, label: (obrasMap[obraParam] || obraParam) + ' (nueva)' });
+
+  $('version-tabs').innerHTML = tabs.map(t => `
+    <button class="btn btn-sm ${t.key === activeVersion ? 'btn-primary' : 'btn-outline'} version-tab" data-version="${escHtml(t.key)}">${escHtml(t.label)}</button>`).join('');
+  $('version-tabs').querySelectorAll('.version-tab').forEach(btn => {
+    btn.addEventListener('click', () => activarVersion(btn.dataset.version));
+  });
+
+  const aviso = $('version-aviso');
+  if (activeVersion !== 'teorico' && !versionExisteEnServidor) {
+    aviso.textContent = 'Esta obra todavía no tiene una versión propia — se crea en cuanto edites algo. Por ahora se muestra una copia del Teórico.';
+    aviso.classList.remove('hidden');
+  } else {
+    aviso.classList.add('hidden');
+  }
+}
+
+function renderVersionRendimiento() {
+  const wrap = $('version-rendimiento');
+  if (activeVersion === 'teorico') { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  wrap.classList.remove('hidden');
+  wrap.innerHTML = `<span>Rendimiento en esta obra: <strong>${escHtml(String(rendimientoActivo))}</strong> uds./jornada</span>
+    <button class="version-rendimiento-edit" id="btn-editar-rend-obra" title="Editar rendimiento de esta obra">${icSvg('edit')}</button>`;
+  $('btn-editar-rend-obra').addEventListener('click', () => {
+    wrap.innerHTML = `<input type="text" class="form-control" id="rend-obra-input" style="max-width:140px;" value="${escHtml(String(rendimientoActivo))}">`;
+    const input = $('rend-obra-input');
+    attachCalcInput(input, rendimientoFormulaActiva);
+    input.focus();
+    input.select();
+    const guardar = () => {
+      if (input.value.trim().startsWith('=')) input.blur();
+      const n = parseFloat(input.value.replace(',', '.'));
+      if (!isNaN(n) && n > 0) {
+        rendimientoActivo = n;
+        rendimientoFormulaActiva = getCalcFormula(input);
+        persistRendimiento({ rendimiento: n, rendimientoFormula: rendimientoFormulaActiva });
+      }
+      renderVersionRendimiento();
+      renderTodasLasLineas();
+    };
+    input.addEventListener('blur', guardar);
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  });
+}
+
+function renderResumenCosto() {
+  const card = $('resumen-card');
+  if (activeVersion === 'teorico') { card.classList.add('hidden'); return; }
+  card.classList.remove('hidden');
+  const catalogos = { materiales, equipos, roles };
+  const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo }, lineas, catalogos, paramsEquipos, paramsMO);
+  $('resumen').innerHTML = `
+    <div class="ap-resumen-row"><span>Costo Materiales</span><span>${fmtARS(r.costoMateriales)}</span></div>
+    <div class="ap-resumen-row"><span>Costo Equipos + Mano de Obra (por unidad)</span><span>${fmtARS(r.costoEquiposMOPorUnidad)}</span></div>
+    <div class="ap-resumen-row total"><span>Costo unitario</span><span>${fmtARS(r.costoUnitario)}</span></div>
+    <p class="form-hint" style="margin-top:.5rem;">Costo de referencia con precios generales — no incluye Gastos Generales ni beneficio.</p>`;
+}
+
+// Si la versión activa (de obra) todavía no existe en el servidor, la crea
+// entera (rendimiento + receta actual) antes de cualquier edición puntual —
+// así arranca siempre como copia completa de la teórica, no sólo con el
+// campo que se acaba de tocar. Devuelve true si la acabó de crear (en ese
+// caso el llamador no necesita hacer ningún otro write, ya quedó todo
+// guardado).
+async function ensureVersionExists() {
+  if (activeVersion === 'teorico' || versionExisteEnServidor) return false;
+  try {
+    const data = { rendimiento: rendimientoActivo, rendimientoFormula: rendimientoFormulaActiva, lineas };
+    await _fbPut(`${basePath()}.json`, data);
+    versionesObra[activeVersion] = data;
+    versionExisteEnServidor = true;
+    renderVersionTabs();
+    return true;
+  } catch (_) {
+    showToast('Error al crear la versión de esta obra.', 'error');
+    return false;
+  }
+}
+
+async function persistRendimiento(cambios) {
+  const justCreated = await ensureVersionExists();
+  if (justCreated) return;
+  try {
+    await _fbPatch(`${basePath()}.json`, cambios);
+    if (activeVersion !== 'teorico') versionesObra[activeVersion] = { ...versionesObra[activeVersion], ...cambios };
+  } catch (_) {
+    showToast('Error al guardar el rendimiento.', 'error');
+  }
 }
 
 function renderLineasSeccion(tipo) {
@@ -104,11 +249,14 @@ function renderTodasLasLineas() {
   renderLineasSeccion('material');
   renderLineasSeccion('equipo');
   renderLineasSeccion('manoDeObra');
+  renderResumenCosto();
 }
 
 async function persistLineas() {
+  const justCreated = await ensureVersionExists();
+  if (justCreated) return;
   try {
-    await _fbPut(`/items/${itemKey}/lineas.json`, lineas);
+    await _fbPut(`${basePath()}/lineas.json`, lineas);
   } catch (_) {
     showToast('Error al guardar la receta.', 'error');
   }
@@ -246,6 +394,9 @@ async function saveDatosModal() {
     const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
     await _fbPatch(`/items/${itemKey}.json`, data);
     item = { ...item, ...data };
+    rendimientoTeorico = rendimiento;
+    rendimientoFormulaTeorico = data.rendimientoFormula;
+    if (activeVersion === 'teorico') { rendimientoActivo = rendimientoTeorico; rendimientoFormulaActiva = rendimientoFormulaTeorico; }
     $('modal-item').classList.add('hidden');
     showToast('Datos actualizados.');
     renderDatos();
@@ -266,13 +417,17 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
   }
-  const [itemData, lineasData, materialesData, equiposData, rolesData, rubrosData] = await Promise.all([
+  const [itemData, lineasData, versionesData, obrasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO] = await Promise.all([
     _fbGet(`/items/${itemKey}.json`),
     _fbGet(`/items/${itemKey}/lineas.json`),
+    _fbGet(`/items/${itemKey}/versionesObra.json`),
+    _fbGet('/obras.json'),
     _fbGet('/materiales.json'),
     _fbGet('/equipos.json'),
     _fbGet('/manoDeObra.json'),
     _fbGet('/rubros.json'),
+    _fbGet('/config/equipos.json'),
+    _fbGet('/config/manoDeObra.json'),
   ]);
 
   if (!itemData) {
@@ -280,17 +435,24 @@ async function loadAll() {
     return;
   }
   item = itemData;
-  lineas = lineasData || {};
+  lineasTeorico = lineasData || {};
+  rendimientoTeorico = item.rendimiento;
+  rendimientoFormulaTeorico = item.rendimientoFormula;
+  versionesObra = versionesData || {};
+  obrasMap = {};
+  Object.entries(obrasData || {}).forEach(([key, o]) => { obrasMap[key] = o.nombre; });
   materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e })).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es'));
   roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
+  if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
+  if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
 
   populateRubroSelect();
   renderDatos();
-  renderTodasLasLineas();
+  activarVersion(obraParam || 'teorico');
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';

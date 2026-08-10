@@ -208,13 +208,20 @@ async function deleteLinea(lineaKey) {
   showToast('Concepto eliminado.');
 }
 
+function versionDe(it) {
+  const propia = it.versionesObra && it.versionesObra[obraKey];
+  return propia || it;
+}
+
 function calcularCostoComputo(computoLineas, itemsList) {
   const itemsMap = {};
   itemsList.forEach(it => { itemsMap[it.key] = it; });
   return Object.values(computoLineas || {}).reduce((acc, l) => {
     const it = itemsMap[l.itemKey];
-    if (!it || !it.lineas || !Object.keys(it.lineas).length || l.cantidad == null || isNaN(l.cantidad)) return acc;
-    const r = window.calcCostoUnitarioItem(it, it.lineas, catalogos, paramsEquipos, paramsMO);
+    if (!it || l.cantidad == null || isNaN(l.cantidad)) return acc;
+    const version = versionDe(it);
+    if (!version.lineas || !Object.keys(version.lineas).length) return acc;
+    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO);
     return acc + r.costoUnitario * l.cantidad;
   }, 0);
 }

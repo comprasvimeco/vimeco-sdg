@@ -135,29 +135,37 @@ conviene pasar a `PATCH` por línea, mismo criterio que ya se aplicó en
 `carga-fija.js` (ver memoria `feedback_firebase_patch_por_linea`) para
 evitar perder líneas si se edita rápido.
 
-## 3. Análisis de Precio visible y editable desde el Cómputo
+## 3. Rendimientos por obra (ex "Análisis de Precio visible desde el Cómputo") — ✅ Hecho (2026-08-10)
 
-Al cargar un ítem en una línea del Cómputo, poder ver (y si hace falta,
-editar) su Análisis de Precio/receta ahí mismo, sin tener que ir a
-`biblioteca.html` → `item.html`.
+La pregunta abierta original (¿editar desde Cómputo modifica el ítem global
+o crea una copia?) se resolvió con un modelo más rico que las dos opciones
+que se habían planteado: un ítem no tiene una sola receta, tiene **varias
+versiones de Rendimiento** — la "Teórica" (la de referencia, sigue siendo
+`/items/{key}` de siempre, intacta) y opcionalmente una por cada obra donde
+se usó (`/items/{key}/versionesObra/{obraKey}`), cada una con su propia
+receta completa (no comparten líneas) y su propio rendimiento. Objetivo:
+poder comparar con el tiempo "este ítem en la obra X rindió/costó tanto, el
+teórico es tanto, en la obra Y fue así".
 
-**Punto abierto, no resuelto en la conversación original — decidir con el
-dueño del proyecto antes de codear:** cuando se edita la receta de un ítem
-desde el contexto de una obra puntual (Cómputo), ¿esa edición:
+La pantalla `item.html` pasó de llamarse "Receta" a **"Rendimientos"**
+(mismo cambio en el botón de `biblioteca.js`) y ahora tiene un selector de
+versiones (pestañas Teórico/obra). La versión de una obra se crea sola la
+primera vez que se edita algo estando en esa pestaña (arranca como copia en
+memoria de la teórica). La pestaña Teórica sigue sin mostrar costo (igual
+que el punto 1); las de obra sí muestran un resumen de costo (mismo
+`calcCostoUnitarioItem` de siempre) para poder comparar entre obras.
 
-- (a) modifica el ítem global en la Biblioteca (afecta a todas las obras que
-  lo usen), o
-- (b) crea una variante/copia del ítem específica para esa obra (no afecta
-  a otras obras, pero deja de compartir la receta)?
+Desde cada línea de `computo.js` hay un link directo (ícono, pestaña nueva)
+a `item.html?key=...&obra=...` que cae en la versión de esa obra — se
+decidió no reimplementar el editor de receta dentro de Cómputo para no
+duplicar lo que ya existe en `item.js`. `computo.js`/`carga-fija.js` usan la
+versión propia de la obra si existe; si no, caen a la Teórica — sin cambios
+para las obras que no tengan versión propia todavía.
 
-Dado que ya se resolvió que el **precio** es por obra (vía Cotizaciones,
-puntos 4-7) y la **receta** es compartida (punto 1), lo más consistente con
-esa decisión es (a): editar la receta desde Cómputo edita el ítem
-compartido de la Biblioteca — si hace falta una receta distinta para una
-obra puntual, tiene más sentido pensarlo como "crear un ítem nuevo" (ver
-punto 2) que como "forkear" uno existente. Pero confirmar esto explícitamente
-antes de implementar, no asumirlo en silencio — es justo el tipo de regla de
-negocio que este proyecto pide no asumir (ver `CLAUDE.md`).
+Verificado en la app real (obra "Prueba"): la versión se creó con la receta
+completa copiada, el costo se recalculó en vivo y coincidió entre
+`item.html` y `computo.js`/`carga-fija.js`, y la Teórica quedó intacta.
+Datos de prueba limpiados de la RTDB al terminar.
 
 ## 4. Cotizaciones (entidad + pantalla)
 
