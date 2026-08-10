@@ -30,6 +30,7 @@ function renderObras(list) {
         <div class="item-card-actions">
           <button class="btn btn-sm btn-outline btn-edit-obra">Editar</button>
           <button class="btn btn-sm btn-primary btn-computo-obra">Cómputo</button>
+          <button class="btn btn-sm btn-outline btn-carga-fija-obra">Carga Fija</button>
           <button class="btn btn-sm btn-danger btn-del-obra">Eliminar</button>
         </div>
       </div>`;
@@ -41,6 +42,9 @@ function renderObras(list) {
     card.querySelector('.btn-edit-obra').addEventListener('click', () => openEditModal(obra));
     card.querySelector('.btn-computo-obra').addEventListener('click', () => {
       window.location.href = 'computo.html?obra=' + encodeURIComponent(obra.key);
+    });
+    card.querySelector('.btn-carga-fija-obra').addEventListener('click', () => {
+      window.location.href = 'carga-fija.html?obra=' + encodeURIComponent(obra.key);
     });
     card.querySelector('.btn-del-obra').addEventListener('click', () => deleteObra(obra));
   });
