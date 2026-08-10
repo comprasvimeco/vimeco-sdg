@@ -72,12 +72,34 @@ describía bien una pantalla sin costo.
 
 ## 2. Cómputo rediseñado (tabla tipo pliego)
 
+## 2. Cómputo rediseñado (tabla tipo pliego) — ✅ Hecho (2026-08-10)
+
 Basado en la estructura de la hoja COMPUTO de `Planilla_Arquitectura_v2.xlsm`
 (columnas CODIGO/DESCRIPCION/CANTIDAD/UNIDAD/COSTO UNITARIO/COSTO SUBTOTAL,
 agrupado por rubro con subtotales) y en cómo se ve `CyP Taller Río
 Cuarto.xlsx`.
 
-Cambios sobre `computo.html`/`js/computo.js` actual:
+**Resumen de lo implementado** (detalle completo en el historial de
+`C:\Users\Usuario\.claude\plans\rippling-toasting-blanket.md` de la sesión):
+tabla agrupada por rubro con subtotal por grupo y total general; rubro
+renombrable por obra vía `/obras/{obraKey}/computoRubros/{rubroKey}` (path
+separado de las líneas, no anidado — sin migración de datos); nombre de
+línea editable vía `nombreOverride` en la línea; alta rápida de ítem desde
+el buscador de la línea (`createSearchableSelect` + `onCreateNew`, mismo
+patrón que la alta rápida de materiales en `item.js` v015); columna de
+Unidad visible por línea (pedido explícito del dueño del proyecto durante
+la verificación — antes sólo estaba en el placeholder de Cantidad, que
+desaparece al tipear). `computo.js` pasó a `PATCH`/`PUT` por línea en vez
+de reescribir el árbol completo (mismo criterio que `carga-fija.js`).
+
+**Bug encontrado y corregido durante la verificación:** una línea nueva sin
+ítem asignado se guardaba como `{itemKey: null, cantidad: null}` — un PUT
+a Firebase con *todos* los campos en `null` no crea el nodo (Firebase trata
+cada valor `null` como "borrar ese campo"), así que la línea desaparecía
+silenciosamente al recargar. Se agregó `creadoEn: Date.now()` a toda línea
+nueva para garantizar que el nodo se persista.
+
+Cambios sobre `computo.html`/`js/computo.js` (histórico, previo a implementar):
 
 - **Tabla agrupada por rubro**, con subtotal por rubro y total general (hoy
   es una lista plana sin agrupar — se decidió explícitamente no agrupar en

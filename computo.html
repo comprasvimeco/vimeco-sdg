@@ -8,10 +8,23 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .computo-linea { display: grid; grid-template-columns: 1fr 120px 140px 140px 40px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
+    .computo-rubro-header { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .5rem 0; margin-top: .5rem; border-bottom: 2px solid var(--gray-200); }
+    .computo-rubro-header:first-child { margin-top: 0; }
+    .computo-rubro-nombre { font-weight: 700; color: var(--primary); font-size: .95rem; }
+    .computo-rubro-edit { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .2rem; }
+    .computo-rubro-edit:hover { color: var(--primary); }
+    .computo-rubro-nombre-input { font-weight: 700; font-size: .95rem; max-width: 260px; }
+    .computo-rubro-subtotal { font-weight: 600; color: var(--gray-700); white-space: nowrap; }
+    .computo-rubro-warning .computo-rubro-nombre { color: var(--danger); }
+    .computo-linea { display: grid; grid-template-columns: 1.2fr 1fr 60px 90px 120px 130px 40px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
     .computo-linea:last-child { border-bottom: none; }
+    .linea-select-container { min-width: 0; }
+    .computo-linea-unidad { text-align: center; color: var(--gray-500); font-size: .85rem; white-space: nowrap; }
     .computo-linea-costo, .computo-linea-total { text-align: right; white-space: nowrap; }
     .computo-linea-total { font-weight: 600; color: var(--gray-700); }
+    .computo-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; }
+    .computo-linea-header span:nth-child(3), .computo-linea-header span:nth-child(4) { text-align: center; }
+    .computo-linea-header span:nth-child(5), .computo-linea-header span:nth-child(6) { text-align: right; }
     .computo-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
@@ -45,6 +58,44 @@
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando cómputo…</div></div>
 
+  <!-- Modal: Alta rápida de ítem (desde el buscador de una línea del Cómputo) -->
+  <div class="modal-overlay hidden" id="modal-item-quick">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Nuevo ítem</span>
+        <button class="modal-close" id="modal-item-quick-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="qi-nombre">Nombre *</label>
+          <input type="text" id="qi-nombre" class="form-control" placeholder="Ej: Contrapiso H°A° e=10cm">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="qi-unidad">Unidad *</label>
+            <input type="text" id="qi-unidad" class="form-control" placeholder="Ej: m2, m3, gl">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="qi-rubro">Rubro</label>
+            <select id="qi-rubro" class="form-control">
+              <option value="">— Sin rubro —</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group u-mb-0" style="max-width:260px;">
+          <label for="qi-rendimiento">Rendimiento (uds./jornada) *</label>
+          <input type="text" id="qi-rendimiento" class="form-control" placeholder="Ej: 0.2">
+          <span class="form-hint">La receta (materiales/equipos/MO) se carga después, desde Biblioteca.</span>
+        </div>
+        <div id="modal-item-quick-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-item-quick-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-item-quick-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Confirmar acción -->
   <div class="modal-overlay hidden" id="modal-confirm">
     <div class="modal modal--sm">
@@ -66,6 +117,7 @@
   <script src="js/icons.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/calc.js"></script>
+  <script src="js/searchable-select.js"></script>
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
   <script src="js/calcCostos.js"></script>
