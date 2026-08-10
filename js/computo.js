@@ -28,7 +28,11 @@ function totalLinea(linea) {
 }
 
 function itemOptions(selectedKey) {
-  return rubros.map(r => {
+  const existe = items.some(it => it.key === selectedKey);
+  const huerfano = !existe && selectedKey
+    ? `<option value="${escHtml(selectedKey)}" selected>⚠ Ítem eliminado — elegí uno</option>`
+    : '';
+  return huerfano + rubros.map(r => {
     const opts = items.filter(it => it.rubroKey === r.key)
       .map(it => `<option value="${escHtml(it.key)}" ${it.key === selectedKey ? 'selected' : ''}>${escHtml(it.nombre)}</option>`).join('');
     return opts ? `<optgroup label="${escHtml(r.nombre)}">${opts}</optgroup>` : '';
