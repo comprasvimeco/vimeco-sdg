@@ -227,6 +227,7 @@ function openAddModal() {
   $('equipo-uso-anual').value = '';
   $('equipo-vida-util').value = '';
   $('equipo-costo').value = '';
+  ['equipo-potencia', 'equipo-uso-anual', 'equipo-vida-util', 'equipo-costo'].forEach(id => setCalcFormula($(id), null));
   $('modal-equipo').classList.remove('hidden');
   setTimeout(() => $('equipo-codigo').focus(), 50);
 }
@@ -241,6 +242,10 @@ function openEditModal(equipo) {
   $('equipo-uso-anual').value = equipo.usoAnual ?? '';
   $('equipo-vida-util').value = equipo.vidaUtil ?? '';
   $('equipo-costo').value = equipo.costoUSD ?? '';
+  setCalcFormula($('equipo-potencia'), equipo.potenciaFormula);
+  setCalcFormula($('equipo-uso-anual'), equipo.usoAnualFormula);
+  setCalcFormula($('equipo-vida-util'), equipo.vidaUtilFormula);
+  setCalcFormula($('equipo-costo'), equipo.costoUSDFormula);
   $('modal-equipo').classList.remove('hidden');
   setTimeout(() => $('equipo-codigo').focus(), 50);
 }
@@ -275,13 +280,20 @@ async function saveEquipoModal() {
   const usoAnual = numOrNull($('equipo-uso-anual'));
   const vidaUtil = numOrNull($('equipo-vida-util'));
   const costoUSD = numOrNull($('equipo-costo'));
+  const potenciaFormula = getCalcFormula($('equipo-potencia'));
+  const usoAnualFormula = getCalcFormula($('equipo-uso-anual'));
+  const vidaUtilFormula = getCalcFormula($('equipo-vida-util'));
+  const costoUSDFormula = getCalcFormula($('equipo-costo'));
 
   const saveBtn = $('modal-equipo-save');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Guardando…';
 
   try {
-    const data = { codigo, tipo, potencia, usoAnual, vidaUtil, costoUSD };
+    const data = {
+      codigo, tipo, potencia, usoAnual, vidaUtil, costoUSD,
+      potenciaFormula, usoAnualFormula, vidaUtilFormula, costoUSDFormula,
+    };
     if (editingKey) {
       await _fbPatch(`/equipos/${editingKey}.json`, data);
     } else {

@@ -175,6 +175,7 @@ function openAddModal() {
   $('item-unidad').value = '';
   $('item-rubro').value = '';
   $('item-rendimiento').value = '1';
+  setCalcFormula($('item-rendimiento'), null);
   $('modal-item').classList.remove('hidden');
   setTimeout(() => $('item-nombre').focus(), 50);
 }
@@ -187,6 +188,7 @@ function openEditModal(it) {
   $('item-unidad').value = it.unidad || '';
   $('item-rubro').value = it.rubroKey || '';
   $('item-rendimiento').value = it.rendimiento ?? '1';
+  setCalcFormula($('item-rendimiento'), it.rendimientoFormula);
   $('modal-item').classList.remove('hidden');
   setTimeout(() => $('item-nombre').focus(), 50);
 }
@@ -222,7 +224,7 @@ async function saveItemModal() {
   saveBtn.textContent = 'Guardando…';
 
   try {
-    const data = { nombre, unidad, rubroKey, rendimiento };
+    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
     if (editingKey) {
       await _fbPatch(`/items/${editingKey}.json`, data);
     } else {

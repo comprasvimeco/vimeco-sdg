@@ -54,11 +54,14 @@ function renderLineas() {
 
   container.querySelectorAll('.cf-linea').forEach(row => {
     const lineaKey = row.dataset.key;
+    const l = lineas[lineaKey];
     const concepto = row.querySelector('.cf-concepto');
     const cantidad = row.querySelector('.cf-cantidad');
     const precio = row.querySelector('.cf-precio');
     const meses = row.querySelector('.cf-meses');
-    [cantidad, precio, meses].forEach(attachCalcInput);
+    attachCalcInput(cantidad, l.cantidadFormula);
+    attachCalcInput(precio, l.precioUnitarioFormula);
+    attachCalcInput(meses, l.mesesFormula);
 
     concepto.addEventListener('blur', () => updateLinea(lineaKey, { concepto: concepto.value.trim() }));
     concepto.addEventListener('keydown', e => { if (e.key === 'Enter') concepto.blur(); });
@@ -66,7 +69,7 @@ function renderLineas() {
     const numField = (input, key) => {
       input.addEventListener('blur', () => {
         const n = parseFloat(input.value.replace(',', '.'));
-        updateLinea(lineaKey, { [key]: isNaN(n) ? null : n });
+        updateLinea(lineaKey, { [key]: isNaN(n) ? null : n, [key + 'Formula']: getCalcFormula(input) });
       });
       input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
     };
@@ -123,10 +126,10 @@ function renderCoeficienteK() {
 
   const pctField = (id, key) => {
     const input = $(id);
-    attachCalcInput(input);
+    attachCalcInput(input, config[key + 'Formula']);
     input.addEventListener('blur', () => {
       const n = parseFloat(input.value.replace(',', '.'));
-      updateConfig({ [key]: isNaN(n) ? null : n });
+      updateConfig({ [key]: isNaN(n) ? null : n, [key + 'Formula']: getCalcFormula(input) });
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
   };

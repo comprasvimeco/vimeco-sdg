@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .ap-linea { display: grid; grid-template-columns: 1fr 140px 160px 40px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
+    .ap-linea { display: grid; grid-template-columns: minmax(280px, 2fr) 110px 130px 40px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
     .ap-linea:last-child { border-bottom: none; }
     .ap-linea-costo { text-align: right; font-weight: 600; color: var(--gray-700); white-space: nowrap; }
     .ap-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
@@ -17,20 +17,8 @@
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
 
     .linea-select-wrap { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+    .linea-select-container { flex: 1 1 0%; min-width: 0; }
     .linea-unidad-badge { font-size: .75rem; color: var(--gray-500); white-space: nowrap; flex-shrink: 0; }
-    .ss-wrap { position: relative; flex: 1; min-width: 0; }
-    .ss-dropdown {
-      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
-      background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius);
-      box-shadow: var(--shadow-lg); max-height: 260px; overflow-y: auto;
-    }
-    .ss-option { display: flex; justify-content: space-between; gap: .5rem; padding: .5rem .7rem; font-size: .87rem; cursor: pointer; }
-    .ss-option:hover { background: var(--gray-100); }
-    .ss-option-sub { color: var(--gray-400); font-size: .78rem; white-space: nowrap; }
-    .ss-empty { padding: .5rem .7rem; font-size: .82rem; color: var(--gray-400); }
-    .ss-create { padding: .5rem .7rem; font-size: .85rem; color: var(--primary); font-weight: 600; cursor: pointer; border-top: 1px solid var(--gray-200); }
-    .ss-create:hover { background: var(--gray-100); }
-    .ss-create.disabled { color: var(--gray-400); cursor: default; pointer-events: none; }
 
     .precio-toggle { display: flex; gap: .4rem; }
     .precio-toggle .btn { padding: .35rem .8rem; box-shadow: none; }

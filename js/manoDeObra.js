@@ -135,6 +135,7 @@ function openAddModal() {
   $('rol-extra').value = '0';
   $('rol-no-remunerativo').value = '';
   $('rol-fecha').value = todayIso();
+  ['rol-basico', 'rol-extra', 'rol-no-remunerativo'].forEach(id => setCalcFormula($(id), null));
   updatePreview();
   $('modal-rol').classList.remove('hidden');
   setTimeout(() => $('rol-nombre').focus(), 50);
@@ -149,6 +150,9 @@ function openEditModal(rol) {
   $('rol-extra').value = rol.extraPct ?? 0;
   $('rol-no-remunerativo').value = rol.noRemunerativoMensual ?? '';
   $('rol-fecha').value = rol.fecha || todayIso();
+  setCalcFormula($('rol-basico'), rol.basicoFormula);
+  setCalcFormula($('rol-extra'), rol.extraPctFormula);
+  setCalcFormula($('rol-no-remunerativo'), rol.noRemunerativoMensualFormula);
   updatePreview();
   $('modal-rol').classList.remove('hidden');
   setTimeout(() => $('rol-nombre').focus(), 50);
@@ -193,8 +197,15 @@ async function saveRolModal() {
   saveBtn.disabled = true;
   saveBtn.textContent = 'Guardando…';
 
+  const basicoFormula = getCalcFormula(basicoInput);
+  const extraPctFormula = getCalcFormula(extraInput);
+  const noRemunerativoMensualFormula = getCalcFormula(noRemInput);
+
   try {
-    const data = { nombre, basico, extraPct, noRemunerativoMensual, fecha };
+    const data = {
+      nombre, basico, extraPct, noRemunerativoMensual, fecha,
+      basicoFormula, extraPctFormula, noRemunerativoMensualFormula,
+    };
     if (editingKey) {
       await _fbPatch(`/manoDeObra/${editingKey}.json`, data);
     } else {

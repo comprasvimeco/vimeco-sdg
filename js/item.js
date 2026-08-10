@@ -132,10 +132,10 @@ function renderLineasSeccion(tipo) {
       row.querySelector('.linea-unidad-badge').textContent = mat ? mat.unidad : '';
     }
 
-    attachCalcInput(cantidadInput);
+    attachCalcInput(cantidadInput, linea.cantidadFormula);
     cantidadInput.addEventListener('blur', () => {
       const n = parseFloat(cantidadInput.value.replace(',', '.'));
-      updateLinea(lineaKey, { cantidad: isNaN(n) ? null : n });
+      updateLinea(lineaKey, { cantidad: isNaN(n) ? null : n, cantidadFormula: getCalcFormula(cantidadInput) });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
     row.querySelector('.ap-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
@@ -195,6 +195,7 @@ function openQuickMaterialModal(texto, lineaKey) {
   $('qm-nombre').value = texto || '';
   $('qm-unidad').value = '';
   $('qm-precio').value = '';
+  setCalcFormula($('qm-precio'), null);
   $('qm-proveedor').value = '';
   $('qm-fecha').value = new Date().toISOString().slice(0, 10);
   setQmMoneda('USD');
@@ -242,7 +243,10 @@ async function saveQuickMaterial() {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
     + '_' + Date.now();
-  const data = { nombre, unidad, precioUSD: dual.precioUSD, precioARS: dual.precioARS, proveedor, fecha, creadoEn: Date.now() };
+  const data = {
+    nombre, unidad, precioUSD: dual.precioUSD, precioARS: dual.precioARS,
+    precioFormula: getCalcFormula(precioInput), proveedor, fecha, creadoEn: Date.now(),
+  };
 
   try {
     await _fbPut(`/materiales/${key}.json`, data);
@@ -269,6 +273,7 @@ function openEditDatosModal() {
   $('item-unidad').value = item.unidad || '';
   $('item-rubro').value = item.rubroKey || '';
   $('item-rendimiento').value = item.rendimiento ?? '';
+  setCalcFormula($('item-rendimiento'), item.rendimientoFormula);
   $('modal-item-error').classList.add('hidden');
   $('modal-item').classList.remove('hidden');
 }
@@ -295,7 +300,7 @@ async function saveDatosModal() {
   }
 
   try {
-    const data = { nombre, unidad, rubroKey, rendimiento };
+    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
     await _fbPatch(`/items/${itemKey}.json`, data);
     item = { ...item, ...data };
     $('modal-item').classList.add('hidden');

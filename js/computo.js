@@ -71,13 +71,14 @@ function renderLineas() {
 
   container.querySelectorAll('.computo-linea').forEach(row => {
     const lineaKey = row.dataset.key;
+    const linea = lineas[lineaKey];
     const select = row.querySelector('.linea-select');
     const cantidadInput = row.querySelector('.linea-cantidad');
-    attachCalcInput(cantidadInput);
+    attachCalcInput(cantidadInput, linea.cantidadFormula);
     select.addEventListener('change', () => updateLinea(lineaKey, { itemKey: select.value }));
     cantidadInput.addEventListener('blur', () => {
       const n = parseFloat(cantidadInput.value.replace(',', '.'));
-      updateLinea(lineaKey, { cantidad: isNaN(n) ? null : n });
+      updateLinea(lineaKey, { cantidad: isNaN(n) ? null : n, cantidadFormula: getCalcFormula(cantidadInput) });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
     row.querySelector('.computo-linea-del').addEventListener('click', () => deleteLinea(lineaKey));

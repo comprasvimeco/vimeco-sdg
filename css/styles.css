@@ -156,6 +156,26 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .item-card-actions { display: flex; gap: .4rem; flex-shrink: 0; }
 .list-loading, .list-empty { text-align: center; padding: 2rem 1rem; color: var(--gray-400); font-size: .88rem; }
 
+/* ===== COMBOBOX BUSCADOR (searchable-select.js) =====
+   El dropdown se monta en <body> con position:fixed (no como hijo de su
+   contenedor): .card usa overflow:hidden para recortar sus bordes
+   redondeados, y eso también recortaría un dropdown absolute anidado
+   adentro -- con fixed + body se dibuja por encima de todo sin que ningún
+   contenedor lo pueda clipear. La posición/ancho los calcula el JS. */
+.ss-wrap { position: relative; width: 100%; }
+.ss-dropdown {
+  position: fixed; z-index: 1200;
+  background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius);
+  box-shadow: var(--shadow-lg); max-height: 280px; overflow-y: auto;
+}
+.ss-option { display: flex; justify-content: space-between; gap: .5rem; padding: .5rem .7rem; font-size: .87rem; cursor: pointer; }
+.ss-option:hover { background: var(--gray-100); }
+.ss-option-sub { color: var(--gray-400); font-size: .78rem; white-space: nowrap; }
+.ss-empty { padding: .5rem .7rem; font-size: .82rem; color: var(--gray-400); }
+.ss-create { padding: .5rem .7rem; font-size: .85rem; color: var(--primary); font-weight: 600; cursor: pointer; border-top: 1px solid var(--gray-200); }
+.ss-create:hover { background: var(--gray-100); }
+.ss-create.disabled { color: var(--gray-400); cursor: default; pointer-events: none; }
+
 /* ===== SVG ICONS ===== */
 .icon { display: inline-block; width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.15em; flex-shrink: 0; pointer-events: none; }
 

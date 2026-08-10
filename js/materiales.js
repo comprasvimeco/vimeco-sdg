@@ -93,6 +93,7 @@ function openAddModal() {
   $('material-nombre').value = '';
   $('material-unidad').value = '';
   $('material-precio').value = '';
+  setCalcFormula($('material-precio'), null);
   $('material-proveedor').value = '';
   $('material-fecha').value = todayIso();
   setMoneda('USD');
@@ -107,6 +108,7 @@ function openEditModal(material) {
   $('material-nombre').value = material.nombre || '';
   $('material-unidad').value = material.unidad || '';
   $('material-precio').value = material.precioUSD ?? '';
+  setCalcFormula($('material-precio'), material.precioFormula);
   $('material-proveedor').value = material.proveedor || '';
   $('material-fecha').value = material.fecha || todayIso();
   setMoneda('USD');
@@ -147,6 +149,7 @@ async function saveMaterialModal() {
     return;
   }
   const { precioUSD, precioARS } = dual;
+  const precioFormula = getCalcFormula(precioInput);
 
   const saveBtn = $('modal-material-save');
   saveBtn.disabled = true;
@@ -154,13 +157,13 @@ async function saveMaterialModal() {
 
   try {
     if (editingKey) {
-      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precioUSD, precioARS, proveedor, fecha });
+      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precioUSD, precioARS, precioFormula, proveedor, fecha });
     } else {
       const key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precioUSD, precioARS, proveedor, fecha, creadoEn: Date.now() });
+      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precioUSD, precioARS, precioFormula, proveedor, fecha, creadoEn: Date.now() });
     }
     $('modal-material').classList.add('hidden');
     showToast(editingKey ? 'Material actualizado.' : 'Material creado.');

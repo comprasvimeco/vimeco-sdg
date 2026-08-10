@@ -1,6 +1,12 @@
 /* VIMECO S.A. — Combobox buscador (reemplaza <select> planos cuando el
    catálogo es grande). Vanilla, sin dependencias, mismo criterio de "helper
-   que se engancha a un contenedor" que ya usa attachCalcInput (calc.js). */
+   que se engancha a un contenedor" que ya usa attachCalcInput (calc.js).
+
+   El dropdown se monta en <body> con position:fixed (no como hijo del
+   contenedor): las tarjetas de la app (.card) usan overflow:hidden para
+   recortar sus bordes redondeados, y eso también recortaba un dropdown
+   absolute anidado adentro — con fixed + body se dibuja por encima de todo
+   sin que ningún contenedor lo pueda clipear. */
 
 window.createSearchableSelect = function (container, opts) {
   const {
@@ -11,14 +17,11 @@ window.createSearchableSelect = function (container, opts) {
     onCreateNew = null,     // (texto) => void — si se pasa, agrega "+ Crear ..."
   } = opts;
 
-  container.innerHTML = `
-    <div class="ss-wrap">
-      <input type="text" class="form-control ss-input" placeholder="${escHtml(placeholder)}" autocomplete="off">
-      <div class="ss-dropdown hidden"></div>
-    </div>`;
+  container.innerHTML = `<div class="ss-wrap"><input type="text" class="form-control ss-input" placeholder="${escHtml(placeholder)}" autocomplete="off"></div>`;
 
-  const input = container.querySelector('.ss-input');
-  const dropdown = container.querySelector('.ss-dropdown');
+  const wrap = container.querySelector('.ss-wrap');
+  const input = wrap.querySelector('.ss-input');
+  let dropdown = null; // se crea al abrir y se saca del DOM al cerrar (evita huérfanos en body)
 
   let currentValue = value;
 
@@ -27,7 +30,32 @@ window.createSearchableSelect = function (container, opts) {
     return opt ? opt.label : '';
   }
 
+  function positionDropdown() {
+    if (!dropdown) return;
+    const r = input.getBoundingClientRect();
+    const width = Math.max(r.width, 280);
+    dropdown.style.left = Math.min(r.left, window.innerWidth - width - 8) + 'px';
+    dropdown.style.top = (r.bottom + 4) + 'px';
+    dropdown.style.width = width + 'px';
+  }
+
+  function closeDropdown() {
+    if (!dropdown) return;
+    dropdown.remove();
+    dropdown = null;
+    window.removeEventListener('scroll', positionDropdown, true);
+    window.removeEventListener('resize', positionDropdown);
+  }
+
   function renderList(query) {
+    if (!dropdown) {
+      dropdown = document.createElement('div');
+      dropdown.className = 'ss-dropdown';
+      document.body.appendChild(dropdown);
+      window.addEventListener('scroll', positionDropdown, true);
+      window.addEventListener('resize', positionDropdown);
+    }
+
     const q = query.trim().toLowerCase();
     const filtered = q ? options.filter(o => o.label.toLowerCase().includes(q)) : options;
 
@@ -44,14 +72,14 @@ window.createSearchableSelect = function (container, opts) {
     }
 
     dropdown.innerHTML = html;
-    dropdown.classList.remove('hidden');
+    positionDropdown();
 
     dropdown.querySelectorAll('.ss-option').forEach(el => {
       el.addEventListener('mousedown', e => {
         e.preventDefault();
         currentValue = el.dataset.value;
         input.value = labelFor(currentValue);
-        dropdown.classList.add('hidden');
+        closeDropdown();
         onChange(currentValue);
       });
     });
@@ -61,7 +89,7 @@ window.createSearchableSelect = function (container, opts) {
       createEl.addEventListener('mousedown', e => {
         e.preventDefault();
         const texto = input.value.trim();
-        dropdown.classList.add('hidden');
+        closeDropdown();
         onCreateNew(texto);
       });
     }
@@ -72,7 +100,7 @@ window.createSearchableSelect = function (container, opts) {
   input.addEventListener('input', () => renderList(input.value));
   input.addEventListener('blur', () => {
     setTimeout(() => {
-      dropdown.classList.add('hidden');
+      closeDropdown();
       input.value = labelFor(currentValue);
     }, 150);
   });
