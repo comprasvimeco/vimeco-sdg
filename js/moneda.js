@@ -18,6 +18,19 @@ window.fmtUSDConEquivalente = function (usd) {
   return `${fmtUSD(usd)} · ≈ ${fmtARS(usd * venta)}`;
 };
 
+// Un precio se carga en ARS o en USD (lo que el usuario tenga a mano) y se
+// guardan los dos, convertidos con la cotización oficial del momento de
+// carga — mismo criterio que ya usa la planilla de referencia (precio USD +
+// precio $ + fecha). Devuelve null si no hay cotización cacheada todavía.
+window.resolveDualPrecio = function (modo, valor) {
+  const venta = window.dolarOficialVenta();
+  if (!venta || isNaN(valor)) return null;
+  if (modo === 'ARS') {
+    return { precioARS: valor, precioUSD: Math.round((valor / venta) * 10000) / 10000 };
+  }
+  return { precioARS: Math.round(valor * venta * 100) / 100, precioUSD: valor };
+};
+
 // Pinta "USD = $1.520,00" en el <span id="header-dolar"> del header, si existe
 // en la página. Se auto-ejecuta al cargar cualquier página que tenga ese
 // elemento y este script — así el valor queda visible en todas partes sin

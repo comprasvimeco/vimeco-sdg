@@ -90,29 +90,49 @@ function renderLineasSeccion(tipo) {
   let html = `<p class="form-hint" style="margin-bottom:.75rem;">${HINTS[tipo]}</p>`;
   if (!entradas.length) {
     html += '<p class="text-muted" style="font-size:.85rem;">Sin líneas todavía.</p>';
-  } else if (!cat.length) {
+  } else if (!cat.length && tipo !== 'material') {
     html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo cargado para este tipo.</p>';
   } else {
-    html += entradas.map(([lineaKey, linea]) => {
-      const options = cat.map(c => `<option value="${escHtml(c.key)}" ${c.key === linea.refKey ? 'selected' : ''}>${escHtml(labelFor(tipo, c))}</option>`).join('');
-      const costo = costoLinea(linea);
-      return `
+    html += entradas.map(([lineaKey]) => `
         <div class="ap-linea" data-key="${escHtml(lineaKey)}">
-          <select class="form-control linea-select">${options}</select>
-          <input type="text" class="form-control linea-cantidad" value="${linea.cantidad ?? ''}" placeholder="Cantidad">
-          <span class="ap-linea-costo">${costo != null ? fmtARS(costo) : '—'}</span>
+          <div class="linea-select-wrap">
+            <div class="linea-select-container"></div>
+            ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
+          </div>
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
+          <span class="ap-linea-costo"></span>
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
-        </div>`;
-    }).join('');
+        </div>`).join('');
   }
   container.innerHTML = html;
 
   container.querySelectorAll('.ap-linea').forEach(row => {
     const lineaKey = row.dataset.key;
-    const select = row.querySelector('.linea-select');
+    const linea = lineas[lineaKey];
     const cantidadInput = row.querySelector('.linea-cantidad');
+    const costo = costoLinea(linea);
+
+    cantidadInput.value = linea.cantidad ?? '';
+    row.querySelector('.ap-linea-costo').textContent = costo != null ? fmtARS(costo) : '—';
+
+    const options = cat.map(c => ({
+      value: c.key,
+      label: labelFor(tipo, c),
+      sublabel: tipo === 'material' ? c.unidad : undefined,
+    }));
+    createSearchableSelect(row.querySelector('.linea-select-container'), {
+      options,
+      value: linea.refKey,
+      placeholder: `Buscar ${tipo === 'manoDeObra' ? 'rol' : tipo}…`,
+      onChange: v => updateLinea(lineaKey, { refKey: v }),
+      onCreateNew: tipo === 'material' ? texto => openQuickMaterialModal(texto, lineaKey) : null,
+    });
+    if (tipo === 'material') {
+      const mat = materiales.find(m => m.key === linea.refKey);
+      row.querySelector('.linea-unidad-badge').textContent = mat ? mat.unidad : '';
+    }
+
     attachCalcInput(cantidadInput);
-    select.addEventListener('change', () => updateLinea(lineaKey, { refKey: select.value }));
     cantidadInput.addEventListener('blur', () => {
       const n = parseFloat(cantidadInput.value.replace(',', '.'));
       updateLinea(lineaKey, { cantidad: isNaN(n) ? null : n });
@@ -158,15 +178,83 @@ function updateLinea(lineaKey, cambios) {
 }
 
 function addLinea(tipo) {
-  const cat = catalogoFor(tipo);
-  if (!cat.length) {
+  if (tipo !== 'material' && !catalogoFor(tipo).length) {
     showToast('No hay nada cargado en ese catálogo todavía.', 'error');
     return;
   }
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-  lineas[lineaKey] = { tipo, refKey: cat[0].key, cantidad: null };
+  lineas[lineaKey] = { tipo, refKey: null, cantidad: null };
   renderTodasLasLineas();
   persistLineasYCache();
+}
+
+let pendingLineaKey = null;
+
+function openQuickMaterialModal(texto, lineaKey) {
+  pendingLineaKey = lineaKey;
+  $('qm-nombre').value = texto || '';
+  $('qm-unidad').value = '';
+  $('qm-precio').value = '';
+  $('qm-proveedor').value = '';
+  $('qm-fecha').value = new Date().toISOString().slice(0, 10);
+  setQmMoneda('USD');
+  $('modal-material-error-qm').classList.add('hidden');
+  $('modal-material-quick').classList.remove('hidden');
+  setTimeout(() => $('qm-nombre').focus(), 50);
+}
+
+let qmMoneda = 'USD';
+function setQmMoneda(m) {
+  qmMoneda = m;
+  $('qm-moneda-usd').classList.toggle('is-active', m === 'USD');
+  $('qm-moneda-ars').classList.toggle('is-active', m === 'ARS');
+}
+
+async function saveQuickMaterial() {
+  const nombre = $('qm-nombre').value.trim();
+  const unidad = $('qm-unidad').value.trim();
+  const proveedor = $('qm-proveedor').value.trim();
+  const fecha = $('qm-fecha').value || new Date().toISOString().slice(0, 10);
+  const errEl = $('modal-material-error-qm');
+
+  const precioInput = $('qm-precio');
+  if (precioInput.value.trim().startsWith('=')) precioInput.blur();
+  const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
+
+  if (!nombre || !unidad) {
+    errEl.textContent = 'Nombre y unidad son requeridos.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  if (isNaN(precioIngresado) || precioIngresado < 0) {
+    errEl.textContent = 'El precio no es válido.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const dual = resolveDualPrecio(qmMoneda, precioIngresado);
+  if (!dual) {
+    errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const key = nombre.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+    + '_' + Date.now();
+  const data = { nombre, unidad, precioUSD: dual.precioUSD, precioARS: dual.precioARS, proveedor, fecha, creadoEn: Date.now() };
+
+  try {
+    await _fbPut(`/materiales/${key}.json`, data);
+    materiales.push({ key, ...data });
+    materiales.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    $('modal-material-quick').classList.add('hidden');
+    showToast('Material creado.');
+    if (pendingLineaKey) updateLinea(pendingLineaKey, { refKey: key });
+  } catch (_) {
+    errEl.textContent = 'Error al guardar. Intentá de nuevo.';
+    errEl.classList.remove('hidden');
+  }
 }
 
 async function deleteLinea(lineaKey) {
@@ -277,6 +365,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-linea-material').addEventListener('click', () => addLinea('material'));
   $('btn-add-linea-equipo').addEventListener('click', () => addLinea('equipo'));
   $('btn-add-linea-manoDeObra').addEventListener('click', () => addLinea('manoDeObra'));
+
+  $('modal-material-quick-close').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
+  $('modal-material-quick-cancel').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
+  $('modal-material-quick-save').addEventListener('click', saveQuickMaterial);
+  $('qm-moneda-usd').addEventListener('click', () => setQmMoneda('USD'));
+  $('qm-moneda-ars').addEventListener('click', () => setQmMoneda('ARS'));
+  attachCalcInput($('qm-precio'));
 
   await loadAll();
   await getDolarSnapshot().catch(() => {});

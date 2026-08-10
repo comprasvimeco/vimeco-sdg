@@ -10,6 +10,27 @@ const fmtFecha  = iso => {
 
 let allMateriales = [];
 let editingKey = null;
+let monedaActual = 'USD';
+
+function setMoneda(m) {
+  monedaActual = m;
+  $('btn-moneda-usd').classList.toggle('is-active', m === 'USD');
+  $('btn-moneda-ars').classList.toggle('is-active', m === 'ARS');
+  actualizarEquivalente();
+}
+
+function actualizarEquivalente() {
+  const hint = $('material-precio-equivalente');
+  const raw = $('material-precio').value.trim();
+  if (raw.startsWith('=')) { hint.textContent = 'Podés escribir una fórmula empezando con "="'; return; }
+  const n = parseFloat(raw.replace(',', '.'));
+  if (isNaN(n)) { hint.textContent = 'Podés escribir una fórmula empezando con "="'; return; }
+  const r = resolveDualPrecio(monedaActual, n);
+  if (!r) { hint.textContent = 'Sin cotización del dólar disponible todavía — reintentá en un momento.'; return; }
+  hint.textContent = monedaActual === 'USD'
+    ? `≈ ${fmtARS(r.precioARS)}`
+    : `≈ ${fmtUSD(r.precioUSD)}`;
+}
 
 function renderMateriales(list) {
   const container = $('materiales-list');
@@ -74,6 +95,7 @@ function openAddModal() {
   $('material-precio').value = '';
   $('material-proveedor').value = '';
   $('material-fecha').value = todayIso();
+  setMoneda('USD');
   $('modal-material').classList.remove('hidden');
   setTimeout(() => $('material-nombre').focus(), 50);
 }
@@ -87,6 +109,7 @@ function openEditModal(material) {
   $('material-precio').value = material.precioUSD ?? '';
   $('material-proveedor').value = material.proveedor || '';
   $('material-fecha').value = material.fecha || todayIso();
+  setMoneda('USD');
   $('modal-material').classList.remove('hidden');
   setTimeout(() => $('material-nombre').focus(), 50);
 }
@@ -100,7 +123,7 @@ async function saveMaterialModal() {
 
   const precioInput = $('material-precio');
   if (precioInput.value.trim().startsWith('=')) precioInput.blur();
-  const precioUSD = parseFloat(precioInput.value.replace(',', '.'));
+  const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
 
   if (!nombre) {
     errEl.textContent = 'El nombre es requerido.';
@@ -112,11 +135,18 @@ async function saveMaterialModal() {
     errEl.classList.remove('hidden');
     return;
   }
-  if (isNaN(precioUSD) || precioUSD < 0) {
+  if (isNaN(precioIngresado) || precioIngresado < 0) {
     errEl.textContent = 'El precio no es válido.';
     errEl.classList.remove('hidden');
     return;
   }
+  const dual = resolveDualPrecio(monedaActual, precioIngresado);
+  if (!dual) {
+    errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const { precioUSD, precioARS } = dual;
 
   const saveBtn = $('modal-material-save');
   saveBtn.disabled = true;
@@ -124,13 +154,13 @@ async function saveMaterialModal() {
 
   try {
     if (editingKey) {
-      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precioUSD, proveedor, fecha });
+      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precioUSD, precioARS, proveedor, fecha });
     } else {
       const key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precioUSD, proveedor, fecha, creadoEn: Date.now() });
+      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precioUSD, precioARS, proveedor, fecha, creadoEn: Date.now() });
     }
     $('modal-material').classList.add('hidden');
     showToast(editingKey ? 'Material actualizado.' : 'Material creado.');
@@ -158,6 +188,10 @@ async function deleteMaterial(material) {
 
 document.addEventListener('DOMContentLoaded', () => {
   attachCalcInput($('material-precio'));
+  $('material-precio').addEventListener('input', actualizarEquivalente);
+  $('material-precio').addEventListener('blur', actualizarEquivalente);
+  $('btn-moneda-usd').addEventListener('click', () => setMoneda('USD'));
+  $('btn-moneda-ars').addEventListener('click', () => setMoneda('ARS'));
 
   $('btn-add-material').addEventListener('click', openAddModal);
   $('modal-material-close').addEventListener('click',  () => $('modal-material').classList.add('hidden'));

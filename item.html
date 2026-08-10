@@ -15,6 +15,26 @@
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+
+    .linea-select-wrap { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+    .linea-unidad-badge { font-size: .75rem; color: var(--gray-500); white-space: nowrap; flex-shrink: 0; }
+    .ss-wrap { position: relative; flex: 1; min-width: 0; }
+    .ss-dropdown {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+      background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius);
+      box-shadow: var(--shadow-lg); max-height: 260px; overflow-y: auto;
+    }
+    .ss-option { display: flex; justify-content: space-between; gap: .5rem; padding: .5rem .7rem; font-size: .87rem; cursor: pointer; }
+    .ss-option:hover { background: var(--gray-100); }
+    .ss-option-sub { color: var(--gray-400); font-size: .78rem; white-space: nowrap; }
+    .ss-empty { padding: .5rem .7rem; font-size: .82rem; color: var(--gray-400); }
+    .ss-create { padding: .5rem .7rem; font-size: .85rem; color: var(--primary); font-weight: 600; cursor: pointer; border-top: 1px solid var(--gray-200); }
+    .ss-create:hover { background: var(--gray-100); }
+    .ss-create.disabled { color: var(--gray-400); cursor: default; pointer-events: none; }
+
+    .precio-toggle { display: flex; gap: .4rem; }
+    .precio-toggle .btn { padding: .35rem .8rem; box-shadow: none; }
+    .precio-toggle .btn.is-active { background: var(--primary); color: var(--white); }
   </style>
 </head>
 <body>
@@ -98,11 +118,57 @@
     </div>
   </div>
 
+  <!-- Modal: Alta rápida de material (desde una línea de Materiales del AP) -->
+  <div class="modal-overlay hidden" id="modal-material-quick">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Nuevo material</span>
+        <button class="modal-close" id="modal-material-quick-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="qm-nombre">Nombre *</label>
+          <input type="text" id="qm-nombre" class="form-control">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="qm-unidad">Unidad *</label>
+            <input type="text" id="qm-unidad" class="form-control" placeholder="Ej: kg, m3, u">
+          </div>
+          <div class="form-group">
+            <label for="qm-precio">Precio actual *</label>
+            <div class="precio-toggle">
+              <button type="button" class="btn btn-sm btn-secondary is-active" id="qm-moneda-usd">USD</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="qm-moneda-ars">ARS</button>
+            </div>
+            <input type="text" id="qm-precio" class="form-control" placeholder="Ej: 5 o =50*100" style="margin-top:.4rem;">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="qm-proveedor">Proveedor</label>
+            <input type="text" id="qm-proveedor" class="form-control" placeholder="Opcional">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="qm-fecha">Fecha del precio</label>
+            <input type="date" id="qm-fecha" class="form-control">
+          </div>
+        </div>
+        <div id="modal-material-error-qm" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-material-quick-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-material-quick-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
 
   <script src="js/icons.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/calc.js"></script>
+  <script src="js/searchable-select.js"></script>
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
   <script src="js/calcCostos.js"></script>
