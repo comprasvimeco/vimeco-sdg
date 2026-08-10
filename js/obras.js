@@ -29,6 +29,7 @@ function renderObras(list) {
         </div>
         <div class="item-card-actions">
           <button class="btn btn-sm btn-outline btn-edit-obra">Editar</button>
+          <button class="btn btn-sm btn-primary btn-computo-obra">Cómputo</button>
           <button class="btn btn-sm btn-danger btn-del-obra">Eliminar</button>
         </div>
       </div>`;
@@ -38,6 +39,9 @@ function renderObras(list) {
     const key = card.dataset.key;
     const obra = allObras.find(o => o.key === key);
     card.querySelector('.btn-edit-obra').addEventListener('click', () => openEditModal(obra));
+    card.querySelector('.btn-computo-obra').addEventListener('click', () => {
+      window.location.href = 'computo.html?obra=' + encodeURIComponent(obra.key);
+    });
     card.querySelector('.btn-del-obra').addEventListener('click', () => deleteObra(obra));
   });
 }
