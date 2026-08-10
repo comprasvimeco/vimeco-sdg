@@ -29,3 +29,49 @@ window.calcCostoDiarioEquipo = function (equipo, params, jornadaHoras) {
   const lubricantesDia = combustibleDia * params.lubricantesPct / 100;
   return amortizacionDia + interesesDia + reparacionesDia + combustibleDia + lubricantesDia;
 };
+
+// Costo unitario de un ítem de Biblioteca a partir de su receta (líneas) y
+// rendimiento, con precios generales (materiales/equipos/MO). Usado por
+// computo.js y carga-fija.js para calcular en vivo — la Biblioteca ya no
+// cachea ningún costo (ver item.js, que sólo edita la receta).
+// catalogos: { materiales, equipos, roles }
+window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO) {
+  function catalogoFor(tipo) {
+    if (tipo === 'material') return catalogos.materiales;
+    if (tipo === 'equipo') return catalogos.equipos;
+    return catalogos.roles;
+  }
+  function precioUnitarioMaterial(mat) {
+    const venta = window.dolarOficialVenta();
+    if (!mat || !mat.precioUSD || !venta) return null;
+    return mat.precioUSD * venta;
+  }
+  function costoLinea(linea) {
+    const cat = catalogoFor(linea.tipo);
+    const entidad = cat.find(c => c.key === linea.refKey);
+    if (!entidad || linea.cantidad == null || isNaN(linea.cantidad)) return null;
+    if (linea.tipo === 'material') {
+      const precio = precioUnitarioMaterial(entidad);
+      return precio == null ? null : linea.cantidad * precio;
+    }
+    if (linea.tipo === 'equipo') {
+      const costoDiario = window.calcCostoDiarioEquipo(entidad, paramsEquipos, paramsMO.jornadaHoras);
+      return costoDiario == null ? null : linea.cantidad * costoDiario;
+    }
+    const c = window.calcCostoManoDeObra(entidad, paramsMO);
+    return linea.cantidad * c.costoJornal;
+  }
+
+  let costoMateriales = 0;
+  let costoDiarioEquiposMO = 0;
+  Object.values(lineasItem || {}).forEach(l => {
+    const c = costoLinea(l);
+    if (c == null) return;
+    if (l.tipo === 'material') costoMateriales += c;
+    else costoDiarioEquiposMO += c;
+  });
+  const rendimiento = item.rendimiento || 1;
+  const costoEquiposMOPorUnidad = costoDiarioEquiposMO / rendimiento;
+  const costoUnitario = costoMateriales + costoEquiposMOPorUnidad;
+  return { costoMateriales, costoEquiposMOPorUnidad, costoUnitario };
+};

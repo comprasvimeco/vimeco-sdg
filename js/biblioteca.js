@@ -1,9 +1,8 @@
 /* VIMECO S.A. — Sistema de Gestión — Biblioteca (catálogo de ítems + rubros)
-   El Análisis de Precios de cada ítem (líneas de materiales/equipos/mano de
-   obra) se edita en item.html?key=... — acá sólo viven los datos básicos y el
-   costo unitario ya calculado (cache que se actualiza al guardar la receta).
-   Es costo, no precio: el beneficio se aplica recién al incorporar el ítem
-   al presupuesto de una obra puntual. */
+   La receta de cada ítem (líneas de materiales/equipos/mano de obra) se
+   edita en item.html?key=... — acá sólo viven los datos básicos y el
+   rendimiento. Sin costo: el costo se arma en vivo en el Cómputo de cada
+   obra, a partir de esta receta + precios generales. */
 
 const $ = id => document.getElementById(id);
 
@@ -18,8 +17,6 @@ function metaLine(it) {
   if (it.rubroKey && rubrosMap[it.rubroKey]) parts.push(rubrosMap[it.rubroKey]);
   parts.push(it.unidad);
   if (it.rendimiento) parts.push(`rendimiento ${it.rendimiento}/jornada`);
-  if (it.costoUnitarioCache != null) parts.push(`Costo unitario ${fmtARS(it.costoUnitarioCache)}`);
-  else parts.push('Sin Análisis de Precios cargado');
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -37,7 +34,7 @@ function renderItems(list) {
       </div>
       <div class="item-card-actions">
         <button class="btn btn-sm btn-outline btn-edit-item">Datos</button>
-        <button class="btn btn-sm btn-primary btn-open-item">Análisis de Precio</button>
+        <button class="btn btn-sm btn-primary btn-open-item">Receta</button>
         <button class="btn btn-sm btn-danger btn-del-item">Eliminar</button>
       </div>
     </div>`).join('');

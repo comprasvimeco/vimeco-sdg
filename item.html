@@ -3,18 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIMECO — Análisis de Precio</title>
+  <title>VIMECO — Receta</title>
   <link rel="stylesheet" href="css/styles.css">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .ap-linea { display: grid; grid-template-columns: minmax(280px, 2fr) 110px 130px 40px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
+    .ap-linea { display: grid; grid-template-columns: minmax(280px, 2fr) 110px 40px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
     .ap-linea:last-child { border-bottom: none; }
-    .ap-linea-costo { text-align: right; font-weight: 600; color: var(--gray-700); white-space: nowrap; }
     .ap-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
-    .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
-    .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
 
     .linea-select-wrap { display: flex; align-items: center; gap: .5rem; min-width: 0; }
     .linea-select-container { flex: 1 1 0%; min-width: 0; }
@@ -29,7 +26,7 @@
   <header class="app-header">
     <div class="header-brand u-pointer" onclick="window.location.href='biblioteca.html'">
       <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
-      <span class="header-title" id="header-item-nombre">Análisis de Precio</span>
+      <span class="header-title" id="header-item-nombre">Receta</span>
     </div>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
@@ -59,11 +56,6 @@
     <div class="card">
       <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Mano de Obra</span><button class="btn btn-sm btn-primary" id="btn-add-linea-manoDeObra">+ Agregar</button></span></div>
       <div class="card-body" id="lineas-manoDeObra"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-header"><span class="card-title">Resumen</span></div>
-      <div class="card-body" id="resumen"></div>
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando ítem…</div></div>
@@ -159,7 +151,6 @@
   <script src="js/searchable-select.js"></script>
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
-  <script src="js/calcCostos.js"></script>
   <script src="js/config.js"></script>
   <script src="js/firebase.js"></script>
   <script src="js/item.js"></script>

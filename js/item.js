@@ -1,7 +1,8 @@
-/* VIMECO S.A. — Sistema de Gestión — Ítem: Análisis de Precios
-   Costo Materiales: cantidad directa por unidad de ítem.
-   Costo Equipos/Mano de Obra: cantidad de uso por JORNADA, dividido por el
-   rendimiento del ítem para expresarlo por unidad — igual que la planilla real. */
+/* VIMECO S.A. — Sistema de Gestión — Ítem: Receta
+   Editor de la receta del ítem (líneas de materiales/equipos/mano de obra con
+   cantidades) y su rendimiento. Sin precio: el costo se arma en vivo en el
+   Cómputo de cada obra, a partir de esta receta + precios generales (ver
+   js/calcCostos.js, calcCostoUnitarioItem). */
 
 const $ = id => document.getElementById(id);
 
@@ -15,8 +16,6 @@ let equipos = [];
 let roles = [];
 let rubros = [];
 let rubrosMap = {};
-let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
-let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 
 const HINTS = {
   material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
@@ -34,44 +33,6 @@ function catalogoFor(tipo) {
   if (tipo === 'material') return materiales;
   if (tipo === 'equipo') return equipos;
   return roles;
-}
-
-function precioUnitarioMaterial(mat) {
-  const venta = window.dolarOficialVenta();
-  if (!mat || !mat.precioUSD || !venta) return null;
-  return mat.precioUSD * venta;
-}
-
-function costoLinea(linea) {
-  const cat = catalogoFor(linea.tipo);
-  const entidad = cat.find(c => c.key === linea.refKey);
-  if (!entidad || linea.cantidad == null || isNaN(linea.cantidad)) return null;
-  if (linea.tipo === 'material') {
-    const precio = precioUnitarioMaterial(entidad);
-    return precio == null ? null : linea.cantidad * precio;
-  }
-  if (linea.tipo === 'equipo') {
-    const costoDiario = window.calcCostoDiarioEquipo(entidad, paramsEquipos, paramsMO.jornadaHoras);
-    return costoDiario == null ? null : linea.cantidad * costoDiario;
-  }
-  // manoDeObra
-  const c = window.calcCostoManoDeObra(entidad, paramsMO);
-  return linea.cantidad * c.costoJornal;
-}
-
-function calcularResumen() {
-  let costoMateriales = 0;
-  let costoDiarioEquiposMO = 0;
-  Object.values(lineas).forEach(l => {
-    const c = costoLinea(l);
-    if (c == null) return;
-    if (l.tipo === 'material') costoMateriales += c;
-    else costoDiarioEquiposMO += c;
-  });
-  const rendimiento = item.rendimiento || 1;
-  const costoEquiposMOPorUnidad = costoDiarioEquiposMO / rendimiento;
-  const costoUnitario = costoMateriales + costoEquiposMOPorUnidad;
-  return { costoMateriales, costoEquiposMOPorUnidad, costoUnitario };
 }
 
 function renderDatos() {
@@ -100,7 +61,6 @@ function renderLineasSeccion(tipo) {
             ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
-          <span class="ap-linea-costo"></span>
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
         </div>`).join('');
   }
@@ -110,10 +70,8 @@ function renderLineasSeccion(tipo) {
     const lineaKey = row.dataset.key;
     const linea = lineas[lineaKey];
     const cantidadInput = row.querySelector('.linea-cantidad');
-    const costo = costoLinea(linea);
 
     cantidadInput.value = linea.cantidad ?? '';
-    row.querySelector('.ap-linea-costo').textContent = costo != null ? fmtARS(costo) : '—';
 
     const options = cat.map(c => ({
       value: c.key,
@@ -142,39 +100,24 @@ function renderLineasSeccion(tipo) {
   });
 }
 
-function renderResumen() {
-  const r = calcularResumen();
-  $('resumen').innerHTML = `
-    <div class="ap-resumen-row"><span>Costo Materiales</span><span>${fmtARS(r.costoMateriales)}</span></div>
-    <div class="ap-resumen-row"><span>Costo Equipos + Mano de Obra (por unidad)</span><span>${fmtARS(r.costoEquiposMOPorUnidad)}</span></div>
-    <div class="ap-resumen-row total"><span>Costo unitario</span><span>${fmtARS(r.costoUnitario)}</span></div>
-    <p class="form-hint" style="margin-top:.5rem;">No incluye Gastos Generales ni beneficio — eso se aplica al incorporar el ítem al presupuesto de la obra.</p>`;
-  return r;
-}
-
 function renderTodasLasLineas() {
   renderLineasSeccion('material');
   renderLineasSeccion('equipo');
   renderLineasSeccion('manoDeObra');
-  renderResumen();
 }
 
-async function persistLineasYCache() {
-  const r = calcularResumen();
+async function persistLineas() {
   try {
     await _fbPut(`/items/${itemKey}/lineas.json`, lineas);
-    await _fbPatch(`/items/${itemKey}.json`, {
-      costoUnitarioCache: r.costoUnitario,
-    });
   } catch (_) {
-    showToast('Error al guardar el Análisis de Precios.', 'error');
+    showToast('Error al guardar la receta.', 'error');
   }
 }
 
 function updateLinea(lineaKey, cambios) {
   lineas[lineaKey] = { ...lineas[lineaKey], ...cambios };
   renderTodasLasLineas();
-  persistLineasYCache();
+  persistLineas();
 }
 
 function addLinea(tipo) {
@@ -185,7 +128,7 @@ function addLinea(tipo) {
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   lineas[lineaKey] = { tipo, refKey: null, cantidad: null };
   renderTodasLasLineas();
-  persistLineasYCache();
+  persistLineas();
 }
 
 let pendingLineaKey = null;
@@ -264,7 +207,7 @@ async function saveQuickMaterial() {
 async function deleteLinea(lineaKey) {
   delete lineas[lineaKey];
   renderTodasLasLineas();
-  await persistLineasYCache();
+  await persistLineas();
   showToast('Línea eliminada.');
 }
 
@@ -307,7 +250,6 @@ async function saveDatosModal() {
     showToast('Datos actualizados.');
     renderDatos();
     renderTodasLasLineas();
-    await persistLineasYCache();
   } catch (_) {
     errEl.textContent = 'Error al guardar. Intentá de nuevo.';
     errEl.classList.remove('hidden');
@@ -324,15 +266,13 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
   }
-  const [itemData, lineasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO] = await Promise.all([
+  const [itemData, lineasData, materialesData, equiposData, rolesData, rubrosData] = await Promise.all([
     _fbGet(`/items/${itemKey}.json`),
     _fbGet(`/items/${itemKey}/lineas.json`),
     _fbGet('/materiales.json'),
     _fbGet('/equipos.json'),
     _fbGet('/manoDeObra.json'),
     _fbGet('/rubros.json'),
-    _fbGet('/config/equipos.json'),
-    _fbGet('/config/manoDeObra.json'),
   ]);
 
   if (!itemData) {
@@ -347,13 +287,10 @@ async function loadAll() {
   rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
-  if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
-  if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
 
   populateRubroSelect();
   renderDatos();
   renderTodasLasLineas();
-  if (Object.keys(lineas).length) await persistLineasYCache();
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
@@ -379,6 +316,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   attachCalcInput($('qm-precio'));
 
   await loadAll();
-  await getDolarSnapshot().catch(() => {});
-  if (item) renderTodasLasLineas();
 });

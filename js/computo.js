@@ -1,8 +1,9 @@
 /* VIMECO S.A. — Sistema de Gestión — Cómputo de obra
    Cantidad de cada ítem de la Biblioteca que compone la obra. El costo
-   unitario se lee en vivo de items/{key}.costoUnitarioCache (no se copia a la
-   línea), así si se recalcula el Análisis de Precio del ítem el cómputo se
-   actualiza solo. Es costo total de obra sin carga (sin %GG, beneficio,
+   unitario se calcula en vivo a partir de la receta del ítem (líneas +
+   rendimiento) y los precios generales de materiales/equipos/mano de obra
+   (ver js/calcCostos.js, calcCostoUnitarioItem) — la Biblioteca no cachea
+   ningún costo. Es costo total de obra sin carga (sin %GG, beneficio,
    financiero ni IVA) — eso se aplica en el Presupuesto, etapa siguiente. */
 
 const $ = id => document.getElementById(id);
@@ -15,10 +16,18 @@ let lineas = {};   // { lineaKey: { itemKey, cantidad } }
 let items = [];
 let rubros = [];
 let rubrosMap = {};
+let materiales = [];
+let equipos = [];
+let roles = [];
+let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
+let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 
 function costoUnitarioDe(itemKey) {
   const it = items.find(i => i.key === itemKey);
-  return it && it.costoUnitarioCache != null ? it.costoUnitarioCache : null;
+  if (!it || !it.lineas || !Object.keys(it.lineas).length) return null;
+  const catalogos = { materiales, equipos, roles };
+  const r = window.calcCostoUnitarioItem(it, it.lineas, catalogos, paramsEquipos, paramsMO);
+  return r.costoUnitario;
 }
 
 function totalLinea(linea) {
@@ -137,11 +146,16 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, itemsData, rubrosData] = await Promise.all([
+  const [obraData, lineasData, itemsData, rubrosData, materialesData, equiposData, rolesData, cfgEquipos, cfgMO] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),
     _fbGet('/items.json'),
     _fbGet('/rubros.json'),
+    _fbGet('/materiales.json'),
+    _fbGet('/equipos.json'),
+    _fbGet('/manoDeObra.json'),
+    _fbGet('/config/equipos.json'),
+    _fbGet('/config/manoDeObra.json'),
   ]);
 
   if (!obraData) {
@@ -154,6 +168,11 @@ async function loadAll() {
   rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
+  materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m }));
+  equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e }));
+  roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r }));
+  if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
+  if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
 
   $('header-obra-nombre').textContent = 'Cómputo — ' + obra.nombre;
   renderTodo();
@@ -165,4 +184,6 @@ async function loadAll() {
 document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-linea').addEventListener('click', addLinea);
   await loadAll();
+  await getDolarSnapshot().catch(() => {});
+  if (obra) renderTodo();
 });

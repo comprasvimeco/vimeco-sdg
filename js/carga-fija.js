@@ -18,6 +18,11 @@ let obra = null;
 let lineas = {};     // { lineaKey: { concepto, cantidad, precioUnitario, meses } }
 let config = { beneficioPct: null, costoFinancieroPct: null, ivaPct: 21 };
 let costoComputo = 0;
+let computoData = null;
+let items = [];
+let catalogos = { materiales: [], equipos: [], roles: [] };
+let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
+let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 
 function totalLinea(l) {
   if (l.cantidad == null || l.precioUnitario == null || l.meses == null) return null;
@@ -203,13 +208,14 @@ async function deleteLinea(lineaKey) {
   showToast('Concepto eliminado.');
 }
 
-function calcularCostoComputo(computoLineas, items) {
+function calcularCostoComputo(computoLineas, itemsList) {
   const itemsMap = {};
-  items.forEach(it => { itemsMap[it.key] = it; });
+  itemsList.forEach(it => { itemsMap[it.key] = it; });
   return Object.values(computoLineas || {}).reduce((acc, l) => {
     const it = itemsMap[l.itemKey];
-    if (!it || it.costoUnitarioCache == null || l.cantidad == null || isNaN(l.cantidad)) return acc;
-    return acc + it.costoUnitarioCache * l.cantidad;
+    if (!it || !it.lineas || !Object.keys(it.lineas).length || l.cantidad == null || isNaN(l.cantidad)) return acc;
+    const r = window.calcCostoUnitarioItem(it, it.lineas, catalogos, paramsEquipos, paramsMO);
+    return acc + r.costoUnitario * l.cantidad;
   }, 0);
 }
 
@@ -218,12 +224,17 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, configData, computoData, itemsData] = await Promise.all([
+  const [obraData, lineasData, configData, computoLineas, itemsData, materialesData, equiposData, rolesData, cfgEquipos, cfgMO] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/lineas.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),
     _fbGet('/items.json'),
+    _fbGet('/materiales.json'),
+    _fbGet('/equipos.json'),
+    _fbGet('/manoDeObra.json'),
+    _fbGet('/config/equipos.json'),
+    _fbGet('/config/manoDeObra.json'),
   ]);
 
   if (!obraData) {
@@ -233,7 +244,15 @@ async function loadAll() {
   obra = obraData;
   lineas = lineasData || {};
   if (configData) config = { ...config, ...configData };
-  const items = Object.entries(itemsData || {}).map(([key, it]) => ({ key, ...it }));
+  computoData = computoLineas;
+  items = Object.entries(itemsData || {}).map(([key, it]) => ({ key, ...it }));
+  catalogos = {
+    materiales: Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })),
+    equipos: Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e })),
+    roles: Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })),
+  };
+  if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
+  if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
   costoComputo = calcularCostoComputo(computoData, items);
 
   $('header-obra-nombre').textContent = 'Carga Fija — ' + obra.nombre;
@@ -246,4 +265,9 @@ async function loadAll() {
 document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-linea').addEventListener('click', addLinea);
   await loadAll();
+  await getDolarSnapshot().catch(() => {});
+  if (obra) {
+    costoComputo = calcularCostoComputo(computoData, items);
+    renderTodo();
+  }
 });
