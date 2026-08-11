@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Presupuesto</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+  <style>
+    .presupuesto-rubro-header { display: grid; grid-template-columns: 40px 1fr 130px; gap: .6rem; align-items: center; padding: .5rem 0; margin-top: .75rem; border-bottom: 2px solid var(--gray-200); }
+    .presupuesto-rubro-header:first-child { margin-top: 0; }
+    .presupuesto-rubro-numero { font-weight: 700; color: var(--primary); font-size: .95rem; }
+    .presupuesto-rubro-nombre { font-weight: 700; font-size: .95rem; }
+    .presupuesto-rubro-subtotal { font-weight: 600; color: var(--gray-700); white-space: nowrap; text-align: right; }
+    .presupuesto-linea { display: grid; grid-template-columns: 40px 1.3fr 70px 90px 130px 130px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
+    .presupuesto-linea:last-child { border-bottom: none; }
+    .presupuesto-linea-numero { color: var(--gray-500); font-size: .85rem; }
+    .presupuesto-linea-precio, .presupuesto-linea-total { text-align: right; white-space: nowrap; }
+    .presupuesto-linea-total { font-weight: 600; color: var(--gray-700); }
+    .presupuesto-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: none !important; }
+    .presupuesto-linea-header span:nth-child(3), .presupuesto-linea-header span:nth-child(4) { text-align: center; }
+    .presupuesto-linea-header span:nth-child(5), .presupuesto-linea-header span:nth-child(6) { text-align: right; }
+    .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
+    .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <span class="header-title" id="header-obra-nombre">Presupuesto</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline" onclick="window.location.href='obras.html'">Volver</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Ítems del presupuesto</span></div>
+      <div class="card-body" id="lineas-presupuesto"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Resumen</span></div>
+      <div class="card-body" id="resumen"></div>
+    </div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando presupuesto…</div></div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/calcCostos.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/presupuesto.js"></script>
+</body>
+</html>

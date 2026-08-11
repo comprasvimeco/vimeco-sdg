@@ -351,19 +351,31 @@ comportamiento tiene que ser idéntico al de hoy (precio global) — esto es
 aditivo, no debería romper nada de lo ya cargado (obras "Prueba"/"a", ítems
 cerco_perimetral/platea_con_malla/zapata_corrida).
 
-## 8. Presupuesto
+## 8. Presupuesto — ✅ Hecho (2026-08-11)
 
-El objetivo original de la sesión de hoy, todavía no construido. Con
-Cómputo (costo, punto 2) y Carga Fija (coeficiente K, ya hecho en v013)
-existentes: aplicar K al costo unitario (con precios de esa obra, punto 7)
-de cada ítem del Cómputo para sacar el precio unitario, y totalizar
-cantidad × precio. El dueño del proyecto ya vio la Carga Fija funcionando y
-le pareció bien ("Ya vi la carga y me parece que funciona bien").
+Pantalla nueva `presupuesto.html`/`js/presupuesto.js`, de **sólo lectura**
+(sin inputs, sin agregar/mover/eliminar — todo eso sigue siendo Cómputo
+para cantidades/receta, Carga Fija para %Beneficio/%CostoFinanciero/%IVA/
+gastos fijos). Acceso desde un botón "Presupuesto" nuevo en cada card de
+`obras.html`, junto a "Cómputo"/"Carga Fija".
 
-Este paso probablemente conviene planificarlo recién cuando 1-7 estén
-resueltos, porque el "costo unitario de un ítem" que usa el Presupuesto va a
-salir del nuevo mecanismo de precios por obra (punto 7), no de
-`costoUnitarioCache` a secas.
+Misma estructura agrupada por rubro que Cómputo (mismos `rubrosComputo` y
+`computo`, mismo criterio de numeración "1.", "1.1"). Por cada línea:
+precio unitario = costo unitario (motor compartido de siempre,
+`calcCostoUnitarioItem`/`resolverPreciosObra`, con los precios de esa obra
+del punto 7) × Coeficiente K; total = cantidad × precio unitario. K se
+recalcula en vivo con la misma fórmula de `carga-fija.js` (`calcularK`),
+reimplementada localmente en `presupuesto.js` — no se tocó
+`calcCostos.js`/`computo.js`/`carga-fija.js`, es aditivo y de sólo lectura
+sobre datos que esas pantallas ya escriben.
+
+**Verificado en la app real** (obra "Prueba", Playwright): mismos rubros y
+líneas que `computo.html`, mismo Coeficiente K que `carga-fija.html`
+(1,3976), mismo costo total del Cómputo ($31.468.561,36) que la
+verificación del punto 7; precio unitario de Cerco Perimetral coincide a
+mano (costo $14.821,35 × K 1,3976 ≈ $20.714, con la diferencia esperada por
+redondeo de los decimales mostrados en pantalla) y el Total del Presupuesto
+es la suma de los totales de línea.
 
 ## 9. Calculadora flotante (selección de rangos)
 
