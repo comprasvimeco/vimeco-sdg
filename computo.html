@@ -8,17 +8,19 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .computo-rubro-header { display: grid; grid-template-columns: 40px 1fr 100px 130px; gap: .6rem; align-items: center; padding: .5rem 0; margin-top: .75rem; border-bottom: 2px solid var(--gray-200); }
+    .computo-rubro-header { display: grid; grid-template-columns: 40px 1fr 160px 130px; gap: .6rem; align-items: center; padding: .5rem 0; margin-top: .75rem; border-bottom: 2px solid var(--gray-200); }
     .computo-rubro-header:first-child { margin-top: 0; }
     .computo-rubro-numero { font-weight: 700; color: var(--primary); font-size: .95rem; }
     .computo-rubro-nombre-input { font-weight: 700; font-size: .95rem; border: none; background: none; padding: .2rem 0; }
     .computo-rubro-nombre-input:focus { border-bottom: 1px solid var(--primary); outline: none; }
     .computo-rubro-acciones { display: flex; align-items: center; gap: .2rem; }
-    .computo-rubro-mover, .computo-rubro-del { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .25rem; }
+    .computo-rubro-add-linea, .computo-rubro-mover, .computo-rubro-del { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .25rem; }
+    .computo-rubro-add-linea { color: var(--primary); margin-right: .3rem; padding-right: .5rem; border-right: 1px solid var(--gray-200); }
+    .computo-rubro-add-linea:hover { color: var(--primary-dark, var(--primary)); }
     .computo-rubro-mover:hover:not(:disabled) { color: var(--primary); }
     .computo-rubro-del:not(:disabled):hover { color: var(--danger); }
     .computo-rubro-mover:disabled, .computo-rubro-del:disabled { opacity: .25; cursor: default; }
-    .computo-rubro-mover .icon, .computo-rubro-del .icon, .computo-linea-mover .icon, .computo-linea-dup .icon, .computo-linea-ap .icon, .computo-linea-del .icon { width: 15px; height: 15px; }
+    .computo-rubro-add-linea .icon, .computo-rubro-mover .icon, .computo-rubro-del .icon, .computo-linea-mover .icon, .computo-linea-dup .icon, .computo-linea-ap .icon, .computo-linea-del .icon { width: 15px; height: 15px; }
     .computo-rubro-subtotal { font-weight: 600; color: var(--gray-700); white-space: nowrap; text-align: right; }
     .computo-rubro-lineas { min-height: 4px; }
     .computo-rubro-lineas.drop-target { background: var(--gray-100); outline: 2px dashed var(--primary); outline-offset: -2px; }
@@ -62,7 +64,6 @@
         <span class="card-title">Ítems del cómputo</span>
         <div class="flex gap-2">
           <button class="btn btn-sm btn-outline" id="btn-add-rubro">+ Agregar rubro</button>
-          <button class="btn btn-sm btn-primary" id="btn-add-linea">+ Agregar ítem</button>
         </div>
       </div>
       <div class="card-body" id="lineas-computo"></div>
@@ -74,30 +75,6 @@
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando cómputo…</div></div>
-
-  <!-- Modal: Nueva línea (elegir a qué rubro pertenece) -->
-  <div class="modal-overlay hidden" id="modal-nueva-linea">
-    <div class="modal modal--sm">
-      <div class="modal-header">
-        <span class="modal-title">Nueva línea</span>
-        <button class="modal-close" id="modal-nueva-linea-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-      </div>
-      <div class="modal-body">
-        <div class="form-group u-mb-0">
-          <label for="nl-rubro">Rubro *</label>
-          <select id="nl-rubro" class="form-control">
-            <option value="">— Elegir rubro —</option>
-          </select>
-          <span class="form-hint">Si no está el rubro que necesitás, cerrá y agregalo primero con "+ Agregar rubro".</span>
-        </div>
-        <div id="modal-nueva-linea-error" class="alert alert-error hidden" style="margin-top:.75rem;"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" id="modal-nueva-linea-cancel">Cancelar</button>
-        <button class="btn btn-primary" id="modal-nueva-linea-save">Crear</button>
-      </div>
-    </div>
-  </div>
 
   <!-- Modal: Confirmar acción -->
   <div class="modal-overlay hidden" id="modal-confirm">

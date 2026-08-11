@@ -84,6 +84,7 @@ function renderRubroHeader(rubro, numero, esPrimero, esUltimo) {
       <span class="computo-rubro-numero">${numero}.</span>
       <input type="text" class="form-control computo-rubro-nombre-input" data-rubro-id="${escHtml(rubro.key)}" value="${escHtml(rubro.nombre || '')}" placeholder="Nombre del rubro">
       <span class="computo-rubro-acciones">
+        <button class="computo-rubro-add-linea" data-rubro-id="${escHtml(rubro.key)}" title="Agregar ítem en este rubro">${icSvg('plus')}</button>
         <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="-1" title="Subir rubro" ${esPrimero ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
         <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="1" title="Bajar rubro" ${esUltimo ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
         <button class="computo-rubro-del" data-rubro-id="${escHtml(rubro.key)}" title="${vacio ? 'Eliminar rubro' : 'Vaciá el rubro antes de eliminarlo'}" ${vacio ? '' : 'disabled'}>${icSvg('x')}</button>
@@ -158,6 +159,9 @@ function renderLineas() {
       if (rubro && v && v !== rubro.nombre) { rubro.nombre = v; persistRubroCambios(rubroId, { nombre: v }); renderResumen(); }
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  });
+  container.querySelectorAll('.computo-rubro-add-linea').forEach(btn => {
+    btn.addEventListener('click', () => crearLineaEnRubro(btn.dataset.rubroId));
   });
   container.querySelectorAll('.computo-rubro-mover').forEach(btn => {
     btn.addEventListener('click', () => moverRubro(btn.dataset.rubroId, parseInt(btn.dataset.dir, 10)));
@@ -299,34 +303,17 @@ async function eliminarRubro(rubroId) {
   }
 }
 
-function addLinea() {
-  if (!rubros.length) { showToast('Agregá un rubro primero.', 'error'); return; }
-  populateNlRubroSelect();
-  $('nl-rubro').value = rubros.length === 1 ? rubros[0].key : '';
-  $('modal-nueva-linea-error').classList.add('hidden');
-  $('modal-nueva-linea').classList.remove('hidden');
-}
-
-function populateNlRubroSelect() {
-  const ordenados = [...rubros].sort((a, b) => (a.orden || 0) - (b.orden || 0));
-  const opts = ordenados.map((r, i) => `<option value="${escHtml(r.key)}">${i + 1}. ${escHtml(r.nombre || '(sin nombre)')}</option>`).join('');
-  $('nl-rubro').innerHTML = '<option value="">— Elegir rubro —</option>' + opts;
-}
-
-function crearLineaEnRubro() {
-  const rubroId = $('nl-rubro').value;
-  if (!rubroId) {
-    $('modal-nueva-linea-error').textContent = 'Elegí un rubro.';
-    $('modal-nueva-linea-error').classList.remove('hidden');
-    return;
-  }
+function crearLineaEnRubro(rubroId) {
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   const grupo = lineasDeRubro(rubroId);
   const orden = grupo.length ? Math.max(...grupo.map(([, l]) => l.orden || 0)) + 1 : 1;
   lineas[lineaKey] = { rubroId, nombre: '', unidad: '', cantidad: null, itemKey: null, orden, creadoEn: Date.now() };
-  $('modal-nueva-linea').classList.add('hidden');
   renderTodo();
   persistLineaNueva(lineaKey);
+  setTimeout(() => {
+    const input = document.querySelector(`.computo-linea[data-key="${CSS.escape(lineaKey)}"] .linea-nombre`);
+    if (input) input.focus();
+  }, 50);
 }
 
 function moverLinea(lineaKey, dir) {
@@ -472,10 +459,6 @@ async function loadAll() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-rubro').addEventListener('click', addRubro);
-  $('btn-add-linea').addEventListener('click', addLinea);
-  $('modal-nueva-linea-close').addEventListener('click', () => $('modal-nueva-linea').classList.add('hidden'));
-  $('modal-nueva-linea-cancel').addEventListener('click', () => $('modal-nueva-linea').classList.add('hidden'));
-  $('modal-nueva-linea-save').addEventListener('click', crearLineaEnRubro);
 
   await loadAll();
   await getDolarSnapshot().catch(() => {});
