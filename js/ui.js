@@ -29,6 +29,20 @@ function _toast(msg, type) {
 window.toast     = (msg, type = 'info')    => _toast(msg, type);
 window.showToast = (msg, type = 'success') => _toast(msg, type);
 
+const HEADER_TABS = [
+  { id: 'computo',     label: 'Cómputo',     href: 'computo.html' },
+  { id: 'carga-fija',  label: 'Carga Fija',  href: 'carga-fija.html' },
+  { id: 'presupuesto', label: 'Presupuesto', href: 'presupuesto.html' },
+];
+
+window.renderHeaderTabs = function (obraKey, active) {
+  const el = document.getElementById('header-tabs');
+  if (!el) return;
+  el.innerHTML = HEADER_TABS.map(t =>
+    `<a class="header-tab${t.id === active ? ' active' : ''}" href="${t.href}?obra=${encodeURIComponent(obraKey)}">${t.label}</a>`
+  ).join('');
+};
+
 window.showConfirm = function (title, msg) {
   return new Promise(resolve => {
     document.getElementById('modal-confirm-title').textContent = title;

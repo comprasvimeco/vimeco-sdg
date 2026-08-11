@@ -451,6 +451,7 @@ async function loadAll() {
   await migrarARubrosEntidad(rubrosComputoData, computoRubrosViejo || {});
 
   $('header-obra-nombre').textContent = 'Cómputo — ' + obra.nombre;
+  renderHeaderTabs(obraKey, 'computo');
   renderTodo();
 
   $('main-loading').style.display = 'none';

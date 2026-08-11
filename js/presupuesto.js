@@ -192,6 +192,7 @@ async function loadAll() {
   if (cargaFijaConfigData) cargaFijaConfig = { ...cargaFijaConfig, ...cargaFijaConfigData };
 
   $('header-obra-nombre').textContent = 'Presupuesto — ' + obra.nombre;
+  renderHeaderTabs(obraKey, 'presupuesto');
   renderTodo();
 
   $('main-loading').style.display = 'none';

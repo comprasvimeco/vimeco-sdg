@@ -90,6 +90,10 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .app-header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--grad-gold); opacity: .85; }
 .header-brand { display: flex; align-items: center; gap: .85rem; }
 .header-title { font-size: .95rem; font-weight: 700; }
+.header-tabs { display: flex; align-items: center; gap: .3rem; }
+.header-tab { color: rgba(255,255,255,.75); font-size: .85rem; font-weight: 600; text-decoration: none; padding: .4rem .85rem; border-radius: 999px; transition: background .15s, color .15s; white-space: nowrap; }
+.header-tab:hover { color: var(--white); background: rgba(255,255,255,.1); }
+.header-tab.active { color: var(--white); background: rgba(255,255,255,.18); }
 .app-main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; animation: fadeIn .35s var(--ease-spring) both; }
 
 /* ===== CARDS (glass) ===== */
@@ -267,4 +271,5 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 }
 @media (max-width: 700px) {
   .app-header { padding: 0 .75rem; }
+  .header-tab { font-size: .78rem; padding: .35rem .55rem; }
 }

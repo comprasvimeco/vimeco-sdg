@@ -270,6 +270,7 @@ async function loadAll() {
   costoComputo = calcularCostoComputo(computoData, items);
 
   $('header-obra-nombre').textContent = 'Carga Fija — ' + obra.nombre;
+  renderHeaderTabs(obraKey, 'carga-fija');
   renderTodo();
 
   $('main-loading').style.display = 'none';
