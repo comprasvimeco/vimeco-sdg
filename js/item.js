@@ -248,14 +248,17 @@ function calcularDetalleActivo() {
   return r;
 }
 
+// Orden A (Equipos) → B (Mano de Obra) → C (Materiales) → Subtotal,
+// mismo criterio que la planilla de referencia (CyP Taller Río Cuarto.xlsx).
 function renderResumenCosto(r) {
   const card = $('resumen-card');
   if (activeVersion === 'teorico' || !r) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
   $('resumen').innerHTML = `
-    <div class="ap-resumen-row"><span>Costo Materiales</span><span>${fmtARS(r.costoMateriales)}</span></div>
-    <div class="ap-resumen-row"><span>Costo Equipos + Mano de Obra (por unidad)</span><span>${fmtARS(r.costoEquiposMOPorUnidad)}</span></div>
-    <div class="ap-resumen-row total"><span>Costo unitario</span><span>${fmtARS(r.costoUnitario)}</span></div>
+    <div class="ap-resumen-row"><span>Costo unitario de Equipos (A)</span><span>${fmtARS(r.costoUnitarioEquipos)}</span></div>
+    <div class="ap-resumen-row"><span>Costo unitario Mano de Obra (B)</span><span>${fmtARS(r.costoUnitarioMO)}</span></div>
+    <div class="ap-resumen-row"><span>Costo unitario de Materiales (C)</span><span>${fmtARS(r.costoMateriales)}</span></div>
+    <div class="ap-resumen-row total"><span>SUBTOTAL (A+B+C)</span><span>${fmtARS(r.costoUnitario)}</span></div>
     <p class="form-hint" style="margin-top:.5rem;">Costo de referencia con precios generales — no incluye Gastos Generales ni beneficio.</p>`;
 }
 
@@ -291,7 +294,7 @@ async function persistRendimiento(cambios) {
   }
 }
 
-function renderLineasSeccion(tipo) {
+function renderLineasSeccion(tipo, r) {
   const container = $(`lineas-${tipo}`);
   const cat = catalogoFor(tipo);
   const entradas = Object.entries(lineas).filter(([, l]) => l.tipo === tipo);
@@ -317,6 +320,12 @@ function renderLineasSeccion(tipo) {
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
         </div>`;
     }).join('');
+  }
+  if (conCosto && r) {
+    html += tipo === 'material'
+      ? `<div class="ap-subtotal-linea total"><span>Costo unitario de Materiales (C)</span><span>${fmtARS(r.costoMateriales)}</span></div>`
+      : `<div class="ap-subtotal-linea"><span>Costo diario Equipos</span><span>${fmtARS(r.costoDiarioEquipos)}</span></div>
+         <div class="ap-subtotal-linea total"><span>Costo unitario de Equipos (A)</span><span>${fmtARS(r.costoUnitarioEquipos)}</span></div>`;
   }
   container.innerHTML = html;
 
@@ -358,7 +367,7 @@ function renderLineasSeccion(tipo) {
 // catálogo (roles), cada una con su cantidad para completar — no hace falta
 // elegir "cuál" agregar porque ya están todas. Vaciar la cantidad borra esa
 // línea (si existía); no afecta el costo de todas formas si queda vacía.
-function renderManoDeObraSeccion() {
+function renderManoDeObraSeccion(r) {
   const container = $('lineas-manoDeObra');
   const conCosto = activeVersion !== 'teorico';
   let html = `<p class="form-hint" style="margin-bottom:.75rem;">${HINTS.manoDeObra}</p>`;
@@ -377,6 +386,10 @@ function renderManoDeObraSeccion() {
           ${conCosto ? `<span class="ap-linea-costo-unit">${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total">${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
         </div>`;
     }).join('');
+  }
+  if (conCosto && r) {
+    html += `<div class="ap-subtotal-linea"><span>Costo diario Mano de Obra</span><span>${fmtARS(r.costoDiarioMO)}</span></div>
+      <div class="ap-subtotal-linea total"><span>Costo unitario Mano de Obra (B)</span><span>${fmtARS(r.costoUnitarioMO)}</span></div>`;
   }
   container.innerHTML = html;
 
@@ -403,9 +416,9 @@ function renderManoDeObraSeccion() {
 
 function renderTodasLasLineas() {
   const r = calcularDetalleActivo();
-  renderLineasSeccion('material');
-  renderLineasSeccion('equipo');
-  renderManoDeObraSeccion();
+  renderLineasSeccion('material', r);
+  renderLineasSeccion('equipo', r);
+  renderManoDeObraSeccion(r);
   renderResumenCosto(r);
 }
 

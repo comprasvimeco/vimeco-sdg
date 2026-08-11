@@ -69,16 +69,28 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
 
   const rendimiento = item.rendimiento || 1;
   let costoMateriales = 0;
-  let costoDiarioEquiposMO = 0;
+  let costoDiarioEquipos = 0;
+  let costoDiarioMO = 0;
   const detallePorLinea = {};   // { lineaKey: { costoUnitario, costoTotal } }
   Object.entries(lineasItem || {}).forEach(([lineaKey, l]) => {
     const d = costoLineaDetalle(l);
     if (!d) return;
     detallePorLinea[lineaKey] = d;
     if (l.tipo === 'material') costoMateriales += d.costoTotal;
-    else costoDiarioEquiposMO += d.costoTotal;
+    else if (l.tipo === 'equipo') costoDiarioEquipos += d.costoTotal;
+    else costoDiarioMO += d.costoTotal;
   });
-  const costoEquiposMOPorUnidad = costoDiarioEquiposMO / rendimiento;
-  const costoUnitario = costoMateriales + costoEquiposMOPorUnidad;
-  return { costoMateriales, costoEquiposMOPorUnidad, costoUnitario, detallePorLinea };
+  // Equipos (A) y Mano de Obra (B) se dividen por rendimiento cada uno por
+  // separado (no combinados) — mismo criterio que la planilla de
+  // referencia, para poder mostrar el subtotal de cada área por separado.
+  const costoUnitarioEquipos = costoDiarioEquipos / rendimiento;
+  const costoUnitarioMO = costoDiarioMO / rendimiento;
+  const costoUnitario = costoMateriales + costoUnitarioEquipos + costoUnitarioMO;
+  return {
+    costoMateriales,
+    costoDiarioEquipos, costoUnitarioEquipos,
+    costoDiarioMO, costoUnitarioMO,
+    costoUnitario,
+    detallePorLinea,
+  };
 };
