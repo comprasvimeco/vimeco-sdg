@@ -31,6 +31,41 @@ window.resolveDualPrecio = function (modo, valor) {
   return { precioARS: Math.round(valor * venta * 100) / 100, precioUSD: valor };
 };
 
+// Dos <input> editables (USD y $) que se recalculan entre sí en vivo, en vez
+// del viejo patrón toggle + 1 campo. Escribir en uno actualiza el otro (sin
+// disparar su evento 'input', así que no hay bucle); notaEl muestra la
+// cotización usada. Llamar attachCalcInput(input) sobre los dos ANTES de
+// esto, para que la fórmula "=..." ya esté resuelta cuando este listener de
+// blur recalcula.
+window.attachDualPrecioInputs = function ({ usdInput, arsInput, notaEl }) {
+  function actualizarNota() {
+    if (!notaEl) return;
+    const venta = window.dolarOficialVenta();
+    notaEl.textContent = venta ? `Cotización usada: USD = ${fmtARS(venta)}` : '';
+  }
+
+  function recalcular(origen) {
+    const srcInput = origen === 'USD' ? usdInput : arsInput;
+    const dstInput = origen === 'USD' ? arsInput : usdInput;
+    const val = parseFloat(srcInput.value.replace(',', '.'));
+    if (!isNaN(val)) {
+      const dual = resolveDualPrecio(origen, val);
+      if (dual) {
+        dstInput.value = origen === 'USD' ? dual.precioARS : dual.precioUSD;
+        if (window.setCalcFormula) setCalcFormula(dstInput, null);
+      }
+    }
+    actualizarNota();
+  }
+
+  usdInput.addEventListener('input', () => recalcular('USD'));
+  arsInput.addEventListener('input', () => recalcular('ARS'));
+  usdInput.addEventListener('blur', () => recalcular('USD'));
+  arsInput.addEventListener('blur', () => recalcular('ARS'));
+
+  actualizarNota();
+};
+
 // Pinta "USD = $1.520,00" en el <span id="header-dolar"> del header, si existe
 // en la página. Se auto-ejecuta al cargar cualquier página que tenga ese
 // elemento y este script — así el valor queda visible en todas partes sin

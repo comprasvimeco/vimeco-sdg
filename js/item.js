@@ -38,8 +38,6 @@ let rubros = [];
 let rubrosMap = {};
 let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
-let allCotizaciones = [];
-let fuenteSelect = null;
 
 const HINTS = {
   material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
@@ -470,24 +468,19 @@ function openQuickMaterialModal(texto, lineaKey) {
   pendingLineaKey = lineaKey;
   $('qm-nombre').value = texto || '';
   $('qm-unidad').value = '';
-  $('qm-precio').value = '';
-  setCalcFormula($('qm-precio'), null);
+  $('qm-precio-usd').value = '';
+  $('qm-precio-ars').value = '';
+  setCalcFormula($('qm-precio-usd'), null);
+  setCalcFormula($('qm-precio-ars'), null);
+  $('qm-precio-nota').textContent = '';
   $('qm-proveedor').value = '';
   $('qm-fecha').value = new Date().toISOString().slice(0, 10);
-  setQmMoneda('USD');
   const conPrecio = activeVersion !== 'teorico';
   $('qm-precio-bloque').classList.toggle('hidden', !conPrecio);
   $('qm-precio-hint').textContent = conPrecio ? `El precio se carga para la obra activa (${obrasMap[activeVersion] || activeVersion}).` : '';
   $('modal-material-error-qm').classList.add('hidden');
   $('modal-material-quick').classList.remove('hidden');
   setTimeout(() => $('qm-nombre').focus(), 50);
-}
-
-let qmMoneda = 'USD';
-function setQmMoneda(m) {
-  qmMoneda = m;
-  $('qm-moneda-usd').classList.toggle('is-active', m === 'USD');
-  $('qm-moneda-ars').classList.toggle('is-active', m === 'ARS');
 }
 
 async function saveQuickMaterial() {
@@ -506,21 +499,24 @@ async function saveQuickMaterial() {
   if (conPrecio) {
     const proveedor = $('qm-proveedor').value.trim();
     const fecha = $('qm-fecha').value || new Date().toISOString().slice(0, 10);
-    const precioInput = $('qm-precio');
-    if (precioInput.value.trim().startsWith('=')) precioInput.blur();
-    const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
-    if (isNaN(precioIngresado) || precioIngresado < 0) {
+    const usdInput = $('qm-precio-usd');
+    const arsInput = $('qm-precio-ars');
+    if (usdInput.value.trim().startsWith('=')) usdInput.blur();
+    if (arsInput.value.trim().startsWith('=')) arsInput.blur();
+    const precioUSD = parseFloat(usdInput.value.replace(',', '.'));
+    const precioARS = parseFloat(arsInput.value.replace(',', '.'));
+    if (isNaN(precioUSD) || precioUSD < 0 || isNaN(precioARS) || precioARS < 0) {
       errEl.textContent = 'El precio no es válido.';
       errEl.classList.remove('hidden');
       return;
     }
-    const dual = resolveDualPrecio(qmMoneda, precioIngresado);
-    if (!dual) {
+    const cotizacionUsada = window.dolarOficialVenta();
+    if (!cotizacionUsada) {
       errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
       errEl.classList.remove('hidden');
       return;
     }
-    precioData = { precioUSD: dual.precioUSD, precioARS: dual.precioARS, precioFormula: getCalcFormula(precioInput), proveedor, fecha };
+    precioData = { precioUSD, precioARS, precioFormula: getCalcFormula(usdInput) || getCalcFormula(arsInput), proveedor, fecha, cotizacionUsada };
   }
 
   const key = nombre.toLowerCase()
@@ -545,33 +541,16 @@ async function saveQuickMaterial() {
 
 let editingPrecioMaterialKey = null;
 let mepFuenteSelect = null;
-let mepMoneda = 'USD';
-
-function setMepMoneda(m) {
-  mepMoneda = m;
-  $('mep-moneda-usd').classList.toggle('is-active', m === 'USD');
-  $('mep-moneda-ars').classList.toggle('is-active', m === 'ARS');
-  actualizarEquivalenteMep();
-}
-
-function actualizarEquivalenteMep() {
-  const hint = $('mep-precio-equivalente');
-  const raw = $('mep-precio').value.trim();
-  if (raw.startsWith('=')) { hint.textContent = 'Podés escribir una fórmula empezando con "="'; return; }
-  const n = parseFloat(raw.replace(',', '.'));
-  if (isNaN(n)) { hint.textContent = 'Podés escribir una fórmula empezando con "="'; return; }
-  const r = resolveDualPrecio(mepMoneda, n);
-  if (!r) { hint.textContent = 'Sin cotización del dólar disponible todavía — reintentá en un momento.'; return; }
-  hint.textContent = mepMoneda === 'USD' ? `≈ ${fmtARS(r.precioARS)}` : `≈ ${fmtUSD(r.precioUSD)}`;
-}
 
 function loadMepPrecioFields(mat, obraKey) {
   const p = (mat.precios || {})[obraKey];
-  $('mep-precio').value = p ? (p.precioUSD ?? '') : '';
-  setCalcFormula($('mep-precio'), p ? p.precioFormula : null);
+  $('mep-precio-usd').value = p ? (p.precioUSD ?? '') : '';
+  $('mep-precio-ars').value = p ? (p.precioARS ?? '') : '';
+  setCalcFormula($('mep-precio-usd'), p ? p.precioFormula : null);
+  setCalcFormula($('mep-precio-ars'), null);
   $('mep-proveedor').value = p ? (p.proveedor || '') : '';
   $('mep-fecha').value = p ? (p.fecha || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
-  setMepMoneda('USD');
+  $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARS(p.cotizacionUsada)}` : '';
 }
 
 // Fuente acá es sólo para CONSULTAR el precio de otra obra como referencia —
@@ -611,29 +590,32 @@ async function saveEditarPrecioModal() {
   const fecha = $('mep-fecha').value || new Date().toISOString().slice(0, 10);
   const errEl = $('modal-mep-error');
 
-  const precioInput = $('mep-precio');
-  if (precioInput.value.trim().startsWith('=')) precioInput.blur();
-  const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
+  const usdInput = $('mep-precio-usd');
+  const arsInput = $('mep-precio-ars');
+  if (usdInput.value.trim().startsWith('=')) usdInput.blur();
+  if (arsInput.value.trim().startsWith('=')) arsInput.blur();
+  const precioUSD = parseFloat(usdInput.value.replace(',', '.'));
+  const precioARS = parseFloat(arsInput.value.replace(',', '.'));
 
   if (!nombre || !unidad) {
     errEl.textContent = 'Nombre y unidad son requeridos.';
     errEl.classList.remove('hidden');
     return;
   }
-  if (isNaN(precioIngresado) || precioIngresado < 0) {
+  if (isNaN(precioUSD) || precioUSD < 0 || isNaN(precioARS) || precioARS < 0) {
     errEl.textContent = 'El precio no es válido.';
     errEl.classList.remove('hidden');
     return;
   }
-  const dual = resolveDualPrecio(mepMoneda, precioIngresado);
-  if (!dual) {
+  const cotizacionUsada = window.dolarOficialVenta();
+  if (!cotizacionUsada) {
     errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
     errEl.classList.remove('hidden');
     return;
   }
 
   const targetObraKey = activeVersion;
-  const precioData = { precioUSD: dual.precioUSD, precioARS: dual.precioARS, precioFormula: getCalcFormula(precioInput), proveedor, fecha };
+  const precioData = { precioUSD, precioARS, precioFormula: getCalcFormula(usdInput) || getCalcFormula(arsInput), proveedor, fecha, cotizacionUsada };
 
   try {
     await Promise.all([
@@ -666,11 +648,6 @@ function openEditDatosModal() {
   $('item-rubro').value = item.rubroKey || '';
   $('item-rendimiento').value = item.rendimiento ?? '';
   setCalcFormula($('item-rendimiento'), item.rendimientoFormula);
-  fuenteSelect = createSearchableSelect($('item-fuente-container'), {
-    options: allCotizaciones.map(c => ({ value: c.key, label: c.nombre })),
-    value: item.fuenteCotizacionKey || null,
-    placeholder: 'Buscar cotización…',
-  });
   $('modal-item-error').classList.add('hidden');
   $('modal-item').classList.remove('hidden');
 }
@@ -697,8 +674,7 @@ async function saveDatosModal() {
   }
 
   try {
-    const fuenteCotizacionKey = fuenteSelect ? fuenteSelect.getValue() : null;
-    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput), fuenteCotizacionKey };
+    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
     await _fbPatch(`/items/${itemKey}.json`, data);
     item = { ...item, ...data };
     rendimientoTeorico = rendimiento;
@@ -744,7 +720,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
   }
-  const [itemData, lineasData, versionesData, obrasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO, cotizacionesData] = await Promise.all([
+  const [itemData, lineasData, versionesData, obrasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO] = await Promise.all([
     _fbGet(`/items/${itemKey}.json`),
     _fbGet(`/items/${itemKey}/lineas.json`),
     _fbGet(`/items/${itemKey}/versionesObra.json`),
@@ -755,7 +731,6 @@ async function loadAll() {
     _fbGet('/rubros.json'),
     _fbGet('/config/equipos.json'),
     _fbGet('/config/manoDeObra.json'),
-    _fbGet('/cotizaciones.json'),
   ]);
 
   if (!itemData) {
@@ -781,7 +756,6 @@ async function loadAll() {
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
   if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
   if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
-  allCotizaciones = Object.entries(cotizacionesData || {}).map(([key, c]) => ({ key, ...c })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
   populateRubroSelect();
   renderDatos();
@@ -815,18 +789,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-material-quick-close').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
   $('modal-material-quick-cancel').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
   $('modal-material-quick-save').addEventListener('click', saveQuickMaterial);
-  $('qm-moneda-usd').addEventListener('click', () => setQmMoneda('USD'));
-  $('qm-moneda-ars').addEventListener('click', () => setQmMoneda('ARS'));
-  attachCalcInput($('qm-precio'));
+  attachCalcInput($('qm-precio-usd'));
+  attachCalcInput($('qm-precio-ars'));
+  attachDualPrecioInputs({ usdInput: $('qm-precio-usd'), arsInput: $('qm-precio-ars'), notaEl: $('qm-precio-nota') });
 
   $('modal-mep-close').addEventListener('click',  () => $('modal-material-editar-precio').classList.add('hidden'));
   $('modal-mep-cancel').addEventListener('click', () => $('modal-material-editar-precio').classList.add('hidden'));
   $('modal-mep-save').addEventListener('click', saveEditarPrecioModal);
-  $('mep-moneda-usd').addEventListener('click', () => setMepMoneda('USD'));
-  $('mep-moneda-ars').addEventListener('click', () => setMepMoneda('ARS'));
-  $('mep-precio').addEventListener('input', actualizarEquivalenteMep);
-  $('mep-precio').addEventListener('blur', actualizarEquivalenteMep);
-  attachCalcInput($('mep-precio'));
+  attachCalcInput($('mep-precio-usd'));
+  attachCalcInput($('mep-precio-ars'));
+  attachDualPrecioInputs({ usdInput: $('mep-precio-usd'), arsInput: $('mep-precio-ars'), notaEl: $('mep-precio-nota') });
 
   await loadAll();
 });

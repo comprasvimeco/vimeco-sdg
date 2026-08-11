@@ -23,7 +23,7 @@ let items = [];
 let catalogos = { materiales: [], equipos: [], roles: [] };
 let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
-let preciosObra = {};   // { materialKey: {precioUSD,...} } — resuelto de Cotizaciones de esta obra
+let preciosObra = {};   // { materialKey: {precioUSD,...} } — resuelto de los precios por obra de esta obra
 
 function totalLinea(l) {
   if (l.cantidad == null || l.precioUnitario == null || l.meses == null) return null;

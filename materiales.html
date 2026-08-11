@@ -8,9 +8,6 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .precio-toggle { display: flex; gap: .4rem; }
-    .precio-toggle .btn { padding: .35rem .8rem; box-shadow: none; }
-    .precio-toggle .btn.is-active { background: var(--primary); color: var(--white); }
     .linea-select-container { min-width: 0; }
   </style>
 </head>
@@ -51,20 +48,17 @@
           <label for="material-nombre">Nombre *</label>
           <input type="text" id="material-nombre" class="form-control" placeholder="Ej: Cemento Portland x50kg">
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="material-unidad">Unidad *</label>
-            <input type="text" id="material-unidad" class="form-control" placeholder="Ej: kg, m3, u">
+        <div class="form-group">
+          <label for="material-unidad">Unidad *</label>
+          <input type="text" id="material-unidad" class="form-control" placeholder="Ej: kg, m3, u">
+        </div>
+        <div class="form-group">
+          <label>Precio actual *</label>
+          <div class="form-row">
+            <input type="text" id="material-precio-usd" class="form-control" placeholder="USD, ej: 5 o =50*100">
+            <input type="text" id="material-precio-ars" class="form-control" placeholder="$, ej: 5000">
           </div>
-          <div class="form-group">
-            <label for="material-precio">Precio actual *</label>
-            <div class="precio-toggle">
-              <button type="button" class="btn btn-sm btn-secondary is-active" id="btn-moneda-usd" data-moneda="USD">USD</button>
-              <button type="button" class="btn btn-sm btn-secondary" id="btn-moneda-ars" data-moneda="ARS">ARS</button>
-            </div>
-            <input type="text" id="material-precio" class="form-control" placeholder="Ej: 5 o =50*100" style="margin-top:.4rem;">
-            <span class="form-hint" id="material-precio-equivalente">Podés escribir una fórmula empezando con "="</span>
-          </div>
+          <span class="form-hint" id="material-precio-nota"></span>
         </div>
         <div class="form-row">
           <div class="form-group">

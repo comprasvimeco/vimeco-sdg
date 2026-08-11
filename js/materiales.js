@@ -12,28 +12,7 @@ let allMateriales = [];
 let allObras = [];
 let obrasMap = {};
 let editingKey = null;
-let monedaActual = 'USD';
 let fuenteSelect = null;
-
-function setMoneda(m) {
-  monedaActual = m;
-  $('btn-moneda-usd').classList.toggle('is-active', m === 'USD');
-  $('btn-moneda-ars').classList.toggle('is-active', m === 'ARS');
-  actualizarEquivalente();
-}
-
-function actualizarEquivalente() {
-  const hint = $('material-precio-equivalente');
-  const raw = $('material-precio').value.trim();
-  if (raw.startsWith('=')) { hint.textContent = 'Podés escribir una fórmula empezando con "="'; return; }
-  const n = parseFloat(raw.replace(',', '.'));
-  if (isNaN(n)) { hint.textContent = 'Podés escribir una fórmula empezando con "="'; return; }
-  const r = resolveDualPrecio(monedaActual, n);
-  if (!r) { hint.textContent = 'Sin cotización del dólar disponible todavía — reintentá en un momento.'; return; }
-  hint.textContent = monedaActual === 'USD'
-    ? `≈ ${fmtARS(r.precioARS)}`
-    : `≈ ${fmtUSD(r.precioUSD)}`;
-}
 
 function renderMateriales(list) {
   const container = $('materiales-list');
@@ -101,13 +80,15 @@ function todayIso() {
 
 function onFuenteChange(material, obraKey) {
   const disabled = !obraKey;
-  ['material-precio', 'material-proveedor', 'material-fecha'].forEach(id => { $(id).disabled = disabled; });
+  ['material-precio-usd', 'material-precio-ars', 'material-proveedor', 'material-fecha'].forEach(id => { $(id).disabled = disabled; });
   const p = obraKey && material && material.precios ? material.precios[obraKey] : null;
-  $('material-precio').value = p ? (p.precioUSD ?? '') : '';
-  setCalcFormula($('material-precio'), p ? p.precioFormula : null);
+  $('material-precio-usd').value = p ? (p.precioUSD ?? '') : '';
+  $('material-precio-ars').value = p ? (p.precioARS ?? '') : '';
+  setCalcFormula($('material-precio-usd'), p ? p.precioFormula : null);
+  setCalcFormula($('material-precio-ars'), null);
   $('material-proveedor').value = p ? (p.proveedor || '') : '';
   $('material-fecha').value = p ? (p.fecha || todayIso()) : todayIso();
-  setMoneda('USD');
+  $('material-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARS(p.cotizacionUsada)}` : '';
 }
 
 // material: null en alta (sin precios todavía). En edición, muestra TODAS
@@ -173,21 +154,24 @@ async function saveMaterialModal() {
   if (obraKey) {
     const proveedor = $('material-proveedor').value.trim();
     const fecha = $('material-fecha').value || todayIso();
-    const precioInput = $('material-precio');
-    if (precioInput.value.trim().startsWith('=')) precioInput.blur();
-    const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
-    if (isNaN(precioIngresado) || precioIngresado < 0) {
+    const usdInput = $('material-precio-usd');
+    const arsInput = $('material-precio-ars');
+    if (usdInput.value.trim().startsWith('=')) usdInput.blur();
+    if (arsInput.value.trim().startsWith('=')) arsInput.blur();
+    const precioUSD = parseFloat(usdInput.value.replace(',', '.'));
+    const precioARS = parseFloat(arsInput.value.replace(',', '.'));
+    if (isNaN(precioUSD) || precioUSD < 0 || isNaN(precioARS) || precioARS < 0) {
       errEl.textContent = 'El precio no es válido.';
       errEl.classList.remove('hidden');
       return;
     }
-    const dual = resolveDualPrecio(monedaActual, precioIngresado);
-    if (!dual) {
+    const cotizacionUsada = window.dolarOficialVenta();
+    if (!cotizacionUsada) {
       errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
       errEl.classList.remove('hidden');
       return;
     }
-    precioData = { precioUSD: dual.precioUSD, precioARS: dual.precioARS, precioFormula: getCalcFormula(precioInput), proveedor, fecha };
+    precioData = { precioUSD, precioARS, precioFormula: getCalcFormula(usdInput) || getCalcFormula(arsInput), proveedor, fecha, cotizacionUsada };
   }
 
   const saveBtn = $('modal-material-save');
@@ -231,11 +215,9 @@ async function deleteMaterial(material) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  attachCalcInput($('material-precio'));
-  $('material-precio').addEventListener('input', actualizarEquivalente);
-  $('material-precio').addEventListener('blur', actualizarEquivalente);
-  $('btn-moneda-usd').addEventListener('click', () => setMoneda('USD'));
-  $('btn-moneda-ars').addEventListener('click', () => setMoneda('ARS'));
+  attachCalcInput($('material-precio-usd'));
+  attachCalcInput($('material-precio-ars'));
+  attachDualPrecioInputs({ usdInput: $('material-precio-usd'), arsInput: $('material-precio-ars'), notaEl: $('material-precio-nota') });
 
   $('btn-add-material').addEventListener('click', openAddModal);
   $('modal-material-close').addEventListener('click',  () => $('modal-material').classList.add('hidden'));
