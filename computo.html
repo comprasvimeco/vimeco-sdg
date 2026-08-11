@@ -12,16 +12,16 @@
     .computo-rubro-header:first-child { margin-top: 0; }
     .computo-rubro-nombre { font-weight: 700; color: var(--primary); font-size: .95rem; }
     .computo-rubro-subtotal { font-weight: 600; color: var(--gray-700); white-space: nowrap; }
-    .computo-linea { display: grid; grid-template-columns: 1fr 1.3fr 70px 90px 120px 130px 190px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
+    .computo-linea { display: grid; grid-template-columns: 1fr 1.3fr 70px 90px 120px 130px 70px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
     .computo-linea:last-child { border-bottom: none; }
     .computo-linea-costo, .computo-linea-total { text-align: right; white-space: nowrap; }
     .computo-linea-total { font-weight: 600; color: var(--gray-700); }
     .computo-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; }
     .computo-linea-header span:nth-child(3), .computo-linea-header span:nth-child(4) { text-align: center; }
     .computo-linea-header span:nth-child(5), .computo-linea-header span:nth-child(6) { text-align: right; }
-    .computo-linea-acciones { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
-    .computo-linea-ap { font-size: .82rem; color: var(--primary); font-weight: 600; white-space: nowrap; text-decoration: none; }
-    .computo-linea-ap:hover { text-decoration: underline; }
+    .computo-linea-acciones { display: flex; align-items: center; justify-content: flex-end; gap: .3rem; }
+    .computo-linea-ap { display: inline-flex; color: var(--gray-400); padding: .3rem; }
+    .computo-linea-ap:hover { color: var(--primary); }
     .computo-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }

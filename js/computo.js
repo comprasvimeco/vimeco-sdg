@@ -91,7 +91,7 @@ function renderLineaRow(lineaKey, linea) {
       <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
       <span class="computo-linea-costo">${fmtARS(costo)}</span>
       <span class="computo-linea-total">${fmtARS(total)}</span>
-      <span class="computo-linea-acciones"><a class="computo-linea-ap" href="${hrefAP}">Análisis de Precio</a><button class="computo-linea-del" title="Eliminar línea">${icSvg('x')}</button></span>
+      <span class="computo-linea-acciones"><a class="computo-linea-ap" href="${hrefAP}" title="Análisis de Precio">${icSvg('layers')}</a><button class="computo-linea-del" title="Eliminar línea">${icSvg('x')}</button></span>
     </div>`;
 }
 
