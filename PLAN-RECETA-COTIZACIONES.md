@@ -233,7 +233,7 @@ Verificado con datos reales de la obra "Prueba" (que en esta sesión el
 dueño del proyecto estuvo cargando en paralelo — 7 líneas, 4 rubros) sin
 romper nada; limpiado todo dato de prueba propio al terminar cada punto.
 
-## ⚠️ Pivot 2026-08-11: los puntos 4-8 de abajo quedaron reemplazados
+## ⚠️ Pivot 2026-08-11 (implementado) — los puntos 4-8 de abajo quedaron reemplazados
 
 Después de usar en la práctica lo que describen los puntos 4-8 (entidad
 `/cotizaciones` con `obraKey` opcional + `fuenteCotizacionKey` único en
