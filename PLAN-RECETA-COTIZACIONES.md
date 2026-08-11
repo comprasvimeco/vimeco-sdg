@@ -294,11 +294,43 @@ Chandías (pendiente de otra ronda, ver memoria
 horas/unidad de la planilla a `rendimiento` uds./jornada antes de poder
 cargarlos).
 
-## 7. Precios de materiales por obra
+## 7. Precios de materiales por obra — ✅ Hecho (2026-08-11)
 
-Una Cotización asociada a una obra (`obraKey` no nulo) puede traer sus
-propios precios de materiales, que **pisan el precio global sólo al
-calcular costos dentro de esa obra**. Esquema propuesto:
+Implementado tal cual lo propuesto abajo. Pantalla nueva
+`cotizacion-precios.html`/`js/cotizacion-precios.js`, accesible desde un
+botón "Precios" en cada card de `cotizaciones.html` que tiene `obraKey`
+(las generales, como CHANDÍAS, no lo muestran). Alta con buscador de
+material contra `/materiales.json` (sin alta rápida, el material tiene que
+existir ya); edición con el material fijo (no se puede cambiar, sólo
+precio/fecha); mismo patrón USD/ARS + fórmula que `materiales.js`.
+
+`window.resolverPreciosObra(cotizaciones, obraKey)` sumada a
+`js/calcCostos.js`: entre todas las Cotizaciones de esa obra, arma el mapa
+de precios "ganador" por material (gana la fecha más reciente).
+`calcCostoUnitarioItem` suma un 6to parámetro opcional `preciosObra` que
+pisa el precio global sólo dentro de `precioUnitarioMaterial`. Los 3
+consumidores (`computo.js`, `carga-fija.js`, `item.js`) fetchean
+`/cotizaciones.json` en su `loadAll()` y resuelven `preciosObra` antes de
+llamar a `calcCostoUnitarioItem` — en `item.js` se resuelve contra
+`activeVersion` (que es el `obraKey` en las pestañas de obra; la Teórica
+sigue sin precios de obra, coherente con que tampoco muestra costo).
+
+**Verificado en la app real** (obra "Prueba", Playwright): cargado un
+precio de prueba (Media sombra de obra, 5 USD vs. 1,607 USD global) en una
+Cotización asociada a esa obra — el costo de la línea de Cerco Perimetral
+en `computo.html` y el resumen de `item.html?...&obra=...` reflejaron el
+override exacto (Materiales (C): $9.393,81, calculado a mano coincide con
+`(5·1 + 3,0283·0,33 + 2,26·0,08) × 1520`); la Teórica (`item.html?key=...`
+sin `obra`) siguió sin mostrar costo; el Coeficiente K de `carga-fija.html`
+reflejó el costo de Cómputo actualizado ($31.623.282,16 con override).
+Borrado el precio de prueba y la Cotización de prueba: el costo total del
+Cómputo volvió a $31.468.561,36 (precio global), confirmando el
+comportamiento aditivo. No había una segunda obra real para probar "otra
+obra sin Cotización asociada sigue en precio global" en vivo, pero
+`resolverPreciosObra` filtra por `obraKey` — sin ninguna Cotización que
+matchee, devuelve `{}` y el cálculo cae al precio global por construcción.
+
+Esquema:
 
 ```
 /cotizaciones/{cotizacionKey}/precios/{materialKey}: { precioUSD, precioARS, precioFormula, fecha }

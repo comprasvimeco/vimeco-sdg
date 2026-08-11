@@ -23,6 +23,7 @@ let items = [];
 let catalogos = { materiales: [], equipos: [], roles: [] };
 let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
+let preciosObra = {};   // { materialKey: {precioUSD,...} } — resuelto de Cotizaciones de esta obra
 
 function totalLinea(l) {
   if (l.cantidad == null || l.precioUnitario == null || l.meses == null) return null;
@@ -221,7 +222,7 @@ function calcularCostoComputo(computoLineas, itemsList) {
     if (!it || l.cantidad == null || isNaN(l.cantidad)) return acc;
     const version = versionDe(it);
     if (!version.lineas || !Object.keys(version.lineas).length) return acc;
-    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO);
+    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra);
     return acc + r.costoUnitario * l.cantidad;
   }, 0);
 }
@@ -231,7 +232,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, configData, computoLineas, itemsData, materialesData, equiposData, rolesData, cfgEquipos, cfgMO] = await Promise.all([
+  const [obraData, lineasData, configData, computoLineas, itemsData, materialesData, equiposData, rolesData, cfgEquipos, cfgMO, cotizacionesData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/lineas.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
@@ -242,6 +243,7 @@ async function loadAll() {
     _fbGet('/manoDeObra.json'),
     _fbGet('/config/equipos.json'),
     _fbGet('/config/manoDeObra.json'),
+    _fbGet('/cotizaciones.json'),
   ]);
 
   if (!obraData) {
@@ -260,6 +262,8 @@ async function loadAll() {
   };
   if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
   if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
+  const cotizaciones = Object.entries(cotizacionesData || {}).map(([key, c]) => ({ key, ...c }));
+  preciosObra = window.resolverPreciosObra(cotizaciones, obraKey);
   costoComputo = calcularCostoComputo(computoData, items);
 
   $('header-obra-nombre').textContent = 'Carga Fija — ' + obra.nombre;

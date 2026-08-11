@@ -30,12 +30,33 @@ window.calcCostoDiarioEquipo = function (equipo, params, jornadaHoras) {
   return amortizacionDia + interesesDia + reparacionesDia + combustibleDia + lubricantesDia;
 };
 
+// Entre las cotizaciones asociadas a una obra puntual, arma el mapa de
+// precios de materiales "ganador" (la fecha más reciente gana si hay más
+// de una cotización con precio para el mismo material) — listo para
+// pasarle a calcCostoUnitarioItem. Sin cotizaciones para esa obra, o sin
+// obraKey, devuelve {} (comportamiento idéntico al de siempre: precio
+// global). cotizaciones: array de { key, obraKey, precios: {materialKey: {...}} }.
+window.resolverPreciosObra = function (cotizaciones, obraKey) {
+  const resultado = {};
+  if (!obraKey) return resultado;
+  (cotizaciones || []).filter(c => c.obraKey === obraKey).forEach(c => {
+    Object.entries(c.precios || {}).forEach(([materialKey, precio]) => {
+      const actual = resultado[materialKey];
+      if (!actual || (precio.fecha || '') >= (actual.fecha || '')) resultado[materialKey] = precio;
+    });
+  });
+  return resultado;
+};
+
 // Costo unitario de un ítem de Biblioteca a partir de su receta (líneas) y
 // rendimiento, con precios generales (materiales/equipos/MO). Usado por
 // computo.js y carga-fija.js para calcular en vivo — la Biblioteca ya no
 // cachea ningún costo (ver item.js, que sólo edita la receta).
 // catalogos: { materiales, equipos, roles }
-window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO) {
+// preciosObra (opcional): mapa {materialKey: {precioUSD,...}} ya resuelto
+// con resolverPreciosObra — pisa el precio global de ese material sólo acá.
+window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO, preciosObra) {
+  preciosObra = preciosObra || {};
   function catalogoFor(tipo) {
     if (tipo === 'material') return catalogos.materiales;
     if (tipo === 'equipo') return catalogos.equipos;
@@ -43,8 +64,10 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
   }
   function precioUnitarioMaterial(mat) {
     const venta = window.dolarOficialVenta();
-    if (!mat || !mat.precioUSD || !venta) return null;
-    return mat.precioUSD * venta;
+    if (!mat || !venta) return null;
+    const precioUSD = preciosObra[mat.key] ? preciosObra[mat.key].precioUSD : mat.precioUSD;
+    if (!precioUSD) return null;
+    return precioUSD * venta;
   }
   // costoUnitario acá es el precio de LA UNIDAD del material/equipo/rol
   // (ej. $/kg, costo diario del equipo, costo del jornal) — no el costo

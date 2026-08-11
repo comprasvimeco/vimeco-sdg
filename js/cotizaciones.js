@@ -40,6 +40,7 @@ function renderCotizaciones(list) {
         </div>
         <div class="item-card-actions">
           <button class="btn btn-sm btn-outline btn-edit-cotizacion">Editar</button>
+          ${c.obraKey ? '<button class="btn btn-sm btn-primary btn-precios-cotizacion">Precios</button>' : ''}
           <button class="btn btn-sm btn-danger btn-del-cotizacion">Eliminar</button>
         </div>
       </div>`;
@@ -49,6 +50,10 @@ function renderCotizaciones(list) {
     const key = card.dataset.key;
     const cotizacion = allCotizaciones.find(c => c.key === key);
     card.querySelector('.btn-edit-cotizacion').addEventListener('click', () => openEditModal(cotizacion));
+    const btnPrecios = card.querySelector('.btn-precios-cotizacion');
+    if (btnPrecios) btnPrecios.addEventListener('click', () => {
+      window.location.href = 'cotizacion-precios.html?cotizacion=' + encodeURIComponent(cotizacion.key);
+    });
     card.querySelector('.btn-del-cotizacion').addEventListener('click', () => deleteCotizacion(cotizacion));
   });
 }

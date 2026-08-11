@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Precios por obra</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+  <style>
+    .precio-toggle { display: flex; gap: .4rem; }
+    .precio-toggle .btn { padding: .35rem .8rem; box-shadow: none; }
+    .precio-toggle .btn.is-active { background: var(--primary); color: var(--white); }
+    .linea-select-container { min-width: 0; }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='cotizaciones.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <span class="header-title" id="header-cotizacion-nombre">Precios por obra</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline" onclick="window.location.href='cotizaciones.html'">Volver</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title" id="cotizacion-titulo-card">Cotización</span>
+        <button class="btn btn-sm btn-primary" id="btn-add-precio">+ Agregar precio</button>
+      </div>
+      <div class="card-body" id="cotizacion-datos-resumen"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Precios de materiales de esta obra</span></div>
+      <div class="card-body">
+        <p class="form-hint" style="margin-bottom:.75rem;">Pisan el precio global sólo al calcular costos dentro de esta obra — el resto sigue usando el precio general de Materiales.</p>
+        <div id="precios-list"></div>
+      </div>
+    </div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando cotización…</div></div>
+
+  <!-- Modal: Agregar / Editar precio de material -->
+  <div class="modal-overlay hidden" id="modal-precio">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-precio-title">Agregar precio</span>
+        <button class="modal-close" id="modal-precio-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group" id="precio-material-wrap">
+          <label>Material *</label>
+          <div class="linea-select-container" id="precio-material-container"></div>
+          <div class="form-control hidden" id="precio-material-fijo" style="background:var(--gray-100);"></div>
+        </div>
+        <div class="form-group">
+          <label for="precio-valor">Precio *</label>
+          <div class="precio-toggle">
+            <button type="button" class="btn btn-sm btn-secondary is-active" id="precio-moneda-usd">USD</button>
+            <button type="button" class="btn btn-sm btn-secondary" id="precio-moneda-ars">ARS</button>
+          </div>
+          <input type="text" id="precio-valor" class="form-control" placeholder="Ej: 5 o =50*100" style="margin-top:.4rem;">
+          <span class="form-hint" id="precio-equivalente">Podés escribir una fórmula empezando con "="</span>
+        </div>
+        <div class="form-group u-mb-0">
+          <label for="precio-fecha">Fecha</label>
+          <input type="date" id="precio-fecha" class="form-control">
+        </div>
+
+        <div id="modal-precio-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-precio-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-precio-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/searchable-select.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/cotizacion-precios.js"></script>
+</body>
+</html>
