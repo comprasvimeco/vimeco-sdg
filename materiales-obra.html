@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Materiales</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+  <style>
+    .materiales-linea { display: grid; grid-template-columns: 1.3fr 90px 150px 1.6fr 150px; gap: .6rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
+    .materiales-linea:last-child { border-bottom: none; }
+    .materiales-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: none !important; }
+    .materiales-linea-header span:nth-child(3), .materiales-linea-header span:nth-child(5) { text-align: right; }
+    .materiales-cantidad, .materiales-costo { text-align: right; white-space: nowrap; font-weight: 600; color: var(--gray-700); }
+    .materiales-usados { color: var(--gray-500); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+    .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
+    .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <span class="header-title" id="header-obra-nombre">Materiales</span>
+    </div>
+    <nav class="header-tabs" id="header-tabs"></nav>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline" onclick="window.location.href='obras.html'">Volver</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Materiales necesarios</span></div>
+      <div class="card-body" id="lineas-materiales"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Resumen</span></div>
+      <div class="card-body" id="resumen"></div>
+    </div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando materiales…</div></div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/calcCostos.js"></script>
+  <script src="js/calculadora-flotante.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/materiales-obra.js"></script>
+</body>
+</html>

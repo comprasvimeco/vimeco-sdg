@@ -33,6 +33,7 @@ const HEADER_TABS = [
   { id: 'computo',     label: 'Cómputo',     href: 'computo.html' },
   { id: 'carga-fija',  label: 'Carga Fija',  href: 'carga-fija.html' },
   { id: 'presupuesto', label: 'Presupuesto', href: 'presupuesto.html' },
+  { id: 'materiales',  label: 'Materiales',  href: 'materiales-obra.html' },
 ];
 
 window.renderHeaderTabs = function (obraKey, active) {
