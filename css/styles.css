@@ -208,6 +208,39 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 /* ===== HEADER: versión ===== */
 .hdr-drop-version { font-size: .68rem; color: rgba(255,255,255,.55); text-align: right; letter-spacing: .04em; }
 
+/* ===== CALCULADORA FLOTANTE ===== */
+.calc-flotante-activa [data-calc-valor] { cursor: pointer; border-radius: 4px; transition: background .12s, outline-color .12s; outline: 1px dashed transparent; outline-offset: 2px; }
+.calc-flotante-activa [data-calc-valor]:hover { background: rgba(37,87,167,.12); outline-color: var(--primary-light); }
+.calc-flotante-flash { background: rgba(200,168,82,.35) !important; }
+
+.calc-flotante-panel {
+  position: fixed; top: 76px; left: 1.25rem; z-index: 1300; width: 260px;
+  background: var(--white); border-radius: var(--radius-lg); box-shadow: var(--shadow-glow);
+  border: 1px solid var(--glass-border); padding: .85rem .95rem;
+  animation: popIn .22s var(--ease-spring) both;
+}
+.calc-flotante-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .3rem; }
+.calc-flotante-drag { cursor: grab; user-select: none; touch-action: none; }
+.calc-flotante-drag:active { cursor: grabbing; }
+.calc-flotante-titulo { font-weight: 700; font-size: .88rem; color: var(--gray-900); }
+.calc-flotante-close { background: none; border: none; cursor: pointer; color: var(--gray-400); font-size: 1.1rem; line-height: 1; padding: .2rem; border-radius: var(--radius); }
+.calc-flotante-close:hover { background: var(--gray-100); color: var(--gray-700); }
+.calc-flotante-close .icon { width: 15px; height: 15px; }
+.calc-flotante-hint { font-size: .74rem; color: var(--gray-400); margin-bottom: .6rem; }
+.calc-flotante-expr { min-height: 1.4rem; font-size: .88rem; color: var(--gray-600); word-break: break-word; }
+.calc-flotante-vacio { color: var(--gray-400); font-style: italic; }
+.calc-flotante-resultado { font-size: 1.15rem; font-weight: 700; color: var(--primary); margin: .25rem 0 .6rem; }
+.calc-flotante-ops { display: grid; grid-template-columns: repeat(4, 1fr); gap: .35rem; margin-bottom: .6rem; }
+.calc-flotante-ops button { padding: .35rem 0; border: 1.5px solid var(--gray-300); background: var(--white); border-radius: var(--radius); cursor: pointer; font-weight: 700; color: var(--gray-600); }
+.calc-flotante-ops button:hover { border-color: var(--primary-light); color: var(--primary); }
+.calc-flotante-ops button.activo { background: var(--primary); border-color: var(--primary); color: var(--white); }
+.calc-flotante-acciones { display: flex; gap: .4rem; }
+.calc-flotante-undo, .calc-flotante-clear { flex: 1; padding: .4rem .5rem; border: 1.5px solid var(--gray-300); background: var(--white); color: var(--gray-600); border-radius: var(--radius); cursor: pointer; font-size: .78rem; }
+.calc-flotante-undo:hover:not(:disabled), .calc-flotante-clear:hover:not(:disabled) { border-color: var(--primary-light); color: var(--primary); }
+.calc-flotante-undo:disabled, .calc-flotante-clear:disabled { opacity: .4; cursor: default; }
+.calc-flotante-copiar { flex: 1; padding: .4rem .5rem; font-size: .78rem; }
+.calc-flotante-copiar:disabled { opacity: .5; cursor: default; }
+
 /* ===== HEADER: cotización del dólar (siempre visible, no se repite por pantalla) ===== */
 .header-dolar { font-size: .78rem; font-weight: 600; color: rgba(255,255,255,.9); background: rgba(255,255,255,.14); padding: .3rem .65rem; border-radius: 999px; white-space: nowrap; }
 

@@ -88,7 +88,7 @@ function renderRubroHeader(rubro, numero, esPrimero, esUltimo) {
         <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="1" title="Bajar rubro" ${esUltimo ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
         <button class="computo-rubro-del" data-rubro-id="${escHtml(rubro.key)}" title="${vacio ? 'Eliminar rubro' : 'Vaciá el rubro antes de eliminarlo'}" ${vacio ? '' : 'disabled'}>${icSvg('x')}</button>
       </span>
-      <span class="computo-rubro-subtotal">${fmtARS(subtotalGrupo(grupoLineas))}</span>
+      <span class="computo-rubro-subtotal" data-calc-valor="${subtotalGrupo(grupoLineas)}">${fmtARS(subtotalGrupo(grupoLineas))}</span>
     </div>
     <div class="computo-rubro-lineas" data-rubro-id="${escHtml(rubro.key)}"></div>`;
 }
@@ -105,8 +105,8 @@ function renderLineaRow(lineaKey, linea, numero, esPrimero, esUltimo) {
       <input type="text" class="form-control linea-nombre" placeholder="Ítem" value="${escHtml(linea.nombre || '')}">
       <input type="text" class="form-control linea-unidad" placeholder="Unidad" value="${escHtml(linea.unidad || '')}">
       <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
-      <span class="computo-linea-costo">${fmtARS(costo)}</span>
-      <span class="computo-linea-total">${fmtARS(total)}</span>
+      <span class="computo-linea-costo" data-calc-valor="${costo}">${fmtARS(costo)}</span>
+      <span class="computo-linea-total" data-calc-valor="${total}">${fmtARS(total)}</span>
       <span class="computo-linea-acciones">
         <button class="computo-linea-mover" data-dir="-1" title="Subir" ${esPrimero ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
         <button class="computo-linea-mover" data-dir="1" title="Bajar" ${esUltimo ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
@@ -189,6 +189,7 @@ function renderLineas() {
 
     const cantidadInput = row.querySelector('.linea-cantidad');
     cantidadInput.value = linea.cantidad ?? '';
+    cantidadInput.dataset.calcValor = linea.cantidad ?? 0;
     attachCalcInput(cantidadInput, linea.cantidadFormula);
     cantidadInput.addEventListener('blur', () => {
       const n = parseFloat(cantidadInput.value.replace(',', '.'));
@@ -207,7 +208,7 @@ function renderLineas() {
 function renderResumen() {
   const total = Object.values(lineas).reduce((acc, l) => acc + totalLinea(l), 0);
   $('resumen').innerHTML = `
-    <div class="ap-resumen-row total"><span>Costo total del cómputo</span><span>${fmtARS(total)}</span></div>
+    <div class="ap-resumen-row total"><span>Costo total del cómputo</span><span data-calc-valor="${total}">${fmtARS(total)}</span></div>
     <p class="form-hint" style="margin-top:.5rem;">Costo sin Gastos Generales, beneficio ni IVA — eso se aplica en el Presupuesto de la obra.</p>`;
 }
 
