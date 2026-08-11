@@ -10,14 +10,18 @@ const $ = id => document.getElementById(id);
 let allItems = [];
 let allRubros = [];
 let rubrosMap = {};
+let allCotizaciones = [];
+let cotizacionesMap = {};
 let editingKey = null;
 let editingRubroKey = null;
+let fuenteSelect = null;
 
 function metaLine(it) {
   const parts = [];
   if (it.rubroKey && rubrosMap[it.rubroKey]) parts.push(rubrosMap[it.rubroKey]);
   parts.push(it.unidad);
   if (it.rendimiento) parts.push(`rendimiento ${it.rendimiento}/jornada`);
+  if (it.fuenteCotizacionKey && cotizacionesMap[it.fuenteCotizacionKey]) parts.push(`Fuente: ${cotizacionesMap[it.fuenteCotizacionKey]}`);
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -153,6 +157,25 @@ async function deleteRubro(rubro) {
   }
 }
 
+async function loadCotizaciones() {
+  try {
+    const data = await _fbGet('/cotizaciones.json');
+    allCotizaciones = Object.entries(data || {}).map(([key, c]) => ({ key, ...c }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    cotizacionesMap = {};
+    allCotizaciones.forEach(c => { cotizacionesMap[c.key] = c.nombre; });
+  } catch (_) {}
+}
+
+function renderFuenteSelect(fuenteKeyActual) {
+  const options = allCotizaciones.map(c => ({ value: c.key, label: c.nombre }));
+  fuenteSelect = createSearchableSelect($('item-fuente-container'), {
+    options,
+    value: fuenteKeyActual || null,
+    placeholder: 'Buscar cotización…',
+  });
+}
+
 async function loadItems() {
   $('items-list').innerHTML = '<div class="list-loading">Cargando ítems…</div>';
   try {
@@ -174,6 +197,7 @@ function openAddModal() {
   $('item-rubro').value = '';
   $('item-rendimiento').value = '1';
   setCalcFormula($('item-rendimiento'), null);
+  renderFuenteSelect(null);
   $('modal-item').classList.remove('hidden');
   setTimeout(() => $('item-nombre').focus(), 50);
 }
@@ -187,6 +211,7 @@ function openEditModal(it) {
   $('item-rubro').value = it.rubroKey || '';
   $('item-rendimiento').value = it.rendimiento ?? '1';
   setCalcFormula($('item-rendimiento'), it.rendimientoFormula);
+  renderFuenteSelect(it.fuenteCotizacionKey);
   $('modal-item').classList.remove('hidden');
   setTimeout(() => $('item-nombre').focus(), 50);
 }
@@ -222,7 +247,8 @@ async function saveItemModal() {
   saveBtn.textContent = 'Guardando…';
 
   try {
-    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
+    const fuenteCotizacionKey = fuenteSelect ? fuenteSelect.getValue() : null;
+    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput), fuenteCotizacionKey };
     if (editingKey) {
       await _fbPatch(`/items/${editingKey}.json`, data);
       $('modal-item').classList.add('hidden');
@@ -281,5 +307,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('rubro-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') saveRubro(); });
 
   await loadRubros();
+  await loadCotizaciones();
   await loadItems();
 });

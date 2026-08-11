@@ -38,6 +38,8 @@ let rubros = [];
 let rubrosMap = {};
 let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
+let allCotizaciones = [];
+let fuenteSelect = null;
 
 const HINTS = {
   material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
@@ -544,6 +546,11 @@ function openEditDatosModal() {
   $('item-rubro').value = item.rubroKey || '';
   $('item-rendimiento').value = item.rendimiento ?? '';
   setCalcFormula($('item-rendimiento'), item.rendimientoFormula);
+  fuenteSelect = createSearchableSelect($('item-fuente-container'), {
+    options: allCotizaciones.map(c => ({ value: c.key, label: c.nombre })),
+    value: item.fuenteCotizacionKey || null,
+    placeholder: 'Buscar cotización…',
+  });
   $('modal-item-error').classList.add('hidden');
   $('modal-item').classList.remove('hidden');
 }
@@ -570,7 +577,8 @@ async function saveDatosModal() {
   }
 
   try {
-    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
+    const fuenteCotizacionKey = fuenteSelect ? fuenteSelect.getValue() : null;
+    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput), fuenteCotizacionKey };
     await _fbPatch(`/items/${itemKey}.json`, data);
     item = { ...item, ...data };
     rendimientoTeorico = rendimiento;
@@ -616,7 +624,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
   }
-  const [itemData, lineasData, versionesData, obrasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO] = await Promise.all([
+  const [itemData, lineasData, versionesData, obrasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO, cotizacionesData] = await Promise.all([
     _fbGet(`/items/${itemKey}.json`),
     _fbGet(`/items/${itemKey}/lineas.json`),
     _fbGet(`/items/${itemKey}/versionesObra.json`),
@@ -627,6 +635,7 @@ async function loadAll() {
     _fbGet('/rubros.json'),
     _fbGet('/config/equipos.json'),
     _fbGet('/config/manoDeObra.json'),
+    _fbGet('/cotizaciones.json'),
   ]);
 
   if (!itemData) {
@@ -652,6 +661,7 @@ async function loadAll() {
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
   if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
   if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
+  allCotizaciones = Object.entries(cotizacionesData || {}).map(([key, c]) => ({ key, ...c })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
   populateRubroSelect();
   renderDatos();

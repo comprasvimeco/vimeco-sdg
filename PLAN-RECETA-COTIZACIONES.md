@@ -280,7 +280,11 @@ creció desde los 139 originales), 149 taggeados con "CyP Taller Río
 Cuarto" (uno ya lo tenía, de la verificación manual) — 0 sin fuente al
 terminar.
 
-## 6. Fuente en Ítems
+## 6. Fuente en Ítems — ✅ Hecho (2026-08-11)
+
+Sin backfill (ningún ítem existente venía de una Cotización real todavía).
+Verificado que editar la fuente desde `biblioteca.html` y desde
+`item.html` ("Editar datos") sincroniza para ambos lados.
 
 Mismo campo (`fuenteCotizacionKey`) en `/items/{key}`, mismo combobox, en el
 modal de "Editar datos" de `item.html` y en el alta/edición de
