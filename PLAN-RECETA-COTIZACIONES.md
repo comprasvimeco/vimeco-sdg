@@ -233,7 +233,13 @@ Verificado con datos reales de la obra "Prueba" (que en esta sesión el
 dueño del proyecto estuvo cargando en paralelo — 7 líneas, 4 rubros) sin
 romper nada; limpiado todo dato de prueba propio al terminar cada punto.
 
-## 4. Cotizaciones (entidad + pantalla)
+## 4. Cotizaciones (entidad + pantalla) — ✅ Hecho (2026-08-11)
+
+Implementado tal cual el esquema propuesto abajo. `cotizaciones.html`/
+`js/cotizaciones.js`, mismo patrón CRUD que `obras.js` (el más cercano).
+Ya están cargadas las 2 fuentes reales (ver abajo), ambas "General" (sin
+obra). Card sumada al menú de `app.html`. No se tocó todavía
+`materiales.js`/`item.js` — eso es el punto 5.
 
 Confirmado con el dueño del proyecto: Cotizaciones es una **entidad real**
 desde ahora (no texto libre), con carga **manual** (la carga con IA queda
