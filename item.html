@@ -14,8 +14,9 @@
     .ap-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
     .ap-linea-costo-unit, .ap-linea-costo-total { text-align: right; font-size: .85rem; color: var(--gray-600); white-space: nowrap; }
     .ap-linea-costo-total { font-weight: 600; color: var(--gray-700); }
-    a.ap-linea-costo-unit { text-decoration: none; cursor: pointer; }
-    a.ap-linea-costo-unit[href]:hover { color: var(--primary); text-decoration: underline; }
+    button.ap-linea-costo-unit { background: none; border: none; padding: 0; font: inherit; text-decoration: none; cursor: pointer; }
+    button.ap-linea-costo-unit:not(:disabled):hover { color: var(--primary); text-decoration: underline; }
+    button.ap-linea-costo-unit:disabled { cursor: default; }
     .ap-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .3rem; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
@@ -198,35 +199,87 @@
           <label for="qm-nombre">Nombre *</label>
           <input type="text" id="qm-nombre" class="form-control">
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="qm-unidad">Unidad *</label>
-            <input type="text" id="qm-unidad" class="form-control" placeholder="Ej: kg, m3, u">
-          </div>
-          <div class="form-group">
-            <label for="qm-precio">Precio actual *</label>
-            <div class="precio-toggle">
-              <button type="button" class="btn btn-sm btn-secondary is-active" id="qm-moneda-usd">USD</button>
-              <button type="button" class="btn btn-sm btn-secondary" id="qm-moneda-ars">ARS</button>
-            </div>
-            <input type="text" id="qm-precio" class="form-control" placeholder="Ej: 5 o =50*100" style="margin-top:.4rem;">
-          </div>
+        <div class="form-group">
+          <label for="qm-unidad">Unidad *</label>
+          <input type="text" id="qm-unidad" class="form-control" placeholder="Ej: kg, m3, u">
         </div>
-        <div class="form-row">
-          <div class="form-group">
+        <div id="qm-precio-bloque">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="qm-precio">Precio actual *</label>
+              <div class="precio-toggle">
+                <button type="button" class="btn btn-sm btn-secondary is-active" id="qm-moneda-usd">USD</button>
+                <button type="button" class="btn btn-sm btn-secondary" id="qm-moneda-ars">ARS</button>
+              </div>
+              <input type="text" id="qm-precio" class="form-control" placeholder="Ej: 5 o =50*100" style="margin-top:.4rem;">
+            </div>
+            <div class="form-group u-mb-0">
+              <label for="qm-fecha">Fecha del precio</label>
+              <input type="date" id="qm-fecha" class="form-control">
+            </div>
+          </div>
+          <div class="form-group u-mb-0">
             <label for="qm-proveedor">Proveedor</label>
             <input type="text" id="qm-proveedor" class="form-control" placeholder="Opcional">
           </div>
-          <div class="form-group u-mb-0">
-            <label for="qm-fecha">Fecha del precio</label>
-            <input type="date" id="qm-fecha" class="form-control">
-          </div>
+          <span class="form-hint" id="qm-precio-hint"></span>
         </div>
         <div id="modal-material-error-qm" class="alert alert-error hidden"></div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="modal-material-quick-cancel">Cancelar</button>
         <button class="btn btn-primary" id="modal-material-quick-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar precio de un material (inline, por línea del AP) -->
+  <div class="modal-overlay hidden" id="modal-material-editar-precio">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Precio del material</span>
+        <button class="modal-close" id="modal-mep-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group u-mb-0">
+          <label>Fuente (obra)</label>
+          <div class="linea-select-container" id="mep-fuente-container"></div>
+          <span class="form-hint" id="mep-fuente-hint"></span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mep-nombre">Nombre *</label>
+            <input type="text" id="mep-nombre" class="form-control">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="mep-unidad">Unidad *</label>
+            <input type="text" id="mep-unidad" class="form-control">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mep-precio">Precio *</label>
+            <div class="precio-toggle">
+              <button type="button" class="btn btn-sm btn-secondary is-active" id="mep-moneda-usd">USD</button>
+              <button type="button" class="btn btn-sm btn-secondary" id="mep-moneda-ars">ARS</button>
+            </div>
+            <input type="text" id="mep-precio" class="form-control" placeholder="Ej: 5 o =50*100" style="margin-top:.4rem;">
+            <span class="form-hint" id="mep-precio-equivalente">Podés escribir una fórmula empezando con "="</span>
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="mep-fecha">Fecha</label>
+            <input type="date" id="mep-fecha" class="form-control">
+          </div>
+        </div>
+        <div class="form-group u-mb-0">
+          <label for="mep-proveedor">Proveedor</label>
+          <input type="text" id="mep-proveedor" class="form-control" placeholder="Opcional">
+        </div>
+        <div id="modal-mep-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-mep-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-mep-save">Guardar</button>
       </div>
     </div>
   </div>

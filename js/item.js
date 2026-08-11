@@ -320,7 +320,7 @@ function renderLineasSeccion(tipo, r) {
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
           ${conCosto ? `${tipo === 'material'
-              ? `<a class="ap-linea-costo-unit" target="_blank">${d ? fmtARS(d.costoUnitario) : '—'}</a>`
+              ? `<button type="button" class="ap-linea-costo-unit">${d ? fmtARS(d.costoUnitario) : '—'}</button>`
               : `<span class="ap-linea-costo-unit">${d ? fmtARS(d.costoUnitario) : '—'}</span>`}<span class="ap-linea-costo-total">${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
         </div>`;
@@ -360,12 +360,10 @@ function renderLineasSeccion(tipo, r) {
       const costoUnit = row.querySelector('.ap-linea-costo-unit');
       if (costoUnit) {
         if (mat) {
-          const fecha = mat.fecha ? mat.fecha.split('-').reverse().join('/') : 'sin fecha';
-          costoUnit.title = `Proveedor: ${mat.proveedor || 'sin datos'} · Fecha: ${fecha} — clic para cargar un precio nuevo`;
-          costoUnit.href = `materiales.html?editar=${encodeURIComponent(mat.key)}`;
+          costoUnit.title = 'Clic para ver/editar el precio de este material';
+          costoUnit.addEventListener('click', () => openEditarPrecioModal(mat));
         } else {
-          costoUnit.removeAttribute('title');
-          costoUnit.removeAttribute('href');
+          costoUnit.disabled = true;
         }
       }
     }
@@ -477,6 +475,9 @@ function openQuickMaterialModal(texto, lineaKey) {
   $('qm-proveedor').value = '';
   $('qm-fecha').value = new Date().toISOString().slice(0, 10);
   setQmMoneda('USD');
+  const conPrecio = activeVersion !== 'teorico';
+  $('qm-precio-bloque').classList.toggle('hidden', !conPrecio);
+  $('qm-precio-hint').textContent = conPrecio ? `El precio se carga para la obra activa (${obrasMap[activeVersion] || activeVersion}).` : '';
   $('modal-material-error-qm').classList.add('hidden');
   $('modal-material-quick').classList.remove('hidden');
   setTimeout(() => $('qm-nombre').focus(), 50);
@@ -492,11 +493,125 @@ function setQmMoneda(m) {
 async function saveQuickMaterial() {
   const nombre = $('qm-nombre').value.trim();
   const unidad = $('qm-unidad').value.trim();
-  const proveedor = $('qm-proveedor').value.trim();
-  const fecha = $('qm-fecha').value || new Date().toISOString().slice(0, 10);
   const errEl = $('modal-material-error-qm');
+  const conPrecio = activeVersion !== 'teorico';
 
-  const precioInput = $('qm-precio');
+  if (!nombre || !unidad) {
+    errEl.textContent = 'Nombre y unidad son requeridos.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  let precioData = null;
+  if (conPrecio) {
+    const proveedor = $('qm-proveedor').value.trim();
+    const fecha = $('qm-fecha').value || new Date().toISOString().slice(0, 10);
+    const precioInput = $('qm-precio');
+    if (precioInput.value.trim().startsWith('=')) precioInput.blur();
+    const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
+    if (isNaN(precioIngresado) || precioIngresado < 0) {
+      errEl.textContent = 'El precio no es válido.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const dual = resolveDualPrecio(qmMoneda, precioIngresado);
+    if (!dual) {
+      errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    precioData = { precioUSD: dual.precioUSD, precioARS: dual.precioARS, precioFormula: getCalcFormula(precioInput), proveedor, fecha };
+  }
+
+  const key = nombre.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+    + '_' + Date.now();
+  const materialData = { nombre, unidad, creadoEn: Date.now() };
+
+  try {
+    await _fbPut(`/materiales/${key}.json`, materialData);
+    if (precioData) await _fbPut(`/materiales/${key}/precios/${activeVersion}.json`, precioData);
+    materiales.push({ key, ...materialData, ...(precioData ? { precios: { [activeVersion]: precioData } } : {}) });
+    materiales.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    $('modal-material-quick').classList.add('hidden');
+    showToast('Material creado.');
+    if (pendingLineaKey) updateLinea(pendingLineaKey, { refKey: key });
+  } catch (_) {
+    errEl.textContent = 'Error al guardar. Intentá de nuevo.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+let editingPrecioMaterialKey = null;
+let mepFuenteSelect = null;
+let mepMoneda = 'USD';
+
+function setMepMoneda(m) {
+  mepMoneda = m;
+  $('mep-moneda-usd').classList.toggle('is-active', m === 'USD');
+  $('mep-moneda-ars').classList.toggle('is-active', m === 'ARS');
+  actualizarEquivalenteMep();
+}
+
+function actualizarEquivalenteMep() {
+  const hint = $('mep-precio-equivalente');
+  const raw = $('mep-precio').value.trim();
+  if (raw.startsWith('=')) { hint.textContent = 'Podés escribir una fórmula empezando con "="'; return; }
+  const n = parseFloat(raw.replace(',', '.'));
+  if (isNaN(n)) { hint.textContent = 'Podés escribir una fórmula empezando con "="'; return; }
+  const r = resolveDualPrecio(mepMoneda, n);
+  if (!r) { hint.textContent = 'Sin cotización del dólar disponible todavía — reintentá en un momento.'; return; }
+  hint.textContent = mepMoneda === 'USD' ? `≈ ${fmtARS(r.precioARS)}` : `≈ ${fmtUSD(r.precioUSD)}`;
+}
+
+function loadMepPrecioFields(mat, obraKey) {
+  const p = (mat.precios || {})[obraKey];
+  $('mep-precio').value = p ? (p.precioUSD ?? '') : '';
+  setCalcFormula($('mep-precio'), p ? p.precioFormula : null);
+  $('mep-proveedor').value = p ? (p.proveedor || '') : '';
+  $('mep-fecha').value = p ? (p.fecha || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
+  setMepMoneda('USD');
+}
+
+// Fuente acá es sólo para CONSULTAR el precio de otra obra como referencia —
+// Guardar siempre escribe el precio de la obra activa (activeVersion), sin
+// importar qué obra esté mostrando el desplegable en ese momento.
+function openEditarPrecioModal(mat) {
+  editingPrecioMaterialKey = mat.key;
+  $('mep-nombre').value = mat.nombre || '';
+  $('mep-unidad').value = mat.unidad || '';
+
+  const obraActivaNombre = obrasMap[activeVersion] || activeVersion;
+  $('mep-fuente-hint').textContent = `Guardar siempre actualiza el precio de la obra activa (${obraActivaNombre}) — elegí otra obra acá sólo para consultar su precio.`;
+
+  const obraKeysConPrecio = Object.keys(mat.precios || {});
+  const options = obraKeysConPrecio.map(k => ({
+    value: k, label: obrasMap[k] || k,
+    sublabel: k === activeVersion ? 'obra activa' : undefined,
+  }));
+  if (!options.find(o => o.value === activeVersion)) {
+    options.unshift({ value: activeVersion, label: obraActivaNombre, sublabel: 'obra activa · sin precio todavía' });
+  }
+  mepFuenteSelect = createSearchableSelect($('mep-fuente-container'), {
+    options,
+    value: activeVersion,
+    placeholder: 'Buscar obra…',
+    onChange: v => loadMepPrecioFields(mat, v),
+  });
+  loadMepPrecioFields(mat, activeVersion);
+  $('modal-mep-error').classList.add('hidden');
+  $('modal-material-editar-precio').classList.remove('hidden');
+}
+
+async function saveEditarPrecioModal() {
+  const nombre = $('mep-nombre').value.trim();
+  const unidad = $('mep-unidad').value.trim();
+  const proveedor = $('mep-proveedor').value.trim();
+  const fecha = $('mep-fecha').value || new Date().toISOString().slice(0, 10);
+  const errEl = $('modal-mep-error');
+
+  const precioInput = $('mep-precio');
   if (precioInput.value.trim().startsWith('=')) precioInput.blur();
   const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
 
@@ -510,29 +625,28 @@ async function saveQuickMaterial() {
     errEl.classList.remove('hidden');
     return;
   }
-  const dual = resolveDualPrecio(qmMoneda, precioIngresado);
+  const dual = resolveDualPrecio(mepMoneda, precioIngresado);
   if (!dual) {
     errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
     errEl.classList.remove('hidden');
     return;
   }
 
-  const key = nombre.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
-    + '_' + Date.now();
-  const data = {
-    nombre, unidad, precioUSD: dual.precioUSD, precioARS: dual.precioARS,
-    precioFormula: getCalcFormula(precioInput), proveedor, fecha, creadoEn: Date.now(),
-  };
+  const targetObraKey = activeVersion;
+  const precioData = { precioUSD: dual.precioUSD, precioARS: dual.precioARS, precioFormula: getCalcFormula(precioInput), proveedor, fecha };
 
   try {
-    await _fbPut(`/materiales/${key}.json`, data);
-    materiales.push({ key, ...data });
-    materiales.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-    $('modal-material-quick').classList.add('hidden');
-    showToast('Material creado.');
-    if (pendingLineaKey) updateLinea(pendingLineaKey, { refKey: key });
+    await Promise.all([
+      _fbPatch(`/materiales/${editingPrecioMaterialKey}.json`, { nombre, unidad }),
+      _fbPut(`/materiales/${editingPrecioMaterialKey}/precios/${targetObraKey}.json`, precioData),
+    ]);
+    const mat = materiales.find(m => m.key === editingPrecioMaterialKey);
+    mat.nombre = nombre;
+    mat.unidad = unidad;
+    mat.precios = { ...(mat.precios || {}), [targetObraKey]: precioData };
+    $('modal-material-editar-precio').classList.add('hidden');
+    showToast('Precio actualizado.');
+    renderTodasLasLineas();
   } catch (_) {
     errEl.textContent = 'Error al guardar. Intentá de nuevo.';
     errEl.classList.remove('hidden');
@@ -704,6 +818,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('qm-moneda-usd').addEventListener('click', () => setQmMoneda('USD'));
   $('qm-moneda-ars').addEventListener('click', () => setQmMoneda('ARS'));
   attachCalcInput($('qm-precio'));
+
+  $('modal-mep-close').addEventListener('click',  () => $('modal-material-editar-precio').classList.add('hidden'));
+  $('modal-mep-cancel').addEventListener('click', () => $('modal-material-editar-precio').classList.add('hidden'));
+  $('modal-mep-save').addEventListener('click', saveEditarPrecioModal);
+  $('mep-moneda-usd').addEventListener('click', () => setMepMoneda('USD'));
+  $('mep-moneda-ars').addEventListener('click', () => setMepMoneda('ARS'));
+  $('mep-precio').addEventListener('input', actualizarEquivalenteMep);
+  $('mep-precio').addEventListener('blur', actualizarEquivalenteMep);
+  attachCalcInput($('mep-precio'));
 
   await loadAll();
 });
