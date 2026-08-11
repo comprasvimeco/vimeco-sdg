@@ -227,13 +227,12 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .calc-flotante-close:hover { background: var(--gray-100); color: var(--gray-700); }
 .calc-flotante-close .icon { width: 15px; height: 15px; }
 .calc-flotante-hint { font-size: .74rem; color: var(--gray-400); margin-bottom: .6rem; }
-.calc-flotante-expr { min-height: 1.4rem; font-size: .88rem; color: var(--gray-600); word-break: break-word; }
-.calc-flotante-vacio { color: var(--gray-400); font-style: italic; }
+.calc-flotante-expr { min-height: 1.4rem; font-size: .85rem; font-family: 'Courier New', monospace; color: var(--gray-600); word-break: break-all; }
+.calc-flotante-vacio { color: var(--gray-400); font-style: italic; font-family: 'Segoe UI', system-ui, sans-serif; }
 .calc-flotante-resultado { font-size: 1.15rem; font-weight: 700; color: var(--primary); margin: .25rem 0 .6rem; }
 .calc-flotante-ops { display: grid; grid-template-columns: repeat(4, 1fr); gap: .35rem; margin-bottom: .6rem; }
 .calc-flotante-ops button { padding: .35rem 0; border: 1.5px solid var(--gray-300); background: var(--white); border-radius: var(--radius); cursor: pointer; font-weight: 700; color: var(--gray-600); }
 .calc-flotante-ops button:hover { border-color: var(--primary-light); color: var(--primary); }
-.calc-flotante-ops button.activo { background: var(--primary); border-color: var(--primary); color: var(--white); }
 .calc-flotante-acciones { display: flex; gap: .4rem; }
 .calc-flotante-undo, .calc-flotante-clear { flex: 1; padding: .4rem .5rem; border: 1.5px solid var(--gray-300); background: var(--white); color: var(--gray-600); border-radius: var(--radius); cursor: pointer; font-size: .78rem; }
 .calc-flotante-undo:hover:not(:disabled), .calc-flotante-clear:hover:not(:disabled) { border-color: var(--primary-light); color: var(--primary); }

@@ -1,5 +1,6 @@
 /* VIMECO S.A. — Campos tipo Excel: si un input empieza con "=", lo evalúa como
-   fórmula aritmética (+ - * / y paréntesis) al salir del campo, sin usar eval(). */
+   fórmula aritmética (+ - * / ^, paréntesis, "pi" y "raiz(...)") al salir del
+   campo, sin usar eval(). */
 
 (function () {
   function evalFormula(expr) {
@@ -15,8 +16,25 @@
       return parseFloat(expr.slice(start, i));
     }
 
-    function parseFactor() {
+    // Número, constante "pi", función "raiz(...)" o subexpresión entre paréntesis.
+    function parseAtom() {
       skipWs();
+      if (expr.slice(i, i + 2).toLowerCase() === 'pi' && !/[a-zA-Z]/.test(expr[i + 2] || '')) {
+        i += 2;
+        return Math.PI;
+      }
+      if (expr.slice(i, i + 4).toLowerCase() === 'raiz') {
+        i += 4;
+        skipWs();
+        if (expr[i] !== '(') throw new Error('Falta "(" después de raiz');
+        i++;
+        const v = parseExpr();
+        skipWs();
+        if (expr[i] !== ')') throw new Error('Falta paréntesis de cierre');
+        i++;
+        if (v < 0) throw new Error('Raíz de un número negativo');
+        return Math.sqrt(v);
+      }
       if (expr[i] === '(') {
         i++;
         const v = parseExpr();
@@ -25,17 +43,35 @@
         i++;
         return v;
       }
-      if (expr[i] === '-') { i++; return -parseFactor(); }
-      if (expr[i] === '+') { i++; return parseFactor(); }
       return parseNumber();
     }
 
+    // "^" liga más fuerte que el signo unario (igual que en Excel: -2^2 = -4,
+    // no 4) y es asociativo a derecha (2^3^2 = 2^(3^2)). El exponente puede
+    // tener su propio signo (2^-3).
+    function parsePower() {
+      const base = parseAtom();
+      skipWs();
+      if (expr[i] === '^') {
+        i++;
+        return Math.pow(base, parseUnary());
+      }
+      return base;
+    }
+
+    function parseUnary() {
+      skipWs();
+      if (expr[i] === '-') { i++; return -parseUnary(); }
+      if (expr[i] === '+') { i++; return parseUnary(); }
+      return parsePower();
+    }
+
     function parseTerm() {
-      let v = parseFactor();
+      let v = parseUnary();
       skipWs();
       while (expr[i] === '*' || expr[i] === '/') {
         const op = expr[i]; i++;
-        const rhs = parseFactor();
+        const rhs = parseUnary();
         v = op === '*' ? v * rhs : v / rhs;
         skipWs();
       }
