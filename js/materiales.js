@@ -82,8 +82,8 @@ function onFuenteChange(material, obraKey) {
   const disabled = !obraKey;
   ['material-precio-usd', 'material-precio-ars', 'material-proveedor', 'material-fecha'].forEach(id => { $(id).disabled = disabled; });
   const p = obraKey && material && material.precios ? material.precios[obraKey] : null;
-  $('material-precio-usd').value = p ? (p.precioUSD ?? '') : '';
-  $('material-precio-ars').value = p ? (p.precioARS ?? '') : '';
+  $('material-precio-usd').value = p ? formatMoneyString(p.precioUSD) : '';
+  $('material-precio-ars').value = p ? formatMoneyString(p.precioARS) : '';
   setCalcFormula($('material-precio-usd'), p ? p.precioFormula : null);
   setCalcFormula($('material-precio-ars'), null);
   $('material-proveedor').value = p ? (p.proveedor || '') : '';
@@ -158,8 +158,8 @@ async function saveMaterialModal() {
     const arsInput = $('material-precio-ars');
     if (usdInput.value.trim().startsWith('=')) usdInput.blur();
     if (arsInput.value.trim().startsWith('=')) arsInput.blur();
-    const precioUSD = parseFloat(usdInput.value.replace(',', '.'));
-    const precioARS = parseFloat(arsInput.value.replace(',', '.'));
+    const precioUSD = parseMoneyString(usdInput.value);
+    const precioARS = parseMoneyString(arsInput.value);
     if (isNaN(precioUSD) || precioUSD < 0 || isNaN(precioARS) || precioARS < 0) {
       errEl.textContent = 'El precio no es válido.';
       errEl.classList.remove('hidden');
@@ -216,7 +216,9 @@ async function deleteMaterial(material) {
 
 document.addEventListener('DOMContentLoaded', async () => {
   attachCalcInput($('material-precio-usd'));
+  attachMoneyInput($('material-precio-usd'));
   attachCalcInput($('material-precio-ars'));
+  attachMoneyInput($('material-precio-ars'));
   attachDualPrecioInputs({ usdInput: $('material-precio-usd'), arsInput: $('material-precio-ars'), notaEl: $('material-precio-nota') });
 
   $('btn-add-material').addEventListener('click', openAddModal);

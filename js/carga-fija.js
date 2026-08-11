@@ -50,7 +50,7 @@ function renderLineas() {
         <div class="cf-linea" data-key="${escHtml(lineaKey)}">
           <input type="text" class="form-control cf-concepto" value="${escHtml(l.concepto || '')}" placeholder="Ej: Jefe de obra">
           <input type="text" class="form-control cf-cantidad" value="${l.cantidad ?? ''}" placeholder="0">
-          <input type="text" class="form-control cf-precio" value="${l.precioUnitario ?? ''}" placeholder="0">
+          <input type="text" class="form-control cf-precio" value="${escHtml(formatMoneyString(l.precioUnitario))}" placeholder="0">
           <input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0">
           <span class="cf-linea-total">${total != null ? fmtARS(total) : '—'}</span>
           <button class="cf-linea-del" title="Eliminar concepto">${icSvg('x')}</button>
@@ -67,6 +67,7 @@ function renderLineas() {
     const meses = row.querySelector('.cf-meses');
     attachCalcInput(cantidad, l.cantidadFormula);
     attachCalcInput(precio, l.precioUnitarioFormula);
+    attachMoneyInput(precio);
     attachCalcInput(meses, l.mesesFormula);
 
     concepto.addEventListener('blur', () => updateLinea(lineaKey, { concepto: concepto.value.trim() }));
@@ -80,8 +81,12 @@ function renderLineas() {
       input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
     };
     numField(cantidad, 'cantidad');
-    numField(precio, 'precioUnitario');
     numField(meses, 'meses');
+    precio.addEventListener('blur', () => {
+      const n = parseMoneyString(precio.value);
+      updateLinea(lineaKey, { precioUnitario: isNaN(n) ? null : n, precioUnitarioFormula: getCalcFormula(precio) });
+    });
+    precio.addEventListener('keydown', e => { if (e.key === 'Enter') precio.blur(); });
 
     row.querySelector('.cf-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
   });

@@ -138,7 +138,7 @@ async function loadParams() {
   $('param-reparaciones').value = params.reparacionesPct;
   $('param-lubricantes').value = params.lubricantesPct;
   $('param-consumo').value = params.combustibleLtsPorHp;
-  $('param-combustible').value = params.precioCombustibleLitro;
+  $('param-combustible').value = formatMoneyString(params.precioCombustibleLitro);
 }
 
 async function saveParams() {
@@ -146,7 +146,7 @@ async function saveParams() {
   const reparacionesPct       = parseFloat($('param-reparaciones').value.replace(',', '.'));
   const lubricantesPct        = parseFloat($('param-lubricantes').value.replace(',', '.'));
   const combustibleLtsPorHp   = parseFloat($('param-consumo').value.replace(',', '.'));
-  const precioCombustibleLitro = parseFloat($('param-combustible').value.replace(',', '.'));
+  const precioCombustibleLitro = parseMoneyString($('param-combustible').value);
   if ([tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro].some(n => isNaN(n) || n < 0)) return;
   params = { tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro };
   try {
@@ -241,7 +241,7 @@ function openEditModal(equipo) {
   $('equipo-potencia').value = equipo.potencia ?? '';
   $('equipo-uso-anual').value = equipo.usoAnual ?? '';
   $('equipo-vida-util').value = equipo.vidaUtil ?? '';
-  $('equipo-costo').value = equipo.costoUSD ?? '';
+  $('equipo-costo').value = formatMoneyString(equipo.costoUSD);
   setCalcFormula($('equipo-potencia'), equipo.potenciaFormula);
   setCalcFormula($('equipo-uso-anual'), equipo.usoAnualFormula);
   setCalcFormula($('equipo-vida-util'), equipo.vidaUtilFormula);
@@ -255,6 +255,14 @@ function numOrNull(input) {
   const v = input.value.trim();
   if (!v) return null;
   const n = parseFloat(v.replace(',', '.'));
+  return isNaN(n) ? null : n;
+}
+
+function moneyOrNull(input) {
+  if (input.value.trim().startsWith('=')) input.blur();
+  const v = input.value.trim();
+  if (!v) return null;
+  const n = parseMoneyString(v);
   return isNaN(n) ? null : n;
 }
 
@@ -279,7 +287,7 @@ async function saveEquipoModal() {
   const potencia = numOrNull($('equipo-potencia'));
   const usoAnual = numOrNull($('equipo-uso-anual'));
   const vidaUtil = numOrNull($('equipo-vida-util'));
-  const costoUSD = numOrNull($('equipo-costo'));
+  const costoUSD = moneyOrNull($('equipo-costo'));
   const potenciaFormula = getCalcFormula($('equipo-potencia'));
   const usoAnualFormula = getCalcFormula($('equipo-uso-anual'));
   const vidaUtilFormula = getCalcFormula($('equipo-vida-util'));
@@ -352,6 +360,8 @@ document.addEventListener('DOMContentLoaded', () => {
   attachCalcInput($('equipo-uso-anual'));
   attachCalcInput($('equipo-vida-util'));
   attachCalcInput($('equipo-costo'));
+  attachMoneyInput($('equipo-costo'));
+  attachMoneyInput($('param-combustible'));
 
   $('btn-add-equipo').addEventListener('click', openAddModal);
   $('btn-seed').addEventListener('click', seedEquipos);

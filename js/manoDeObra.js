@@ -113,9 +113,9 @@ function todayIso() {
 }
 
 function updatePreview() {
-  const basico = parseFloat($('rol-basico').value.replace(',', '.'));
+  const basico = parseMoneyString($('rol-basico').value);
   const extra  = parseFloat($('rol-extra').value.replace(',', '.')) || 0;
-  const noRem  = parseFloat($('rol-no-remunerativo').value.replace(',', '.')) || 0;
+  const noRem  = parseMoneyString($('rol-no-remunerativo').value) || 0;
   const preview = $('rol-preview');
   if (isNaN(basico) || basico <= 0) {
     preview.textContent = 'Completá el básico para ver el costo calculado.';
@@ -146,9 +146,9 @@ function openEditModal(rol) {
   $('modal-rol-title').textContent = 'Editar rol';
   $('modal-rol-error').classList.add('hidden');
   $('rol-nombre').value = rol.nombre || '';
-  $('rol-basico').value = rol.basico ?? '';
+  $('rol-basico').value = formatMoneyString(rol.basico);
   $('rol-extra').value = rol.extraPct ?? 0;
-  $('rol-no-remunerativo').value = rol.noRemunerativoMensual ?? '';
+  $('rol-no-remunerativo').value = formatMoneyString(rol.noRemunerativoMensual);
   $('rol-fecha').value = rol.fecha || todayIso();
   setCalcFormula($('rol-basico'), rol.basicoFormula);
   setCalcFormula($('rol-extra'), rol.extraPctFormula);
@@ -165,7 +165,7 @@ async function saveRolModal() {
 
   const basicoInput = $('rol-basico');
   if (basicoInput.value.trim().startsWith('=')) { basicoInput.blur(); updatePreview(); }
-  const basico = parseFloat(basicoInput.value.replace(',', '.'));
+  const basico = parseMoneyString(basicoInput.value);
 
   const extraInput = $('rol-extra');
   if (extraInput.value.trim().startsWith('=')) { extraInput.blur(); updatePreview(); }
@@ -175,7 +175,7 @@ async function saveRolModal() {
   const noRemInput = $('rol-no-remunerativo');
   if (noRemInput.value.trim().startsWith('=')) { noRemInput.blur(); updatePreview(); }
   const noRemStr = noRemInput.value.trim();
-  const noRemunerativoMensual = noRemStr ? parseFloat(noRemStr.replace(',', '.')) : null;
+  const noRemunerativoMensual = noRemStr ? parseMoneyString(noRemStr) : null;
 
   if (!nombre) {
     errEl.textContent = 'El rol es requerido.';
@@ -241,8 +241,10 @@ async function deleteRol(rol) {
 
 document.addEventListener('DOMContentLoaded', () => {
   attachCalcInput($('rol-basico'));
+  attachMoneyInput($('rol-basico'));
   attachCalcInput($('rol-extra'));
   attachCalcInput($('rol-no-remunerativo'));
+  attachMoneyInput($('rol-no-remunerativo'));
   ['rol-basico', 'rol-extra', 'rol-no-remunerativo'].forEach(id => {
     $(id).addEventListener('input', updatePreview);
     $(id).addEventListener('blur', updatePreview);

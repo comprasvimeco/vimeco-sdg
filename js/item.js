@@ -503,8 +503,8 @@ async function saveQuickMaterial() {
     const arsInput = $('qm-precio-ars');
     if (usdInput.value.trim().startsWith('=')) usdInput.blur();
     if (arsInput.value.trim().startsWith('=')) arsInput.blur();
-    const precioUSD = parseFloat(usdInput.value.replace(',', '.'));
-    const precioARS = parseFloat(arsInput.value.replace(',', '.'));
+    const precioUSD = parseMoneyString(usdInput.value);
+    const precioARS = parseMoneyString(arsInput.value);
     if (isNaN(precioUSD) || precioUSD < 0 || isNaN(precioARS) || precioARS < 0) {
       errEl.textContent = 'El precio no es válido.';
       errEl.classList.remove('hidden');
@@ -544,8 +544,8 @@ let mepFuenteSelect = null;
 
 function loadMepPrecioFields(mat, obraKey) {
   const p = (mat.precios || {})[obraKey];
-  $('mep-precio-usd').value = p ? (p.precioUSD ?? '') : '';
-  $('mep-precio-ars').value = p ? (p.precioARS ?? '') : '';
+  $('mep-precio-usd').value = p ? formatMoneyString(p.precioUSD) : '';
+  $('mep-precio-ars').value = p ? formatMoneyString(p.precioARS) : '';
   setCalcFormula($('mep-precio-usd'), p ? p.precioFormula : null);
   setCalcFormula($('mep-precio-ars'), null);
   $('mep-proveedor').value = p ? (p.proveedor || '') : '';
@@ -594,8 +594,8 @@ async function saveEditarPrecioModal() {
   const arsInput = $('mep-precio-ars');
   if (usdInput.value.trim().startsWith('=')) usdInput.blur();
   if (arsInput.value.trim().startsWith('=')) arsInput.blur();
-  const precioUSD = parseFloat(usdInput.value.replace(',', '.'));
-  const precioARS = parseFloat(arsInput.value.replace(',', '.'));
+  const precioUSD = parseMoneyString(usdInput.value);
+  const precioARS = parseMoneyString(arsInput.value);
 
   if (!nombre || !unidad) {
     errEl.textContent = 'Nombre y unidad son requeridos.';
@@ -790,14 +790,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-material-quick-cancel').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
   $('modal-material-quick-save').addEventListener('click', saveQuickMaterial);
   attachCalcInput($('qm-precio-usd'));
+  attachMoneyInput($('qm-precio-usd'));
   attachCalcInput($('qm-precio-ars'));
+  attachMoneyInput($('qm-precio-ars'));
   attachDualPrecioInputs({ usdInput: $('qm-precio-usd'), arsInput: $('qm-precio-ars'), notaEl: $('qm-precio-nota') });
 
   $('modal-mep-close').addEventListener('click',  () => $('modal-material-editar-precio').classList.add('hidden'));
   $('modal-mep-cancel').addEventListener('click', () => $('modal-material-editar-precio').classList.add('hidden'));
   $('modal-mep-save').addEventListener('click', saveEditarPrecioModal);
   attachCalcInput($('mep-precio-usd'));
+  attachMoneyInput($('mep-precio-usd'));
   attachCalcInput($('mep-precio-ars'));
+  attachMoneyInput($('mep-precio-ars'));
   attachDualPrecioInputs({ usdInput: $('mep-precio-usd'), arsInput: $('mep-precio-ars'), notaEl: $('mep-precio-nota') });
 
   await loadAll();
