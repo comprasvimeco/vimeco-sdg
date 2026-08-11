@@ -313,7 +313,7 @@ function renderLineasSeccion(tipo, r) {
         <div class="ap-linea${conCosto ? ' con-costo' : ''}" data-key="${escHtml(lineaKey)}">
           <div class="linea-select-wrap">
             <div class="linea-select-container"></div>
-            ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
+            ${tipo === 'material' ? '<a class="linea-unidad-badge" target="_blank"></a>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
           ${conCosto ? `<span class="ap-linea-costo-unit">${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total">${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
@@ -350,7 +350,16 @@ function renderLineasSeccion(tipo, r) {
     });
     if (tipo === 'material') {
       const mat = materiales.find(m => m.key === linea.refKey);
-      row.querySelector('.linea-unidad-badge').textContent = mat ? mat.unidad : '';
+      const badge = row.querySelector('.linea-unidad-badge');
+      badge.textContent = mat ? mat.unidad : '';
+      if (mat) {
+        const fecha = mat.fecha ? mat.fecha.split('-').reverse().join('/') : 'sin fecha';
+        badge.title = `Proveedor: ${mat.proveedor || 'sin datos'} · Fecha: ${fecha} — clic para cargar un precio nuevo`;
+        badge.href = `materiales.html?editar=${encodeURIComponent(mat.key)}`;
+      } else {
+        badge.removeAttribute('title');
+        badge.removeAttribute('href');
+      }
     }
 
     attachCalcInput(cantidadInput, linea.cantidadFormula);

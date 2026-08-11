@@ -189,7 +189,7 @@ async function deleteMaterial(material) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   attachCalcInput($('material-precio'));
   $('material-precio').addEventListener('input', actualizarEquivalente);
   $('material-precio').addEventListener('blur', actualizarEquivalente);
@@ -203,6 +203,14 @@ document.addEventListener('DOMContentLoaded', () => {
   $('material-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') saveMaterialModal(); });
   $('materiales-search').addEventListener('input', applyFilter);
 
-  loadMateriales();
+  await loadMateriales();
   getDolarSnapshot().then(() => applyFilter()).catch(() => {});
+
+  // Llegada desde otra pantalla (ej. Análisis de Precio) para cargar un
+  // precio nuevo de un material puntual: abre directo su modal de edición.
+  const editarKey = new URLSearchParams(window.location.search).get('editar');
+  if (editarKey) {
+    const material = allMateriales.find(m => m.key === editarKey);
+    if (material) openEditModal(material);
+  }
 });

@@ -24,7 +24,8 @@
 
     .linea-select-wrap { display: flex; align-items: center; gap: .5rem; min-width: 0; }
     .linea-select-container { flex: 1 1 0%; min-width: 0; }
-    .linea-unidad-badge { font-size: .75rem; color: var(--gray-500); white-space: nowrap; flex-shrink: 0; }
+    .linea-unidad-badge { font-size: .75rem; color: var(--gray-500); white-space: nowrap; flex-shrink: 0; text-decoration: none; cursor: pointer; }
+    .linea-unidad-badge[href]:hover { color: var(--primary); text-decoration: underline; }
 
     .ap-linea-mo { display: grid; grid-template-columns: 1fr 110px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
     .ap-linea-mo.con-costo { grid-template-columns: 1fr 90px 100px 110px; }
