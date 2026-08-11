@@ -94,9 +94,9 @@ function renderLineaRow(linea, numero, k) {
       <span class="presupuesto-linea-numero">${numero}</span>
       <span>${escHtml(linea.nombre || '')}</span>
       <span>${escHtml(linea.unidad || '')}</span>
-      <span>${linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : '—'}</span>
-      <span class="presupuesto-linea-precio">${fmtARS(precioUnitario)}</span>
-      <span class="presupuesto-linea-total">${fmtARS(total)}</span>
+      <span${linea.cantidad != null && !isNaN(linea.cantidad) ? ` data-calc-valor="${linea.cantidad}"` : ''}>${linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : '—'}</span>
+      <span class="presupuesto-linea-precio" data-calc-valor="${precioUnitario}">${fmtARS(precioUnitario)}</span>
+      <span class="presupuesto-linea-total" data-calc-valor="${total}">${fmtARS(total)}</span>
     </div>`;
 }
 
@@ -134,7 +134,7 @@ function renderTodo() {
         <div class="presupuesto-rubro-header">
           <span class="presupuesto-rubro-numero">${rubroIdx + 1}.</span>
           <span class="presupuesto-rubro-nombre">${escHtml(rubro.nombre || '(sin nombre)')}</span>
-          <span class="presupuesto-rubro-subtotal">${fmtARS(subtotalRubroConPrecio(grupoLineas, k))}</span>
+          <span class="presupuesto-rubro-subtotal" data-calc-valor="${subtotalRubroConPrecio(grupoLineas, k)}">${fmtARS(subtotalRubroConPrecio(grupoLineas, k))}</span>
         </div>`;
       const lineasHtml = grupoLineas.length
         ? grupoLineas.map(([, l], i) => renderLineaRow(l, `${rubroIdx + 1}.${i + 1}`, k)).join('')
@@ -149,9 +149,9 @@ function renderTodo() {
   }, 0);
 
   resumen.innerHTML = `
-    <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span>${fmtARS(costoComputo)}</span></div>
-    <div class="ap-resumen-row"><span>Coeficiente K</span><span>${fmtCoef(k)}</span></div>
-    <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span>${fmtARS(totalPresupuesto)}</span></div>
+    <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span data-calc-valor="${costoComputo}">${fmtARS(costoComputo)}</span></div>
+    <div class="ap-resumen-row"><span>Coeficiente K</span><span data-calc-valor="${k}">${fmtCoef(k)}</span></div>
+    <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span data-calc-valor="${totalPresupuesto}">${fmtARS(totalPresupuesto)}</span></div>
     <p class="form-hint" style="margin-top:.5rem;">K se recalcula en vivo a partir de Carga Fija — no se cachea.</p>`;
 }
 
