@@ -269,17 +269,16 @@ con confirmación).
 (fuente de los ítems generales pendientes de `Planilla_Arquitectura_v2.xlsm`,
 ver memoria `project_gastos_generales_carga_fija`).
 
-## 5. Fuente en Materiales
+## 5. Fuente en Materiales — ✅ Hecho (2026-08-11)
 
-Agregar `fuenteCotizacionKey` (nullable) a `/materiales/{key}`, con un
-selector tipo combobox (reusar `js/searchable-select.js`, ya armado y
-verificado en v015/v016) en el modal de `materiales.html`.
+`fuenteCotizacionKey` (nullable) en `/materiales/{key}`, combobox
+(`createSearchableSelect`) en el modal de `materiales.html`, nombre de la
+fuente sumado al meta-line de la lista.
 
-**Backfill:** los 139 materiales cargados el 2026-08-10 no tienen fuente
-todavía — una vez que exista la Cotización "CyP Taller Río Cuarto" (paso 4),
-taggearlos a todos con esa key. Se puede hacer con un script puntual contra
-la RTDB (mismo criterio que se usó para la carga inicial), no hace falta
-una migración en la UI.
+**Backfill corrido contra la RTDB real:** 150 materiales (el catálogo
+creció desde los 139 originales), 149 taggeados con "CyP Taller Río
+Cuarto" (uno ya lo tenía, de la verificación manual) — 0 sin fuente al
+terminar.
 
 ## 6. Fuente en Ítems
 

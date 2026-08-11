@@ -11,6 +11,7 @@
     .precio-toggle { display: flex; gap: .4rem; }
     .precio-toggle .btn { padding: .35rem .8rem; box-shadow: none; }
     .precio-toggle .btn.is-active { background: var(--primary); color: var(--white); }
+    .linea-select-container { min-width: 0; }
   </style>
 </head>
 <body>
@@ -75,6 +76,11 @@
             <input type="date" id="material-fecha" class="form-control">
           </div>
         </div>
+        <div class="form-group u-mb-0">
+          <label>Fuente (cotización)</label>
+          <div class="linea-select-container" id="material-fuente-container"></div>
+          <span class="form-hint">De dónde sale este precio — opcional. Se cargan/editan en Cotizaciones.</span>
+        </div>
 
         <div id="modal-material-error" class="alert alert-error hidden"></div>
       </div>
@@ -106,6 +112,7 @@
   <script src="js/icons.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/calc.js"></script>
+  <script src="js/searchable-select.js"></script>
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
   <script src="js/config.js"></script>

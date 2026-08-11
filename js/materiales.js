@@ -9,8 +9,11 @@ const fmtFecha  = iso => {
 };
 
 let allMateriales = [];
+let allCotizaciones = [];
+let cotizacionesMap = {};
 let editingKey = null;
 let monedaActual = 'USD';
+let fuenteSelect = null;
 
 function setMoneda(m) {
   monedaActual = m;
@@ -39,7 +42,8 @@ function renderMateriales(list) {
     return;
   }
   container.innerHTML = list.map(m => {
-    const meta = [m.unidad, fmtUSDConEquivalente(m.precioUSD), m.proveedor, m.fecha ? fmtFecha(m.fecha) : '']
+    const fuente = m.fuenteCotizacionKey ? cotizacionesMap[m.fuenteCotizacionKey] : null;
+    const meta = [m.unidad, fmtUSDConEquivalente(m.precioUSD), m.proveedor, m.fecha ? fmtFecha(m.fecha) : '', fuente ? `Fuente: ${fuente}` : '']
       .filter(Boolean).join(' · ');
     return `
       <div class="item-card" data-key="${escHtml(m.key)}">
@@ -73,9 +77,16 @@ function applyFilter() {
 async function loadMateriales() {
   $('materiales-list').innerHTML = '<div class="list-loading">Cargando materiales…</div>';
   try {
-    const data = await _fbGet('/materiales.json');
+    const [data, cotizacionesData] = await Promise.all([
+      _fbGet('/materiales.json'),
+      _fbGet('/cotizaciones.json'),
+    ]);
     allMateriales = Object.entries(data || {}).map(([key, m]) => ({ key, ...m }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    allCotizaciones = Object.entries(cotizacionesData || {}).map(([key, c]) => ({ key, ...c }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    cotizacionesMap = {};
+    allCotizaciones.forEach(c => { cotizacionesMap[c.key] = c.nombre; });
     applyFilter();
   } catch (_) {
     $('materiales-list').innerHTML = '<div class="list-empty">Error al cargar materiales.</div>';
@@ -84,6 +95,15 @@ async function loadMateriales() {
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function renderFuenteSelect(fuenteKeyActual) {
+  const options = allCotizaciones.map(c => ({ value: c.key, label: c.nombre }));
+  fuenteSelect = createSearchableSelect($('material-fuente-container'), {
+    options,
+    value: fuenteKeyActual || null,
+    placeholder: 'Buscar cotización…',
+  });
 }
 
 function openAddModal() {
@@ -97,6 +117,7 @@ function openAddModal() {
   $('material-proveedor').value = '';
   $('material-fecha').value = todayIso();
   setMoneda('USD');
+  renderFuenteSelect(null);
   $('modal-material').classList.remove('hidden');
   setTimeout(() => $('material-nombre').focus(), 50);
 }
@@ -112,6 +133,7 @@ function openEditModal(material) {
   $('material-proveedor').value = material.proveedor || '';
   $('material-fecha').value = material.fecha || todayIso();
   setMoneda('USD');
+  renderFuenteSelect(material.fuenteCotizacionKey);
   $('modal-material').classList.remove('hidden');
   setTimeout(() => $('material-nombre').focus(), 50);
 }
@@ -150,6 +172,7 @@ async function saveMaterialModal() {
   }
   const { precioUSD, precioARS } = dual;
   const precioFormula = getCalcFormula(precioInput);
+  const fuenteCotizacionKey = fuenteSelect ? fuenteSelect.getValue() : null;
 
   const saveBtn = $('modal-material-save');
   saveBtn.disabled = true;
@@ -157,13 +180,13 @@ async function saveMaterialModal() {
 
   try {
     if (editingKey) {
-      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precioUSD, precioARS, precioFormula, proveedor, fecha });
+      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precioUSD, precioARS, precioFormula, proveedor, fecha, fuenteCotizacionKey });
     } else {
       const key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precioUSD, precioARS, precioFormula, proveedor, fecha, creadoEn: Date.now() });
+      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precioUSD, precioARS, precioFormula, proveedor, fecha, fuenteCotizacionKey, creadoEn: Date.now() });
     }
     $('modal-material').classList.add('hidden');
     showToast(editingKey ? 'Material actualizado.' : 'Material creado.');
