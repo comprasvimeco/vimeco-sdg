@@ -620,7 +620,11 @@ async function loadAll() {
   Object.entries(obrasData || {}).forEach(([key, o]) => { obrasMap[key] = o.nombre; });
   materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e })).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es'));
-  roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  // Orden jerárquico (Oficial Especializado > Oficial > Ayudante), no
+  // alfabético — casualmente es el alfabético invertido con los roles de
+  // hoy. Si se agrega un rol que no encaje en ese orden (ej. "Capataz"),
+  // hace falta un campo `orden` real en /manoDeObra (mano-de-obra.html).
+  roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
   rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
