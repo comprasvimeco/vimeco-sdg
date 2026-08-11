@@ -316,10 +316,12 @@ function renderLineasSeccion(tipo, r) {
         <div class="ap-linea${conCosto ? ' con-costo' : ''}" data-key="${escHtml(lineaKey)}">
           <div class="linea-select-wrap">
             <div class="linea-select-container"></div>
-            ${tipo === 'material' ? '<a class="linea-unidad-badge" target="_blank"></a>' : ''}
+            ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
-          ${conCosto ? `<span class="ap-linea-costo-unit">${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total">${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
+          ${conCosto ? `${tipo === 'material'
+              ? `<a class="ap-linea-costo-unit" target="_blank">${d ? fmtARS(d.costoUnitario) : '—'}</a>`
+              : `<span class="ap-linea-costo-unit">${d ? fmtARS(d.costoUnitario) : '—'}</span>`}<span class="ap-linea-costo-total">${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
         </div>`;
     }).join('');
@@ -355,13 +357,16 @@ function renderLineasSeccion(tipo, r) {
       const mat = materiales.find(m => m.key === linea.refKey);
       const badge = row.querySelector('.linea-unidad-badge');
       badge.textContent = mat ? mat.unidad : '';
-      if (mat) {
-        const fecha = mat.fecha ? mat.fecha.split('-').reverse().join('/') : 'sin fecha';
-        badge.title = `Proveedor: ${mat.proveedor || 'sin datos'} · Fecha: ${fecha} — clic para cargar un precio nuevo`;
-        badge.href = `materiales.html?editar=${encodeURIComponent(mat.key)}`;
-      } else {
-        badge.removeAttribute('title');
-        badge.removeAttribute('href');
+      const costoUnit = row.querySelector('.ap-linea-costo-unit');
+      if (costoUnit) {
+        if (mat) {
+          const fecha = mat.fecha ? mat.fecha.split('-').reverse().join('/') : 'sin fecha';
+          costoUnit.title = `Proveedor: ${mat.proveedor || 'sin datos'} · Fecha: ${fecha} — clic para cargar un precio nuevo`;
+          costoUnit.href = `materiales.html?editar=${encodeURIComponent(mat.key)}`;
+        } else {
+          costoUnit.removeAttribute('title');
+          costoUnit.removeAttribute('href');
+        }
       }
     }
 

@@ -14,6 +14,8 @@
     .ap-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
     .ap-linea-costo-unit, .ap-linea-costo-total { text-align: right; font-size: .85rem; color: var(--gray-600); white-space: nowrap; }
     .ap-linea-costo-total { font-weight: 600; color: var(--gray-700); }
+    a.ap-linea-costo-unit { text-decoration: none; cursor: pointer; }
+    a.ap-linea-costo-unit[href]:hover { color: var(--primary); text-decoration: underline; }
     .ap-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .3rem; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
@@ -24,8 +26,7 @@
 
     .linea-select-wrap { display: flex; align-items: center; gap: .5rem; min-width: 0; }
     .linea-select-container { flex: 1 1 0%; min-width: 0; }
-    .linea-unidad-badge { font-size: .75rem; color: var(--gray-500); white-space: nowrap; flex-shrink: 0; text-decoration: none; cursor: pointer; }
-    .linea-unidad-badge[href]:hover { color: var(--primary); text-decoration: underline; }
+    .linea-unidad-badge { font-size: .75rem; color: var(--gray-500); white-space: nowrap; flex-shrink: 0; }
 
     .ap-linea-mo { display: grid; grid-template-columns: 1fr 110px; gap: .6rem; align-items: center; padding: .5rem 0; border-bottom: 1px solid var(--gray-200); }
     .ap-linea-mo.con-costo { grid-template-columns: 1fr 90px 100px 110px; }
