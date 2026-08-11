@@ -233,7 +233,44 @@ Verificado con datos reales de la obra "Prueba" (que en esta sesión el
 dueño del proyecto estuvo cargando en paralelo — 7 líneas, 4 rubros) sin
 romper nada; limpiado todo dato de prueba propio al terminar cada punto.
 
-## 4. Cotizaciones (entidad + pantalla) — ✅ Hecho (2026-08-11)
+## ⚠️ Pivot 2026-08-11: los puntos 4-8 de abajo quedaron reemplazados
+
+Después de usar en la práctica lo que describen los puntos 4-8 (entidad
+`/cotizaciones` con `obraKey` opcional + `fuenteCotizacionKey` único en
+Materiales/Ítems), el dueño del proyecto pidió un cambio de rumbo:
+Cotización como entidad no sirve, era sólo un paso intermedio. El texto de
+los puntos 4-8 queda abajo como **registro histórico de lo que se probó**,
+pero el esquema y la UX reales a implementar son los de la memoria
+`project_rediseno_fuentes_precios` (leerla antes de tocar nada de esto) —
+resumen:
+
+- `/materiales/{key}`: sólo `nombre` + `unidad`, sin precio propio.
+- `/materiales/{key}/precios/{obraKey}`: `{precioUSD, precioARS,
+  precioFormula, proveedor, fecha}` — un precio vigente por obra, sin
+  historial.
+- Precio "default" sin obra en contexto (o para una obra sin precio propio
+  cargado) = el de fecha más reciente entre todas las obras-fuente.
+- Se borra `/cotizaciones`, `cotizaciones.html`/`js/cotizaciones.js`,
+  `cotizacion-precios.html`/`js/cotizacion-precios.js`, y
+  `fuenteCotizacionKey` de Materiales.
+- `materiales.html` e `item.html` (AP, editor **inline**, no pestaña
+  nueva) muestran un desplegable Fuente (obra) arriba del precio.
+- "Taller Motores Río Cuarto" y "Chandías" pasan a ser **obras reales**
+  (`/obras`, con su `estado`), no Cotizaciones generales sin obra.
+- La carpeta de Cotizaciones + extracción con Gemini sigue siendo la idea
+  a futuro, pospuesta explícitamente — no hay pantalla de Cotizaciones
+  hasta que se retome.
+- Fuente en Ítems: pospuesta también, a pensar junto con `versionesObra`
+  (puede ser redundante con eso) en vez de como campo aislado — no
+  asumir un diseño, no está cerrado.
+
+Migración pendiente: los ~150 materiales con
+`fuenteCotizacionKey="CyP Taller Río Cuarto"` pasan a
+`/materiales/{key}/precios/{obraKeyDeTallerMotoresRioCuarto}`.
+
+---
+
+## 4. Cotizaciones (entidad + pantalla) — ✅ Hecho (2026-08-11), ver pivot arriba
 
 Implementado tal cual el esquema propuesto abajo. `cotizaciones.html`/
 `js/cotizaciones.js`, mismo patrón CRUD que `obras.js` (el más cercano).

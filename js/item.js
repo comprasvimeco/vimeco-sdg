@@ -245,7 +245,7 @@ function renderVersionRendimiento() {
 function calcularDetalleActivo() {
   if (activeVersion === 'teorico') { detallePorLineaActivo = {}; return null; }
   const catalogos = { materiales, equipos, roles };
-  const preciosObra = window.resolverPreciosObra(allCotizaciones, activeVersion);
+  const preciosObra = window.resolverPreciosObra(materiales, activeVersion);
   const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra);
   detallePorLineaActivo = r.detallePorLinea;
   return r;

@@ -30,20 +30,30 @@ window.calcCostoDiarioEquipo = function (equipo, params, jornadaHoras) {
   return amortizacionDia + interesesDia + reparacionesDia + combustibleDia + lubricantesDia;
 };
 
-// Entre las cotizaciones asociadas a una obra puntual, arma el mapa de
-// precios de materiales "ganador" (la fecha más reciente gana si hay más
-// de una cotización con precio para el mismo material) — listo para
-// pasarle a calcCostoUnitarioItem. Sin cotizaciones para esa obra, o sin
-// obraKey, devuelve {} (comportamiento idéntico al de siempre: precio
-// global). cotizaciones: array de { key, obraKey, precios: {materialKey: {...}} }.
-window.resolverPreciosObra = function (cotizaciones, obraKey) {
+// Un material puede tener distinto precio/proveedor/fecha por obra
+// (/materiales/{key}/precios/{obraKey}). Sin precio propio de una obra
+// puntual, el "default" es el de fecha más reciente entre TODAS las obras
+// que tengan un precio cargado para ese material — no hay precio global de
+// respaldo, se calcula en vivo. Devuelve {obraKey, precio} o null si el
+// material no tiene ningún precio cargado todavía.
+window.precioDefaultDe = function (material) {
+  const entries = Object.entries((material && material.precios) || {});
+  if (!entries.length) return null;
+  return entries.reduce((best, [obraKey, precio]) =>
+    (!best || (precio.fecha || '') >= (best.precio.fecha || '')) ? { obraKey, precio } : best, null);
+};
+
+// Arma el mapa de precios "a usar" para una obra puntual: el precio propio
+// de esa obra si lo tiene, si no el default (más reciente entre todas) —
+// listo para pasarle a calcCostoUnitarioItem. materiales: array ya cargado
+// por el consumidor (con `precios` anidado incluido).
+window.resolverPreciosObra = function (materiales, obraKey) {
   const resultado = {};
-  if (!obraKey) return resultado;
-  (cotizaciones || []).filter(c => c.obraKey === obraKey).forEach(c => {
-    Object.entries(c.precios || {}).forEach(([materialKey, precio]) => {
-      const actual = resultado[materialKey];
-      if (!actual || (precio.fecha || '') >= (actual.fecha || '')) resultado[materialKey] = precio;
-    });
+  (materiales || []).forEach(m => {
+    const propio = obraKey && m.precios ? m.precios[obraKey] : null;
+    if (propio) { resultado[m.key] = propio; return; }
+    const def = window.precioDefaultDe(m);
+    if (def) resultado[m.key] = def.precio;
   });
   return resultado;
 };
@@ -53,8 +63,9 @@ window.resolverPreciosObra = function (cotizaciones, obraKey) {
 // computo.js y carga-fija.js para calcular en vivo — la Biblioteca ya no
 // cachea ningún costo (ver item.js, que sólo edita la receta).
 // catalogos: { materiales, equipos, roles }
-// preciosObra (opcional): mapa {materialKey: {precioUSD,...}} ya resuelto
-// con resolverPreciosObra — pisa el precio global de ese material sólo acá.
+// preciosObra: mapa {materialKey: {precioUSD,...}} ya resuelto con
+// resolverPreciosObra — es la única fuente de precio de un material, no hay
+// fallback a un campo propio del material (ya no existe).
 window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO, preciosObra) {
   preciosObra = preciosObra || {};
   function catalogoFor(tipo) {
@@ -65,9 +76,9 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
   function precioUnitarioMaterial(mat) {
     const venta = window.dolarOficialVenta();
     if (!mat || !venta) return null;
-    const precioUSD = preciosObra[mat.key] ? preciosObra[mat.key].precioUSD : mat.precioUSD;
-    if (!precioUSD) return null;
-    return precioUSD * venta;
+    const precio = preciosObra[mat.key];
+    if (!precio || !precio.precioUSD) return null;
+    return precio.precioUSD * venta;
   }
   // costoUnitario acá es el precio de LA UNIDAD del material/equipo/rol
   // (ej. $/kg, costo diario del equipo, costo del jornal) — no el costo

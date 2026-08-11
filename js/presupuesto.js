@@ -160,7 +160,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, rubrosComputoData, itemsData, materialesData, equiposData, rolesData, cfgEquipos, cfgMO, cotizacionesData, cargaFijaLineasData, cargaFijaConfigData] = await Promise.all([
+  const [obraData, lineasData, rubrosComputoData, itemsData, materialesData, equiposData, rolesData, cfgEquipos, cfgMO, cargaFijaLineasData, cargaFijaConfigData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),
     _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
@@ -170,7 +170,6 @@ async function loadAll() {
     _fbGet('/manoDeObra.json'),
     _fbGet('/config/equipos.json'),
     _fbGet('/config/manoDeObra.json'),
-    _fbGet('/cotizaciones.json'),
     _fbGet(`/obras/${obraKey}/cargaFija/lineas.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
   ]);
@@ -188,8 +187,7 @@ async function loadAll() {
   roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r }));
   if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
   if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
-  const cotizaciones = Object.entries(cotizacionesData || {}).map(([key, c]) => ({ key, ...c }));
-  preciosObra = window.resolverPreciosObra(cotizaciones, obraKey);
+  preciosObra = window.resolverPreciosObra(materiales, obraKey);
   cargaFijaLineas = cargaFijaLineasData || {};
   if (cargaFijaConfigData) cargaFijaConfig = { ...cargaFijaConfig, ...cargaFijaConfigData };
 
