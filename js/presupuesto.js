@@ -102,7 +102,7 @@ function renderLineaRow(linea, numero, k, totalPresupuesto) {
       <span${linea.cantidad != null && !isNaN(linea.cantidad) ? ` data-calc-valor="${linea.cantidad}"` : ''}>${linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : '—'}</span>
       <span class="presupuesto-linea-precio" data-calc-valor="${precioUnitario}">${fmtARS(precioUnitario)}</span>
       <span class="presupuesto-linea-total" data-calc-valor="${total}">${fmtARS(total)}</span>
-      <span class="presupuesto-linea-incidencia">${fmtPct(incidencia)}</span>
+      <span class="presupuesto-linea-incidencia" data-calc-valor="${incidencia * 100}">${fmtPct(incidencia)}</span>
     </div>`;
 }
 
@@ -147,8 +147,8 @@ function renderTodo() {
         <div class="presupuesto-rubro-header">
           <span class="presupuesto-rubro-numero">${rubroIdx + 1}.</span>
           <span class="presupuesto-rubro-nombre">${escHtml(rubro.nombre || '(sin nombre)')}</span>
-          <span class="presupuesto-rubro-incidencia">${fmtPct(incidenciaRubro)}</span>
           <span class="presupuesto-rubro-subtotal" data-calc-valor="${subtotalRubro}">${fmtARS(subtotalRubro)}</span>
+          <span class="presupuesto-rubro-incidencia" data-calc-valor="${incidenciaRubro * 100}">${fmtPct(incidenciaRubro)}</span>
         </div>`;
       const lineasHtml = grupoLineas.length
         ? grupoLineas.map(([, l], i) => renderLineaRow(l, `${rubroIdx + 1}.${i + 1}`, k, totalPresupuesto)).join('')
