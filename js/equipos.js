@@ -122,40 +122,6 @@ function equipoKey(codigo) {
 
 let allEquipos = [];
 let editingKey = null;
-let params = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
-let jornadaHoras = 8; // se toma de /config/manoDeObra.json (misma jornada que las cuadrillas)
-
-async function loadParams() {
-  try {
-    const data = await _fbGet('/config/equipos.json');
-    if (data) params = { ...params, ...data };
-  } catch (_) {}
-  try {
-    const mo = await _fbGet('/config/manoDeObra.json');
-    if (mo && mo.jornadaHoras) jornadaHoras = mo.jornadaHoras;
-  } catch (_) {}
-  $('param-interes').value = params.tasaInteresPct;
-  $('param-reparaciones').value = params.reparacionesPct;
-  $('param-lubricantes').value = params.lubricantesPct;
-  $('param-consumo').value = params.combustibleLtsPorHp;
-  $('param-combustible').value = formatMoneyString(params.precioCombustibleLitro);
-}
-
-async function saveParams() {
-  const tasaInteresPct        = parseFloat($('param-interes').value.replace(',', '.'));
-  const reparacionesPct       = parseFloat($('param-reparaciones').value.replace(',', '.'));
-  const lubricantesPct        = parseFloat($('param-lubricantes').value.replace(',', '.'));
-  const combustibleLtsPorHp   = parseFloat($('param-consumo').value.replace(',', '.'));
-  const precioCombustibleLitro = parseMoneyString($('param-combustible').value);
-  if ([tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro].some(n => isNaN(n) || n < 0)) return;
-  params = { tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro };
-  try {
-    await _fbPut('/config/equipos.json', params);
-    applyFilter();
-  } catch (_) {
-    showToast('Error al guardar los parámetros.', 'error');
-  }
-}
 
 function metaLine(e) {
   const parts = [];
@@ -163,8 +129,6 @@ function metaLine(e) {
   if (e.usoAnual)  parts.push(`${e.usoAnual} hs/año`);
   if (e.vidaUtil)  parts.push(`vida útil ${e.vidaUtil} hs`);
   if (e.costoUSD)  parts.push(fmtUSDConEquivalente(e.costoUSD));
-  const costoDiario = window.calcCostoDiarioEquipo(e, params, jornadaHoras);
-  if (costoDiario != null) parts.push(`Costo de uso ${fmtARS(costoDiario)}/día`);
   return parts.join(' · ') || 'Sin datos de costo cargados';
 }
 
@@ -361,7 +325,6 @@ document.addEventListener('DOMContentLoaded', () => {
   attachCalcInput($('equipo-vida-util'));
   attachCalcInput($('equipo-costo'));
   attachMoneyInput($('equipo-costo'));
-  attachMoneyInput($('param-combustible'));
 
   $('btn-add-equipo').addEventListener('click', openAddModal);
   $('btn-seed').addEventListener('click', seedEquipos);
@@ -371,10 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('equipo-codigo').addEventListener('keydown', e => { if (e.key === 'Enter') saveEquipoModal(); });
   $('equipos-search').addEventListener('input', applyFilter);
 
-  ['param-interes', 'param-reparaciones', 'param-lubricantes', 'param-consumo', 'param-combustible']
-    .forEach(id => $(id).addEventListener('blur', saveParams));
-
-  loadParams().then(loadEquipos);
+  loadEquipos();
   // Refresca la cotización y repinta la lista una vez que llega (para mostrar
   // el equivalente en pesos aunque no hubiera nada cacheado al entrar).
   getDolarSnapshot().then(() => applyFilter()).catch(() => {});

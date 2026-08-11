@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Mano de Obra</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <span class="header-title" id="header-obra-nombre">Mano de Obra</span>
+    </div>
+    <nav class="header-tabs" id="header-tabs"></nav>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline" onclick="window.location.href='obras.html'">Volver</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Parámetros generales de esta obra</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="param-asistencia">Asistencia perfecta (%)</label>
+            <input type="text" id="param-asistencia" class="form-control" placeholder="Ej: 20">
+          </div>
+          <div class="form-group">
+            <label for="param-cargas">Cargas Sociales + ART (%)</label>
+            <input type="text" id="param-cargas" class="form-control" placeholder="Ej: 100">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="param-dias">Días laborables / mes</label>
+            <input type="text" id="param-dias" class="form-control" placeholder="Ej: 22">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="param-jornada">Jornada (hs)</label>
+            <input type="text" id="param-jornada" class="form-control" placeholder="Ej: 8">
+          </div>
+        </div>
+        <span class="form-hint">Se aplican solo a los roles de esta obra. Se guardan solos al salir del campo.</span>
+      </div>
+    </div>
+
+    <div class="list-toolbar">
+      <span class="list-toolbar-title">Roles y costo horario de esta obra</span>
+      <button class="btn btn-primary btn-sm" id="btn-add-rol">+ Agregar rol</button>
+    </div>
+    <div class="form-group">
+      <input type="text" id="mo-search" class="form-control" placeholder="Buscar rol...">
+    </div>
+    <div id="mo-list" class="list-container">
+      <div class="list-loading">Cargando roles…</div>
+    </div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando roles…</div></div>
+
+  <!-- Modal: Agregar / Editar rol -->
+  <div class="modal-overlay hidden" id="modal-rol">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-rol-title">Agregar rol</span>
+        <button class="modal-close" id="modal-rol-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="rol-nombre">Rol *</label>
+          <input type="text" id="rol-nombre" class="form-control" placeholder="Ej: Oficial, Ayudante, Oficial Especializado">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rol-basico">Básico ($/hs) *</label>
+            <input type="text" id="rol-basico" class="form-control" placeholder="Ej: 7420">
+          </div>
+          <div class="form-group">
+            <label for="rol-extra">Extra sobre básico (%)</label>
+            <input type="text" id="rol-extra" class="form-control" placeholder="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rol-no-remunerativo">No remunerativo ($/mes)</label>
+            <input type="text" id="rol-no-remunerativo" class="form-control" placeholder="Ej: 148000">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="rol-fecha">Fecha del valor</label>
+            <input type="date" id="rol-fecha" class="form-control">
+          </div>
+        </div>
+        <span class="form-hint">El no remunerativo cambia todos los meses — actualizalo cuando tengas el valor del mes.</span>
+
+        <div class="alert alert-info" id="rol-preview" style="margin-top:1rem;"></div>
+
+        <div id="modal-rol-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-rol-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-rol-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/calcCostos.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/mano-de-obra-obra.js"></script>
+</body>
+</html>

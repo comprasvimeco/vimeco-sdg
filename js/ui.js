@@ -30,6 +30,9 @@ window.toast     = (msg, type = 'info')    => _toast(msg, type);
 window.showToast = (msg, type = 'success') => _toast(msg, type);
 
 const HEADER_TABS = [
+  { id: 'datos',       label: 'Datos',       href: 'datos-obra.html' },
+  { id: 'equipos',     label: 'Equipos',     href: 'equipos-obra.html' },
+  { id: 'mano-obra',   label: 'Mano de Obra', href: 'mano-de-obra-obra.html' },
   { id: 'computo',     label: 'Cómputo',     href: 'computo.html' },
   { id: 'carga-fija',  label: 'Carga Fija',  href: 'carga-fija.html' },
   { id: 'presupuesto', label: 'Presupuesto', href: 'presupuesto.html' },

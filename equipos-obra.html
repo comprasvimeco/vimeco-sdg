@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Equipos</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <span class="header-title" id="header-obra-nombre">Equipos</span>
+    </div>
+    <nav class="header-tabs" id="header-tabs"></nav>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline" onclick="window.location.href='obras.html'">Volver</button>
+    </div>
+  </header>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Parámetros de equipos de esta obra</span>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="param-interes">Tasa de interés anual (%)</label>
+            <input type="text" id="param-interes" class="form-control" placeholder="Ej: 10">
+          </div>
+          <div class="form-group">
+            <label for="param-reparaciones">Reparaciones (% de amortización)</label>
+            <input type="text" id="param-reparaciones" class="form-control" placeholder="Ej: 75">
+          </div>
+          <div class="form-group">
+            <label for="param-lubricantes">Lubricantes (% de combustible)</label>
+            <input type="text" id="param-lubricantes" class="form-control" placeholder="Ej: 50">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="param-consumo">Consumo (lts/HP.h)</label>
+            <input type="text" id="param-consumo" class="form-control" placeholder="Ej: 0.100">
+          </div>
+        </div>
+        <div class="form-group u-mb-0" style="max-width:260px;">
+          <label for="param-combustible">Precio combustible ($/lt)</label>
+          <input type="text" id="param-combustible" class="form-control" placeholder="Ej: 1995">
+        </div>
+        <span class="form-hint">Se aplican solo a esta obra. Se guardan solos al salir del campo. El dólar usado para el costo de los equipos es el de la pestaña "Datos" de esta obra.</span>
+      </div>
+    </div>
+
+    <div class="list-toolbar">
+      <span class="list-toolbar-title">Costo de equipos en esta obra</span>
+    </div>
+    <div class="form-group">
+      <input type="text" id="equipos-search" class="form-control" placeholder="Buscar por código o tipo...">
+    </div>
+    <div id="equipos-list" class="list-container">
+      <div class="list-loading">Cargando equipos…</div>
+    </div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando equipos…</div></div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/calcCostos.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/equipos-obra.js"></script>
+</body>
+</html>

@@ -34,6 +34,7 @@ let roles = [];
 let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 let preciosObra = {};   // { materialKey: {precioUSD,...} } — resuelto de los precios por obra de esta obra
+let dolarObra = null;   // dólar propio de esta obra (/obras/{obraKey}/dolar)
 let draggedLineaKey = null;
 
 function versionDe(it) {
@@ -48,7 +49,7 @@ function costoUnitarioDe(itemKey) {
   const version = versionDe(it);
   if (!version.lineas || !Object.keys(version.lineas).length) return 0;
   const catalogos = { materiales, equipos, roles };
-  const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra);
+  const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra);
   return r.costoUnitario;
 }
 
@@ -418,7 +419,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, rubrosComputoData, computoRubrosViejo, itemsData, rubrosData, materialesData, equiposData, rolesData, cfgEquipos, cfgMO] = await Promise.all([
+  const [obraData, lineasData, rubrosComputoData, computoRubrosViejo, itemsData, rubrosData, materialesData, equiposData, rolesData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),
     _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
@@ -427,9 +428,7 @@ async function loadAll() {
     _fbGet('/rubros.json'),
     _fbGet('/materiales.json'),
     _fbGet('/equipos.json'),
-    _fbGet('/manoDeObra.json'),
-    _fbGet('/config/equipos.json'),
-    _fbGet('/config/manoDeObra.json'),
+    _fbGet(`/obras/${obraKey}/roles.json`),
   ]);
 
   if (!obraData) {
@@ -444,8 +443,9 @@ async function loadAll() {
   materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m }));
   equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e }));
   roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r }));
-  if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
-  if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
+  paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
+  paramsMO = { ...paramsMO, ...(obra.paramsMO || {}) };
+  dolarObra = obra.dolar ? obra.dolar.valor : null;
   preciosObra = window.resolverPreciosObra(materiales, obraKey);
 
   await migrarARubrosEntidad(rubrosComputoData, computoRubrosViejo || {});

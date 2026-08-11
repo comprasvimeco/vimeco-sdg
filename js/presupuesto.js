@@ -23,6 +23,7 @@ let roles = [];
 let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 let preciosObra = {};
+let dolarObra = null;   // dólar propio de esta obra (/obras/{obraKey}/dolar)
 let cargaFijaLineas = {};
 let cargaFijaConfig = { beneficioPct: null, costoFinancieroPct: null, ivaPct: 21 };
 
@@ -38,7 +39,7 @@ function costoUnitarioDe(itemKey) {
   const version = versionDe(it);
   if (!version.lineas || !Object.keys(version.lineas).length) return 0;
   const catalogos = { materiales, equipos, roles };
-  const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra);
+  const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra);
   return r.costoUnitario;
 }
 
@@ -169,16 +170,14 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, rubrosComputoData, itemsData, materialesData, equiposData, rolesData, cfgEquipos, cfgMO, cargaFijaLineasData, cargaFijaConfigData] = await Promise.all([
+  const [obraData, lineasData, rubrosComputoData, itemsData, materialesData, equiposData, rolesData, cargaFijaLineasData, cargaFijaConfigData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),
     _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
     _fbGet('/items.json'),
     _fbGet('/materiales.json'),
     _fbGet('/equipos.json'),
-    _fbGet('/manoDeObra.json'),
-    _fbGet('/config/equipos.json'),
-    _fbGet('/config/manoDeObra.json'),
+    _fbGet(`/obras/${obraKey}/roles.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/lineas.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
   ]);
@@ -194,8 +193,9 @@ async function loadAll() {
   materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m }));
   equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e }));
   roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r }));
-  if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
-  if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
+  paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
+  paramsMO = { ...paramsMO, ...(obra.paramsMO || {}) };
+  dolarObra = obra.dolar ? obra.dolar.valor : null;
   preciosObra = window.resolverPreciosObra(materiales, obraKey);
   cargaFijaLineas = cargaFijaLineasData || {};
   if (cargaFijaConfigData) cargaFijaConfig = { ...cargaFijaConfig, ...cargaFijaConfigData };

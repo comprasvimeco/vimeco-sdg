@@ -19,7 +19,7 @@ function renderObras(list) {
   }
   container.innerHTML = list.map(o => {
     const estado = ESTADOS[o.estado] || ESTADOS.preparacion;
-    const meta = [o.cliente, o.ubicacion].filter(Boolean).join(' · ');
+    const meta = [o.comitente, o.ubicacion].filter(Boolean).join(' · ');
     return `
       <div class="item-card" data-key="${escHtml(o.key)}">
         <div class="item-card-info">
@@ -29,6 +29,7 @@ function renderObras(list) {
         </div>
         <div class="item-card-actions">
           <button class="btn btn-sm btn-outline btn-edit-obra">Editar</button>
+          <button class="btn btn-sm btn-outline btn-datos-obra">Datos</button>
           <button class="btn btn-sm btn-primary btn-computo-obra">CyP</button>
           <button class="btn btn-sm btn-danger btn-del-obra">Eliminar</button>
         </div>
@@ -39,6 +40,9 @@ function renderObras(list) {
     const key = card.dataset.key;
     const obra = allObras.find(o => o.key === key);
     card.querySelector('.btn-edit-obra').addEventListener('click', () => openEditModal(obra));
+    card.querySelector('.btn-datos-obra').addEventListener('click', () => {
+      window.location.href = 'datos-obra.html?obra=' + encodeURIComponent(obra.key);
+    });
     card.querySelector('.btn-computo-obra').addEventListener('click', () => {
       window.location.href = 'computo.html?obra=' + encodeURIComponent(obra.key);
     });
@@ -63,7 +67,6 @@ function openAddModal() {
   $('modal-obra-title').textContent = 'Agregar obra';
   $('modal-obra-error').classList.add('hidden');
   $('obra-nombre').value = '';
-  $('obra-cliente').value = '';
   $('obra-ubicacion').value = '';
   $('obra-estado').value = 'preparacion';
   $('modal-obra').classList.remove('hidden');
@@ -75,7 +78,6 @@ function openEditModal(obra) {
   $('modal-obra-title').textContent = 'Editar obra';
   $('modal-obra-error').classList.add('hidden');
   $('obra-nombre').value = obra.nombre || '';
-  $('obra-cliente').value = obra.cliente || '';
   $('obra-ubicacion').value = obra.ubicacion || '';
   $('obra-estado').value = obra.estado || 'preparacion';
   $('modal-obra').classList.remove('hidden');
@@ -84,7 +86,6 @@ function openEditModal(obra) {
 
 async function saveObraModal() {
   const nombre    = $('obra-nombre').value.trim();
-  const cliente   = $('obra-cliente').value.trim();
   const ubicacion = $('obra-ubicacion').value.trim();
   const estado    = $('obra-estado').value;
   const errEl     = $('modal-obra-error');
@@ -101,13 +102,13 @@ async function saveObraModal() {
 
   try {
     if (editingKey) {
-      await _fbPatch(`/obras/${editingKey}.json`, { nombre, cliente, ubicacion, estado });
+      await _fbPatch(`/obras/${editingKey}.json`, { nombre, ubicacion, estado });
     } else {
       const key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      await _fbPut(`/obras/${key}.json`, { nombre, cliente, ubicacion, estado, creadaEn: Date.now() });
+      await _fbPut(`/obras/${key}.json`, { nombre, ubicacion, estado, creadaEn: Date.now() });
     }
     $('modal-obra').classList.add('hidden');
     showToast(editingKey ? 'Obra actualizada.' : 'Obra creada.');

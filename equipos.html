@@ -21,35 +21,10 @@
   </header>
 
   <main class="app-main">
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">Parámetros generales</span>
-      </div>
-      <div class="card-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="param-interes">Tasa de interés anual (%)</label>
-            <input type="text" id="param-interes" class="form-control" placeholder="Ej: 10">
-          </div>
-          <div class="form-group">
-            <label for="param-reparaciones">Reparaciones (% de amortización)</label>
-            <input type="text" id="param-reparaciones" class="form-control" placeholder="Ej: 75">
-          </div>
-          <div class="form-group">
-            <label for="param-lubricantes">Lubricantes (% de combustible)</label>
-            <input type="text" id="param-lubricantes" class="form-control" placeholder="Ej: 50">
-          </div>
-          <div class="form-group u-mb-0">
-            <label for="param-consumo">Consumo (lts/HP.h)</label>
-            <input type="text" id="param-consumo" class="form-control" placeholder="Ej: 0.100">
-          </div>
-        </div>
-        <div class="form-group u-mb-0" style="max-width:260px;">
-          <label for="param-combustible">Precio combustible ($/lt)</label>
-          <input type="text" id="param-combustible" class="form-control" placeholder="Ej: 1995">
-        </div>
-        <span class="form-hint">Se aplican a todos los equipos. Se guardan solos al salir del campo. La jornada (hs/día) se toma de Mano de Obra.</span>
-      </div>
+    <div class="alert alert-info" style="margin-bottom:1rem;">
+      Los parámetros de costo (tasa de interés, combustible, etc.) y el costo de uso de cada equipo
+      ahora se ven por obra, en la pestaña "Equipos" de cada obra. Acá se administra el catálogo
+      físico de equipos (código, tipo, potencia, vida útil, costo), compartido por todas las obras.
     </div>
 
     <div class="list-toolbar">

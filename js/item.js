@@ -23,6 +23,7 @@ let rendimientoTeorico = null;
 let rendimientoFormulaTeorico = null;
 let versionesObra = {};    // { obraKey: { rendimiento, rendimientoFormula, lineas } }
 let obrasMap = {};
+let obrasFull = {};        // { obraKey: obra } — para leer paramsEquipos/dolar propios de cada obra
 let activeVersion = 'teorico';
 let versionExisteEnServidor = true;
 
@@ -36,8 +37,12 @@ let equipos = [];
 let roles = [];
 let rubros = [];
 let rubrosMap = {};
-let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
-let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
+const DEFAULT_PARAMS_EQUIPOS = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
+const DEFAULT_PARAMS_MO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
+let paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS };   // se refresca por obra en activarVersion()
+let paramsMO = { ...DEFAULT_PARAMS_MO };             // se refresca por obra en activarVersion()
+let dolarObraActivo = null;   // dólar propio de la obra de la pestaña activa (/obras/{obraKey}/dolar)
+let rolesGlobalFallback = [];   // catálogo global de roles — sólo se usa en la pestaña Teórico, que no tiene obra propia
 
 const HINTS = {
   material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
@@ -164,6 +169,13 @@ function basePath() {
 
 function activarVersion(key) {
   activeVersion = key;
+  const obraActiva = obrasFull[key];
+  paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS, ...((obraActiva && obraActiva.paramsEquipos) || {}) };
+  paramsMO = { ...DEFAULT_PARAMS_MO, ...((obraActiva && obraActiva.paramsMO) || {}) };
+  dolarObraActivo = (obraActiva && obraActiva.dolar) ? obraActiva.dolar.valor : null;
+  roles = key === 'teorico'
+    ? rolesGlobalFallback
+    : Object.entries((obraActiva && obraActiva.roles) || {}).map(([k, r]) => ({ key: k, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
   if (key === 'teorico') {
     lineas = lineasTeorico;
     rendimientoActivo = rendimientoTeorico;
@@ -244,7 +256,7 @@ function calcularDetalleActivo() {
   if (activeVersion === 'teorico') { detallePorLineaActivo = {}; return null; }
   const catalogos = { materiales, equipos, roles };
   const preciosObra = window.resolverPreciosObra(materiales, activeVersion);
-  const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra);
+  const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObraActivo);
   detallePorLineaActivo = r.detallePorLinea;
   return r;
 }
@@ -663,7 +675,7 @@ function filaDesglose(label, formula, valor) {
 
 function openDetalleEquipoModal(equipo) {
   $('ed-equipo-nombre').textContent = `${equipo.tipo || ''} ${equipo.codigo || ''}`.trim();
-  const d = window.calcDesgloseCostoEquipo(equipo, paramsEquipos, paramsMO.jornadaHoras);
+  const d = window.calcDesgloseCostoEquipo(equipo, paramsEquipos, paramsMO.jornadaHoras, dolarObraActivo);
   const cont = $('ed-desglose');
   if (!d) {
     cont.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Faltan datos de costo para este equipo (costo, vida útil o uso anual), o no se pudo obtener la cotización del dólar.</p>';
@@ -765,7 +777,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
   }
-  const [itemData, lineasData, versionesData, obrasData, materialesData, equiposData, rolesData, rubrosData, cfgEquipos, cfgMO] = await Promise.all([
+  const [itemData, lineasData, versionesData, obrasData, materialesData, equiposData, rolesData, rubrosData] = await Promise.all([
     _fbGet(`/items/${itemKey}.json`),
     _fbGet(`/items/${itemKey}/lineas.json`),
     _fbGet(`/items/${itemKey}/versionesObra.json`),
@@ -774,8 +786,6 @@ async function loadAll() {
     _fbGet('/equipos.json'),
     _fbGet('/manoDeObra.json'),
     _fbGet('/rubros.json'),
-    _fbGet('/config/equipos.json'),
-    _fbGet('/config/manoDeObra.json'),
   ]);
 
   if (!itemData) {
@@ -788,20 +798,18 @@ async function loadAll() {
   rendimientoFormulaTeorico = item.rendimientoFormula;
   versionesObra = versionesData || {};
   obrasMap = {};
-  Object.entries(obrasData || {}).forEach(([key, o]) => { obrasMap[key] = o.nombre; });
+  obrasFull = {};
+  Object.entries(obrasData || {}).forEach(([key, o]) => { obrasMap[key] = o.nombre; obrasFull[key] = o; });
   materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e })).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es'));
   // Orden jerárquico (Oficial Especializado > Oficial > Ayudante), no
   // alfabético — casualmente es el alfabético invertido con los roles de
   // hoy. Si se agrega un rol que no encaje en ese orden (ej. "Capataz"),
   // hace falta un campo `orden` real en /manoDeObra (mano-de-obra.html).
-  roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
+  rolesGlobalFallback = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
   rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
-  if (cfgEquipos) paramsEquipos = { ...paramsEquipos, ...cfgEquipos };
-  if (cfgMO) paramsMO = { ...paramsMO, ...cfgMO };
-
   populateRubroSelect();
   renderDatos();
   activarVersion(obraParam || 'teorico');

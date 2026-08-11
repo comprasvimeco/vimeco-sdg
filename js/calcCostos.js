@@ -17,11 +17,13 @@ window.calcCostoManoDeObra = function (rol, params) {
 
 // equipo: { costoUSD, vidaUtil, usoAnual, potencia }
 // params: { tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro }
+// dolarValor: cotización a usar para convertir costoUSD — cada obra tiene la
+// suya (/obras/{obraKey}/dolar), no se lee más el dólar en vivo acá adentro.
 // Desglose del costo diario de un equipo, término por término (para mostrarlo
 // en pantalla — ver planilla de referencia, hoja A.P., sección "A-Equipos").
 // Devuelve null si falta algún dato necesario (costo, vida útil, uso anual, cotización del dólar).
-window.calcDesgloseCostoEquipo = function (equipo, params, jornadaHoras) {
-  const venta = window.dolarOficialVenta && window.dolarOficialVenta();
+window.calcDesgloseCostoEquipo = function (equipo, params, jornadaHoras, dolarValor) {
+  const venta = dolarValor;
   if (!equipo.costoUSD || !equipo.vidaUtil || !equipo.usoAnual || !venta) return null;
   const costoActual = equipo.costoUSD * venta;
   const amortizacionDia = costoActual * jornadaHoras / equipo.vidaUtil;
@@ -33,8 +35,8 @@ window.calcDesgloseCostoEquipo = function (equipo, params, jornadaHoras) {
   return { costoActual, venta, amortizacionDia, interesesDia, reparacionesDia, combustibleDia, lubricantesDia, costoDiarioTotal };
 };
 
-window.calcCostoDiarioEquipo = function (equipo, params, jornadaHoras) {
-  const d = window.calcDesgloseCostoEquipo(equipo, params, jornadaHoras);
+window.calcCostoDiarioEquipo = function (equipo, params, jornadaHoras, dolarValor) {
+  const d = window.calcDesgloseCostoEquipo(equipo, params, jornadaHoras, dolarValor);
   return d ? d.costoDiarioTotal : null;
 };
 
@@ -74,7 +76,9 @@ window.resolverPreciosObra = function (materiales, obraKey) {
 // preciosObra: mapa {materialKey: {precioUSD,...}} ya resuelto con
 // resolverPreciosObra — es la única fuente de precio de un material, no hay
 // fallback a un campo propio del material (ya no existe).
-window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO, preciosObra) {
+// dolarValor: cotización propia de la obra (/obras/{obraKey}/dolar) — se usa
+// para materiales y para equipos, en vez del dólar en vivo.
+window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO, preciosObra, dolarValor) {
   preciosObra = preciosObra || {};
   function catalogoFor(tipo) {
     if (tipo === 'material') return catalogos.materiales;
@@ -82,7 +86,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     return catalogos.roles;
   }
   function precioUnitarioMaterial(mat) {
-    const venta = window.dolarOficialVenta();
+    const venta = dolarValor;
     if (!mat || !venta) return null;
     const precio = preciosObra[mat.key];
     if (!precio || !precio.precioUSD) return null;
@@ -101,7 +105,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     if (linea.tipo === 'material') {
       costoUnitario = precioUnitarioMaterial(entidad);
     } else if (linea.tipo === 'equipo') {
-      costoUnitario = window.calcCostoDiarioEquipo(entidad, paramsEquipos, paramsMO.jornadaHoras);
+      costoUnitario = window.calcCostoDiarioEquipo(entidad, paramsEquipos, paramsMO.jornadaHoras, dolarValor);
     } else {
       costoUnitario = window.calcCostoManoDeObra(entidad, paramsMO).costoJornal;
     }
