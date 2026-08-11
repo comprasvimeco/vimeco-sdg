@@ -9,8 +9,8 @@ const fmtFecha  = iso => {
 };
 
 let allMateriales = [];
-let allCotizaciones = [];
-let cotizacionesMap = {};
+let allObras = [];
+let obrasMap = {};
 let editingKey = null;
 let monedaActual = 'USD';
 let fuenteSelect = null;
@@ -42,9 +42,11 @@ function renderMateriales(list) {
     return;
   }
   container.innerHTML = list.map(m => {
-    const fuente = m.fuenteCotizacionKey ? cotizacionesMap[m.fuenteCotizacionKey] : null;
-    const meta = [m.unidad, fmtUSDConEquivalente(m.precioUSD), m.proveedor, m.fecha ? fmtFecha(m.fecha) : '', fuente ? `Fuente: ${fuente}` : '']
-      .filter(Boolean).join(' · ');
+    const def = window.precioDefaultDe(m);
+    const fuente = def ? (obrasMap[def.obraKey] || def.obraKey) : null;
+    const meta = def
+      ? [m.unidad, fmtUSDConEquivalente(def.precio.precioUSD), def.precio.proveedor, def.precio.fecha ? fmtFecha(def.precio.fecha) : '', `Fuente: ${fuente}`].filter(Boolean).join(' · ')
+      : [m.unidad, 'Sin precio cargado'].filter(Boolean).join(' · ');
     return `
       <div class="item-card" data-key="${escHtml(m.key)}">
         <div class="item-card-info">
@@ -77,16 +79,16 @@ function applyFilter() {
 async function loadMateriales() {
   $('materiales-list').innerHTML = '<div class="list-loading">Cargando materiales…</div>';
   try {
-    const [data, cotizacionesData] = await Promise.all([
+    const [data, obrasData] = await Promise.all([
       _fbGet('/materiales.json'),
-      _fbGet('/cotizaciones.json'),
+      _fbGet('/obras.json'),
     ]);
     allMateriales = Object.entries(data || {}).map(([key, m]) => ({ key, ...m }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-    allCotizaciones = Object.entries(cotizacionesData || {}).map(([key, c]) => ({ key, ...c }))
+    allObras = Object.entries(obrasData || {}).map(([key, o]) => ({ key, ...o }))
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-    cotizacionesMap = {};
-    allCotizaciones.forEach(c => { cotizacionesMap[c.key] = c.nombre; });
+    obrasMap = {};
+    allObras.forEach(o => { obrasMap[o.key] = o.nombre; });
     applyFilter();
   } catch (_) {
     $('materiales-list').innerHTML = '<div class="list-empty">Error al cargar materiales.</div>';
@@ -97,13 +99,35 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function renderFuenteSelect(fuenteKeyActual) {
-  const options = allCotizaciones.map(c => ({ value: c.key, label: c.nombre }));
+function onFuenteChange(material, obraKey) {
+  const disabled = !obraKey;
+  ['material-precio', 'material-proveedor', 'material-fecha'].forEach(id => { $(id).disabled = disabled; });
+  const p = obraKey && material && material.precios ? material.precios[obraKey] : null;
+  $('material-precio').value = p ? (p.precioUSD ?? '') : '';
+  setCalcFormula($('material-precio'), p ? p.precioFormula : null);
+  $('material-proveedor').value = p ? (p.proveedor || '') : '';
+  $('material-fecha').value = p ? (p.fecha || todayIso()) : todayIso();
+  setMoneda('USD');
+}
+
+// material: null en alta (sin precios todavía). En edición, muestra TODAS
+// las obras (no sólo las que ya tienen precio) para poder cargar el primero.
+function renderFuenteSelect(material) {
+  const def = material ? window.precioDefaultDe(material) : null;
+  const options = allObras.map(o => {
+    const p = material && material.precios ? material.precios[o.key] : null;
+    const sublabel = p
+      ? `Precio: ${fmtFecha(p.fecha)}${def && def.obraKey === o.key ? ' · vigente' : ''}`
+      : 'Sin precio cargado';
+    return { value: o.key, label: o.nombre, sublabel };
+  });
   fuenteSelect = createSearchableSelect($('material-fuente-container'), {
     options,
-    value: fuenteKeyActual || null,
-    placeholder: 'Buscar cotización…',
+    value: def ? def.obraKey : null,
+    placeholder: 'Buscar obra…',
+    onChange: obraKey => onFuenteChange(material, obraKey),
   });
+  onFuenteChange(material, def ? def.obraKey : null);
 }
 
 function openAddModal() {
@@ -112,11 +136,6 @@ function openAddModal() {
   $('modal-material-error').classList.add('hidden');
   $('material-nombre').value = '';
   $('material-unidad').value = '';
-  $('material-precio').value = '';
-  setCalcFormula($('material-precio'), null);
-  $('material-proveedor').value = '';
-  $('material-fecha').value = todayIso();
-  setMoneda('USD');
   renderFuenteSelect(null);
   $('modal-material').classList.remove('hidden');
   setTimeout(() => $('material-nombre').focus(), 50);
@@ -128,26 +147,15 @@ function openEditModal(material) {
   $('modal-material-error').classList.add('hidden');
   $('material-nombre').value = material.nombre || '';
   $('material-unidad').value = material.unidad || '';
-  $('material-precio').value = material.precioUSD ?? '';
-  setCalcFormula($('material-precio'), material.precioFormula);
-  $('material-proveedor').value = material.proveedor || '';
-  $('material-fecha').value = material.fecha || todayIso();
-  setMoneda('USD');
-  renderFuenteSelect(material.fuenteCotizacionKey);
+  renderFuenteSelect(material);
   $('modal-material').classList.remove('hidden');
   setTimeout(() => $('material-nombre').focus(), 50);
 }
 
 async function saveMaterialModal() {
-  const nombre    = $('material-nombre').value.trim();
-  const unidad    = $('material-unidad').value.trim();
-  const proveedor = $('material-proveedor').value.trim();
-  const fecha     = $('material-fecha').value || todayIso();
-  const errEl     = $('modal-material-error');
-
-  const precioInput = $('material-precio');
-  if (precioInput.value.trim().startsWith('=')) precioInput.blur();
-  const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
+  const nombre = $('material-nombre').value.trim();
+  const unidad = $('material-unidad').value.trim();
+  const errEl  = $('modal-material-error');
 
   if (!nombre) {
     errEl.textContent = 'El nombre es requerido.';
@@ -159,35 +167,45 @@ async function saveMaterialModal() {
     errEl.classList.remove('hidden');
     return;
   }
-  if (isNaN(precioIngresado) || precioIngresado < 0) {
-    errEl.textContent = 'El precio no es válido.';
-    errEl.classList.remove('hidden');
-    return;
+
+  const obraKey = fuenteSelect ? fuenteSelect.getValue() : null;
+  let precioData = null;
+  if (obraKey) {
+    const proveedor = $('material-proveedor').value.trim();
+    const fecha = $('material-fecha').value || todayIso();
+    const precioInput = $('material-precio');
+    if (precioInput.value.trim().startsWith('=')) precioInput.blur();
+    const precioIngresado = parseFloat(precioInput.value.replace(',', '.'));
+    if (isNaN(precioIngresado) || precioIngresado < 0) {
+      errEl.textContent = 'El precio no es válido.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    const dual = resolveDualPrecio(monedaActual, precioIngresado);
+    if (!dual) {
+      errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+    precioData = { precioUSD: dual.precioUSD, precioARS: dual.precioARS, precioFormula: getCalcFormula(precioInput), proveedor, fecha };
   }
-  const dual = resolveDualPrecio(monedaActual, precioIngresado);
-  if (!dual) {
-    errEl.textContent = 'No se pudo obtener la cotización del dólar. Reintentá en un momento.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  const { precioUSD, precioARS } = dual;
-  const precioFormula = getCalcFormula(precioInput);
-  const fuenteCotizacionKey = fuenteSelect ? fuenteSelect.getValue() : null;
 
   const saveBtn = $('modal-material-save');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Guardando…';
 
   try {
+    let key = editingKey;
     if (editingKey) {
-      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad, precioUSD, precioARS, precioFormula, proveedor, fecha, fuenteCotizacionKey });
+      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad });
     } else {
-      const key = nombre.toLowerCase()
+      key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, precioUSD, precioARS, precioFormula, proveedor, fecha, fuenteCotizacionKey, creadoEn: Date.now() });
+      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, creadoEn: Date.now() });
     }
+    if (precioData) await _fbPut(`/materiales/${key}/precios/${obraKey}.json`, precioData);
     $('modal-material').classList.add('hidden');
     showToast(editingKey ? 'Material actualizado.' : 'Material creado.');
     await loadMateriales();
