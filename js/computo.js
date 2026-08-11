@@ -133,11 +133,11 @@ function renderLineas() {
     renderRubroHeader(rubro, i + 1, i === 0, i === rubros.length - 1)
   ).join('');
 
-  rubros.forEach(rubro => {
+  rubros.forEach((rubro, rubroIdx) => {
     const lineasContainer = container.querySelector(`.computo-rubro-lineas[data-rubro-id="${CSS.escape(rubro.key)}"]`);
     const grupoLineas = lineasDeRubro(rubro.key);
     lineasContainer.innerHTML = grupoLineas.length
-      ? grupoLineas.map(([k, l], i) => renderLineaRow(k, l, i + 1, i === 0, i === grupoLineas.length - 1)).join('')
+      ? grupoLineas.map(([k, l], i) => renderLineaRow(k, l, `${rubroIdx + 1}.${i + 1}`, i === 0, i === grupoLineas.length - 1)).join('')
       : '<p class="text-muted" style="font-size:.8rem;padding:.4rem 0;">Sin líneas en este rubro todavía.</p>';
 
     lineasContainer.addEventListener('dragover', e => { e.preventDefault(); lineasContainer.classList.add('drop-target'); });
