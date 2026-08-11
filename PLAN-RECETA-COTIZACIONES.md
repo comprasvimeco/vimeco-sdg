@@ -197,6 +197,42 @@ vez que se cargan (`rubro`/`nombre`/`unidad` derivados del ítem vinculado +
 `computoRubros` viejo) y quedan fijas — verificado con las 5 líneas reales
 que ya tenía la obra "Prueba", sin perder nada.
 
+### 3c. Ronda de ajustes sobre 3b — ✅ Hecho (2026-08-10)
+
+Pedido sin supervisión ("dejo habilitado todos los cambios que consideres
+pertinentes") — 5 cambios, cada uno commiteado por separado:
+
+1. **Rubro pasa a ser una entidad de la obra**
+   (`/obras/{obraKey}/rubrosComputo/{rubroId}: {nombre, orden}`), no texto
+   libre por línea — botón "+ Agregar rubro", numeración derivada al
+   renderizar ("1.", "1.1", "1.2"…), líneas reordenables con flechas
+   (dentro del mismo rubro) y arrastrando (mueve entre rubros), botón
+   duplicar línea, eliminar rubro sólo si está vacío. El alta de línea pide
+   elegir el rubro en un modal. Bug encontrado y corregido en el camino:
+   `renderLineas` no ordenaba `rubros` por su campo `orden` antes de
+   numerar — quedó como invariante (`ordenarRubros()`) mantenido en cada
+   render. Migración automática (segunda, sobre la del punto 3b): una
+   entidad de rubro por cada texto de `rubro` distinto que ya tenían las
+   líneas.
+2. Botón "Análisis de Precio" volvió a ser ícono (con tooltip correcto),
+   sigue en la misma pestaña.
+3. Mano de Obra en Rendimientos ordenada jerárquico (Oficial Especializado
+   > Oficial > Ayudante) en vez de alfabético — ver nota en el código sobre
+   que es una coincidencia con los roles actuales, no una jerarquía real.
+4. AP: subtotales de Equipos y Mano de Obra separados (cada uno dividido
+   por rendimiento por separado, no combinados) y mostrados al pie de cada
+   card — orden Equipos(A)/MO(B)/Materiales(C)/Subtotal, igual que la
+   planilla de referencia.
+5. Línea de Materiales en el AP: tooltip con proveedor/fecha del precio
+   actual, click abre `materiales.html?editar={key}` en pestaña nueva
+   (`materiales.js` ahora soporta ese query param) — preparación para los
+   puntos 5-7 de este plan (Fuente en Materiales/precios por obra), no los
+   implementa todavía.
+
+Verificado con datos reales de la obra "Prueba" (que en esta sesión el
+dueño del proyecto estuvo cargando en paralelo — 7 líneas, 4 rubros) sin
+romper nada; limpiado todo dato de prueba propio al terminar cada punto.
+
 ## 4. Cotizaciones (entidad + pantalla)
 
 Confirmado con el dueño del proyecto: Cotizaciones es una **entidad real**
