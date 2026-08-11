@@ -75,6 +75,10 @@ function fmtCoef(n) {
   return n.toLocaleString('es-AR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 }
 
+function fmtPct(frac) {
+  return (frac * 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+}
+
 function lineasDeRubro(rubroId) {
   return Object.entries(lineas)
     .filter(([, l]) => l.rubroId === rubroId)
@@ -85,10 +89,11 @@ function ordenarRubros() {
   rubros.sort((a, b) => (a.orden || 0) - (b.orden || 0));
 }
 
-function renderLineaRow(linea, numero, k) {
+function renderLineaRow(linea, numero, k, totalPresupuesto) {
   const precioUnitario = costoUnitarioDe(linea.itemKey) * k;
   const cantidad = linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : 0;
   const total = precioUnitario * cantidad;
+  const incidencia = totalPresupuesto > 0 ? total / totalPresupuesto : 0;
   return `
     <div class="presupuesto-linea">
       <span class="presupuesto-linea-numero">${numero}</span>
@@ -97,6 +102,7 @@ function renderLineaRow(linea, numero, k) {
       <span${linea.cantidad != null && !isNaN(linea.cantidad) ? ` data-calc-valor="${linea.cantidad}"` : ''}>${linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : '—'}</span>
       <span class="presupuesto-linea-precio" data-calc-valor="${precioUnitario}">${fmtARS(precioUnitario)}</span>
       <span class="presupuesto-linea-total" data-calc-valor="${total}">${fmtARS(total)}</span>
+      <span class="presupuesto-linea-incidencia">${fmtPct(incidencia)}</span>
     </div>`;
 }
 
@@ -121,32 +127,35 @@ function renderTodo() {
     return;
   }
 
+  const totalPresupuesto = Object.values(lineas).reduce((acc, l) => {
+    const cantidad = l.cantidad != null && !isNaN(l.cantidad) ? l.cantidad : 0;
+    return acc + costoUnitarioDe(l.itemKey) * k * cantidad;
+  }, 0);
+
   if (!rubros.length) {
     container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Todavía no hay rubros cargados en el Cómputo de esta obra.</p>';
   } else {
     const header = `
       <div class="presupuesto-linea presupuesto-linea-header">
-        <span></span><span>Ítem</span><span>Unidad</span><span>Cantidad</span><span>Precio unitario</span><span>Total</span>
+        <span></span><span>Ítem</span><span>Unidad</span><span>Cantidad</span><span>Precio unitario</span><span>Total</span><span>Incidencia</span>
       </div>`;
     container.innerHTML = header + rubros.map((rubro, rubroIdx) => {
       const grupoLineas = lineasDeRubro(rubro.key);
+      const subtotalRubro = subtotalRubroConPrecio(grupoLineas, k);
+      const incidenciaRubro = totalPresupuesto > 0 ? subtotalRubro / totalPresupuesto : 0;
       const rubroHtml = `
         <div class="presupuesto-rubro-header">
           <span class="presupuesto-rubro-numero">${rubroIdx + 1}.</span>
           <span class="presupuesto-rubro-nombre">${escHtml(rubro.nombre || '(sin nombre)')}</span>
-          <span class="presupuesto-rubro-subtotal" data-calc-valor="${subtotalRubroConPrecio(grupoLineas, k)}">${fmtARS(subtotalRubroConPrecio(grupoLineas, k))}</span>
+          <span class="presupuesto-rubro-incidencia">${fmtPct(incidenciaRubro)}</span>
+          <span class="presupuesto-rubro-subtotal" data-calc-valor="${subtotalRubro}">${fmtARS(subtotalRubro)}</span>
         </div>`;
       const lineasHtml = grupoLineas.length
-        ? grupoLineas.map(([, l], i) => renderLineaRow(l, `${rubroIdx + 1}.${i + 1}`, k)).join('')
+        ? grupoLineas.map(([, l], i) => renderLineaRow(l, `${rubroIdx + 1}.${i + 1}`, k, totalPresupuesto)).join('')
         : '<p class="text-muted" style="font-size:.8rem;padding:.4rem 0;">Sin líneas en este rubro.</p>';
       return rubroHtml + lineasHtml;
     }).join('');
   }
-
-  const totalPresupuesto = Object.values(lineas).reduce((acc, l) => {
-    const cantidad = l.cantidad != null && !isNaN(l.cantidad) ? l.cantidad : 0;
-    return acc + costoUnitarioDe(l.itemKey) * k * cantidad;
-  }, 0);
 
   resumen.innerHTML = `
     <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span data-calc-valor="${costoComputo}">${fmtARS(costoComputo)}</span></div>
