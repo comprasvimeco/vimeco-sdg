@@ -19,6 +19,7 @@
   const SELECTOR = '[data-calc-valor]';
 
   let open = false;
+  let modo = 'suma'; // 'suma' (sólo click, rápido) | 'completa' (más botones + fórmula libre)
   let expresion = ''; // texto crudo de la fórmula, ej. "2458.75+1-2458.75"
   let panelEl = null;
   let posicion = null; // { left, top } en px, mientras se arrastra el panel
@@ -144,6 +145,7 @@
 
   function abrir() {
     open = true;
+    modo = 'suma';
     expresion = '';
     posicion = null;
     document.body.classList.add('calc-flotante-activa');
@@ -191,6 +193,21 @@
     });
   }
 
+  // Muestra/oculta los botones de operaciones y ajusta título/ayuda según
+  // el modo — sin tocar el <input> (no se pierde el foco ni lo ya escrito
+  // al pasar de "suma" a "completa" con el segundo "+").
+  function actualizarModo() {
+    if (!panelEl) return;
+    const ops = panelEl.querySelector('.calc-flotante-ops');
+    if (ops) ops.classList.toggle('hidden', modo !== 'completa');
+    const titulo = panelEl.querySelector('.calc-flotante-titulo');
+    if (titulo) titulo.textContent = modo === 'completa' ? 'Calculadora' : 'Selección de suma';
+    const hint = panelEl.querySelector('.calc-flotante-hint');
+    if (hint) hint.textContent = modo === 'completa'
+      ? 'Clickeá números en pantalla o escribí acá la fórmula (+ − × ÷ ^, "p"=pi, "r"=raíz).'
+      : 'Clickeá números en pantalla para sumarlos. Apretá "+" de nuevo para más operaciones.';
+  }
+
   function renderPanel() {
     if (!panelEl) {
       panelEl = document.createElement('div');
@@ -231,10 +248,16 @@
     input.addEventListener('input', () => { expresion = input.value; actualizarVista(); });
     input.addEventListener('keydown', e => {
       if (e.ctrlKey || e.metaKey || e.altKey) return; // no interferir con copiar/pegar/etc. del navegador
+      // Con el foco ya en este campo (lo normal después de clickear
+      // celdas), el "+" del teclado también tiene que poder pasar a modo
+      // completa — si no, se escribiría como un "+" literal en la fórmula.
+      // Una vez en modo completa, "+" pasa de largo y el input lo escribe
+      // normal (ahí sí es un operador real de la fórmula).
+      if (e.key === '+' && modo === 'suma') { e.preventDefault(); modo = 'completa'; actualizarModo(); return; }
       if (e.key === 'Enter') { e.preventDefault(); copiar(); return; }
       if (e.key.toLowerCase() === 'p') { e.preventDefault(); insertarValorEnCursor('pi'); return; }
       if (e.key.toLowerCase() === 'r') { e.preventDefault(); insertarValorEnCursor('raiz('); return; }
-      // todo lo demás (dígitos, + - * / ^, paréntesis, Backspace, flechas, selección) lo maneja el input nativo
+      // todo lo demás (dígitos, - * / ^, paréntesis, Backspace, flechas, selección) lo maneja el input nativo
     });
 
     panelEl.querySelector('.calc-flotante-close').addEventListener('click', cerrar);
@@ -250,6 +273,7 @@
     panelEl.querySelector('[data-paren]').addEventListener('click', function () { insertarSimboloEnCursor(this.dataset.paren); });
 
     attachDrag(panelEl.querySelector('.calc-flotante-drag'));
+    actualizarModo();
   }
 
   // Mueve el panel arrastrando desde el header — mouse y touch (celular).
@@ -313,8 +337,9 @@
     if (e.key === 'Escape' && open) { cerrar(); return; }
     if (e.key === '+' && !e.ctrlKey && !e.metaKey && !e.altKey && !esEditable(document.activeElement)) {
       e.preventDefault();
-      if (!open) abrir();
-      else { const input = getInput(); if (input) input.focus(); } // reabre el foco si se había ido a clickear otra cosa
+      if (!open) { abrir(); return; }
+      if (modo === 'suma') { modo = 'completa'; actualizarModo(); } // "++": más operaciones
+      const input = getInput(); if (input) input.focus(); // reabre el foco si se había ido a clickear otra cosa
     }
   });
 
