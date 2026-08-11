@@ -301,6 +301,11 @@ function renderLineasSeccion(tipo, r) {
   const entradas = Object.entries(lineas).filter(([, l]) => l.tipo === tipo);
   const conCosto = activeVersion !== 'teorico';
 
+  // Equipos: desplegable, colapsado por defecto (la mayoría de los ítems no
+  // llevan). Se abre solo mientras haya al menos una línea cargada, o si el
+  // usuario lo despliega a mano con el chevron.
+  if (tipo === 'equipo' && entradas.length) setEquiposExpandido(true);
+
   let html = `<p class="form-hint" style="margin-bottom:.75rem;">${HINTS[tipo]}</p>`;
   if (!entradas.length) {
     html += '<p class="text-muted" style="font-size:.85rem;">Sin líneas todavía.</p>';
@@ -426,6 +431,11 @@ function renderManoDeObraSeccion(r) {
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
   });
+}
+
+function setEquiposExpandido(abierto) {
+  $('lineas-equipo').classList.toggle('hidden', !abierto);
+  $('equipos-toggle').classList.toggle('expandido', abierto);
 }
 
 function renderTodasLasLineas() {
@@ -786,6 +796,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('btn-add-linea-material').addEventListener('click', () => addLinea('material'));
   $('btn-add-linea-equipo').addEventListener('click', () => addLinea('equipo'));
+  $('equipos-toggle').addEventListener('click', () => setEquiposExpandido($('lineas-equipo').classList.contains('hidden')));
 
   $('modal-material-quick-close').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
   $('modal-material-quick-cancel').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));

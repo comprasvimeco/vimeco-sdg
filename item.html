@@ -19,6 +19,9 @@
     button.ap-linea-costo-unit:disabled { cursor: default; }
     .ap-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .3rem; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+    .ap-toggle-title { display: inline-flex; align-items: center; gap: .35rem; user-select: none; }
+    .ap-chevron { display: inline-block; font-size: .7rem; color: var(--gray-500); transition: transform .15s ease; }
+    .ap-toggle-title.expandido .ap-chevron { transform: rotate(90deg); }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .35rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
 
@@ -79,18 +82,25 @@
       </div>
 
       <div class="card">
-        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><button class="btn btn-sm btn-primary" id="btn-add-linea-material">+ Agregar</button></span></div>
-        <div class="card-body" id="lineas-material"></div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Equipos</span><button class="btn btn-sm btn-primary" id="btn-add-linea-equipo">+ Agregar</button></span></div>
-        <div class="card-body" id="lineas-equipo"></div>
+        <div class="card-header">
+          <span class="ap-section-header" style="width:100%">
+            <span class="card-title u-pointer ap-toggle-title" id="equipos-toggle">
+              <span class="ap-chevron" id="equipos-chevron">&#9656;</span> Equipos
+            </span>
+            <button class="btn btn-sm btn-primary" id="btn-add-linea-equipo">+ Agregar</button>
+          </span>
+        </div>
+        <div class="card-body hidden" id="lineas-equipo"></div>
       </div>
 
       <div class="card">
         <div class="card-header"><span class="card-title">Mano de Obra</span></div>
         <div class="card-body" id="lineas-manoDeObra"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><button class="btn btn-sm btn-primary" id="btn-add-linea-material">+ Agregar</button></span></div>
+        <div class="card-body" id="lineas-material"></div>
       </div>
 
       <div class="card hidden" id="resumen-card">
