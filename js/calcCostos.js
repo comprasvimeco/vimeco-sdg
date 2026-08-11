@@ -17,8 +17,10 @@ window.calcCostoManoDeObra = function (rol, params) {
 
 // equipo: { costoUSD, vidaUtil, usoAnual, potencia }
 // params: { tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro }
+// Desglose del costo diario de un equipo, término por término (para mostrarlo
+// en pantalla — ver planilla de referencia, hoja A.P., sección "A-Equipos").
 // Devuelve null si falta algún dato necesario (costo, vida útil, uso anual, cotización del dólar).
-window.calcCostoDiarioEquipo = function (equipo, params, jornadaHoras) {
+window.calcDesgloseCostoEquipo = function (equipo, params, jornadaHoras) {
   const venta = window.dolarOficialVenta && window.dolarOficialVenta();
   if (!equipo.costoUSD || !equipo.vidaUtil || !equipo.usoAnual || !venta) return null;
   const costoActual = equipo.costoUSD * venta;
@@ -27,7 +29,13 @@ window.calcCostoDiarioEquipo = function (equipo, params, jornadaHoras) {
   const reparacionesDia = amortizacionDia * params.reparacionesPct / 100;
   const combustibleDia = (params.combustibleLtsPorHp * (equipo.potencia || 0) * jornadaHoras) * params.precioCombustibleLitro;
   const lubricantesDia = combustibleDia * params.lubricantesPct / 100;
-  return amortizacionDia + interesesDia + reparacionesDia + combustibleDia + lubricantesDia;
+  const costoDiarioTotal = amortizacionDia + interesesDia + reparacionesDia + combustibleDia + lubricantesDia;
+  return { costoActual, venta, amortizacionDia, interesesDia, reparacionesDia, combustibleDia, lubricantesDia, costoDiarioTotal };
+};
+
+window.calcCostoDiarioEquipo = function (equipo, params, jornadaHoras) {
+  const d = window.calcDesgloseCostoEquipo(equipo, params, jornadaHoras);
+  return d ? d.costoDiarioTotal : null;
 };
 
 // Un material puede tener distinto precio/proveedor/fecha por obra

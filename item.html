@@ -284,6 +284,24 @@
     </div>
   </div>
 
+  <!-- Modal: Desglose del costo diario de un equipo (sólo lectura) -->
+  <div class="modal-overlay hidden" id="modal-equipo-detalle">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Costo diario del equipo</span>
+        <button class="modal-close" id="modal-ed-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-weight:600; margin-bottom:.75rem;" id="ed-equipo-nombre"></p>
+        <div id="ed-desglose"></div>
+        <p class="form-hint" style="margin-top:.75rem;">Para editar potencia, vida útil, uso anual o costo de este equipo, andá a <a href="equipos.html" target="_blank" rel="noopener">Equipos</a>.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-ed-cerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
 
   <script src="js/icons.js"></script>

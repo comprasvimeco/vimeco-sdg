@@ -322,9 +322,7 @@ function renderLineasSeccion(tipo, r) {
             ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
-          ${conCosto ? `${tipo === 'material'
-              ? `<button type="button" class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button>`
-              : `<span class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</span>`}<span class="ap-linea-costo-total"${d ? ` data-calc-valor="${d.costoTotal}"` : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
+          ${conCosto ? `<button type="button" class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d ? ` data-calc-valor="${d.costoTotal}"` : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
         </div>`;
     }).join('');
@@ -366,6 +364,17 @@ function renderLineasSeccion(tipo, r) {
         if (mat) {
           costoUnit.title = 'Clic para ver/editar el precio de este material';
           costoUnit.addEventListener('click', () => openEditarPrecioModal(mat));
+        } else {
+          costoUnit.disabled = true;
+        }
+      }
+    } else if (tipo === 'equipo') {
+      const eq = equipos.find(e => e.key === linea.refKey);
+      const costoUnit = row.querySelector('.ap-linea-costo-unit');
+      if (costoUnit) {
+        if (eq) {
+          costoUnit.title = 'Clic para ver el detalle del costo diario de este equipo';
+          costoUnit.addEventListener('click', () => openDetalleEquipoModal(eq));
         } else {
           costoUnit.disabled = true;
         }
@@ -646,6 +655,31 @@ async function saveEditarPrecioModal() {
   }
 }
 
+// Desglose de costo diario de un equipo — sólo lectura, mismos parámetros
+// generales (interés, % reparaciones, etc.) que se editan en Equipos.
+function filaDesglose(label, formula, valor) {
+  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span></span><span>${fmtARS(valor)} $/día</span></div>`;
+}
+
+function openDetalleEquipoModal(equipo) {
+  $('ed-equipo-nombre').textContent = `${equipo.tipo || ''} ${equipo.codigo || ''}`.trim();
+  const d = window.calcDesgloseCostoEquipo(equipo, paramsEquipos, paramsMO.jornadaHoras);
+  const cont = $('ed-desglose');
+  if (!d) {
+    cont.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Faltan datos de costo para este equipo (costo, vida útil o uso anual), o no se pudo obtener la cotización del dólar.</p>';
+  } else {
+    cont.innerHTML = [
+      filaDesglose('Amortización', `Costo actual × jornada ÷ vida útil`, d.amortizacionDia),
+      filaDesglose('Intereses', `Costo actual × tasa ÷ 2 ÷ uso anual × jornada`, d.interesesDia),
+      filaDesglose('Reparaciones y Repuestos', `${paramsEquipos.reparacionesPct}% de Amortización`, d.reparacionesDia),
+      filaDesglose('Combustibles', `Consumo × potencia × jornada × precio`, d.combustibleDia),
+      filaDesglose('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`, d.lubricantesDia),
+      `<div class="ap-resumen-row total"><span>Costo diario del equipo</span><span>${fmtARS(d.costoDiarioTotal)} $/día</span></div>`,
+    ].join('');
+  }
+  $('modal-equipo-detalle').classList.remove('hidden');
+}
+
 async function deleteLinea(lineaKey) {
   delete lineas[lineaKey];
   renderTodasLasLineas();
@@ -810,6 +844,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-mep-close').addEventListener('click',  () => $('modal-material-editar-precio').classList.add('hidden'));
   $('modal-mep-cancel').addEventListener('click', () => $('modal-material-editar-precio').classList.add('hidden'));
   $('modal-mep-save').addEventListener('click', saveEditarPrecioModal);
+
+  $('modal-ed-close').addEventListener('click',  () => $('modal-equipo-detalle').classList.add('hidden'));
+  $('modal-ed-cerrar').addEventListener('click', () => $('modal-equipo-detalle').classList.add('hidden'));
   attachCalcInput($('mep-precio-usd'));
   attachMoneyInput($('mep-precio-usd'));
   attachCalcInput($('mep-precio-ars'));
