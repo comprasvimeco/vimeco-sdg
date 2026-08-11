@@ -98,12 +98,12 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
   box-shadow: var(--shadow-glass); border: 1px solid var(--glass-border);
   backdrop-filter: blur(var(--glass-blur)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
-  margin-bottom: 1.25rem; overflow: hidden;
+  margin-bottom: 1rem; overflow: hidden;
   animation: fadeInUp .4s var(--ease-spring) both;
 }
-.card-header { padding: .9rem 1.25rem; border-bottom: 1px solid rgba(26,58,92,.08); display: flex; align-items: center; justify-content: space-between; background: linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,0)); }
+.card-header { padding: .65rem 1.1rem; border-bottom: 1px solid rgba(26,58,92,.08); display: flex; align-items: center; justify-content: space-between; background: linear-gradient(180deg, rgba(255,255,255,.5), rgba(255,255,255,0)); }
 .card-title { font-size: .95rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: .5rem; }
-.card-body { padding: 1.25rem; }
+.card-body { padding: 1rem 1.1rem; }
 
 /* ===== MODAL ===== */
 .modal-overlay { position: fixed; inset: 0; background: rgba(15,30,50,.5); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); z-index: 999; display: flex; align-items: center; justify-content: center; padding: 1rem; animation: fadeIn .2s ease both; }
