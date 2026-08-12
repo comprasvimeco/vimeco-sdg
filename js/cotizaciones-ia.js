@@ -12,18 +12,25 @@
   // 5s a 40s en pruebas) — 90s da margen sin dejarlo colgado indefinidamente.
   const GEMINI_TIMEOUT_MS = 90000;
 
-  // Modelo multimodal vigente a agosto 2026 — Gemini 2.5 Flash se da de baja
-  // el 16/10/2026, revisar en ai.google.dev/gemini-api/docs/models si esto
-  // arranca a fallar con 404 más adelante.
-  const GEMINI_MODEL = 'gemini-3.5-flash';
+  // Modelo multimodal vigente a agosto 2026. Se usa la variante "flash-lite"
+  // (no "gemini-3.5-flash" a secas) a propósito: el tier free de
+  // gemini-3.5-flash tiene sólo 20 requests/día (se agotó en pruebas reales
+  // el 2026-08-12), inviable para uso real. flash-lite comparte capacidades
+  // multimodales/schema y tiene cuota diaria mucho mayor en el free tier.
+  // Revisar ai.google.dev/gemini-api/docs/models si esto arranca a fallar
+  // con 404 más adelante (modelos se dan de baja con el tiempo).
+  const GEMINI_MODEL = 'gemini-3.5-flash-lite';
   const GEMINI_PROMPT = 'Sos un asistente que extrae datos de presupuestos de proveedores de ' +
     'materiales de construcción para una empresa constructora argentina. Analizá el documento ' +
     'adjunto (PDF o foto de un presupuesto) y extraé: 1) el proveedor que lo emite, 2) la fecha ' +
     '(vacía si no figura), 3) cada línea de material con unidad, cantidad si figura, precio ' +
     'unitario, y si el precio está en pesos argentinos o dólares (mirá el símbolo, la mención ' +
-    'explícita o el contexto; si no queda claro, asumí ARS). No inventes materiales que no estén ' +
-    'escritos en el documento. Si el documento no es un presupuesto o no se puede leer, devolvé ' +
-    '"lineas" como un array vacío.';
+    'explícita o el contexto; si no queda claro, asumí ARS), 4) si la descripción del material ' +
+    'menciona un tamaño de envase explícito (ej. "18 L", "3.6 L", "25 Kg") y el precio unitario ' +
+    'es por ese envase completo (no por la unidad de medida simple), extraé sólo el número de ese ' +
+    'tamaño en "contenidoEnvase" (ej. 18, 3.6, 25) — dejalo vacío si no aplica o no está claro. ' +
+    'No inventes materiales que no estén escritos en el documento. Si el documento no es un ' +
+    'presupuesto o no se puede leer, devolvé "lineas" como un array vacío.';
   const GEMINI_SCHEMA = {
     type: 'OBJECT',
     properties: {
@@ -39,6 +46,7 @@
             cantidad: { type: 'NUMBER' },
             precioUnitario: { type: 'NUMBER' },
             moneda: { type: 'STRING', enum: ['ARS', 'USD'] },
+            contenidoEnvase: { type: 'NUMBER', description: 'Tamaño del envase si el precio es por envase completo, ej. 18 para "18 L". Vacío si no aplica.' },
           },
           required: ['material', 'precioUnitario', 'moneda'],
         },
@@ -170,22 +178,44 @@
     return JSON.parse(text);
   }
 
-  // Empareja el nombre que detectó la IA contra el catálogo por igualdad o
-  // contención (sin tildes/mayúsculas). Sólo auto-selecciona si hay un único
-  // candidato — con más de uno, mejor dejarlo vacío para que el usuario elija
-  // (dos materiales parecidos, ej. "Cemento" vs. "Cemento de albañilería").
+  function normalizarTexto(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  }
+
+  // Puntaje 0-1: qué fracción de las palabras (≥3 letras) del nombre del
+  // material del catálogo aparece dentro del texto detectado por la IA.
+  // "Latex interior" vs. "revive latex interior base 18 l a" → 1.0 (las dos
+  // palabras aparecen), aunque el texto no sea igual ni lo contenga entero.
+  function scoreMaterial(nombreMaterialNorm, targetNorm) {
+    const palabras = nombreMaterialNorm.split(/\s+/).filter(w => w.length >= 3);
+    if (!palabras.length) return 0;
+    const encontradas = palabras.filter(w => targetNorm.includes(w)).length;
+    return encontradas / palabras.length;
+  }
+
+  // Siempre propone el mejor candidato encontrado (aunque no sea un match
+  // perfecto ni único) — el usuario lo revisa y corrige en la tabla, mejor
+  // eso que forzarlo a buscar desde cero un material que en realidad ya
+  // estaba ahí con un nombre parecido pero no idéntico.
   function matchearMaterialPorNombre(nombreDetectado) {
     if (!nombreDetectado) return null;
-    const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
-    const target = norm(nombreDetectado);
+    const target = normalizarTexto(nombreDetectado);
     if (!target) return null;
-    const exacto = state.allMateriales.find(m => norm(m.nombre) === target);
+    const exacto = state.allMateriales.find(m => normalizarTexto(m.nombre) === target);
     if (exacto) return exacto.key;
-    const candidatos = state.allMateriales.filter(m => {
-      const n = norm(m.nombre);
-      return n.includes(target) || target.includes(n);
-    });
-    return candidatos.length === 1 ? candidatos[0].key : null;
+
+    let mejor = null, mejorScore = 0, mejorPalabras = 0;
+    for (const m of state.allMateriales) {
+      const nombreNorm = normalizarTexto(m.nombre);
+      const score = scoreMaterial(nombreNorm, target);
+      const nPalabras = nombreNorm.split(/\s+/).filter(w => w.length >= 3).length;
+      // A igual puntaje, gana el nombre más específico (más palabras
+      // matcheadas), para no preferir un nombre corto genérico.
+      if (score > mejorScore || (score === mejorScore && nPalabras > mejorPalabras)) {
+        mejor = m; mejorScore = score; mejorPalabras = nPalabras;
+      }
+    }
+    return mejorScore >= 0.5 ? mejor.key : null;
   }
 
   function crearLineaDesdeExtraccion(l) {
@@ -205,6 +235,11 @@
       precioUSD: dual ? dual.precioUSD : null,
       precioARS: dual ? dual.precioARS : null,
       precioFormula: null,
+      // Envase detectado (ej. lata de 18L) cuando el precio de arriba es por
+      // el envase completo, no por la unidad de medida del catálogo — se
+      // ofrece un botón para convertir, nunca se divide solo.
+      contenidoEnvase: (typeof l.contenidoEnvase === 'number' && l.contenidoEnvase > 0) ? l.contenidoEnvase : null,
+      envaseConvertido: false,
       aplicar: true,
       select: null,
     };
@@ -258,6 +293,8 @@
       precioUSD: null,
       precioARS: null,
       precioFormula: null,
+      contenidoEnvase: null,
+      envaseConvertido: false,
       aplicar: true,
       select: null,
     });
@@ -277,6 +314,11 @@
       l.precioARS = isNaN(ars) ? null : ars;
       l.precioFormula = getCalcFormula(usdInput) || getCalcFormula(arsInput);
       l.aplicar = row.querySelector('.cl-aplicar').checked;
+      const envaseInput = row.querySelector('.cl-envase');
+      if (envaseInput) {
+        const contenido = parseFloat(envaseInput.value);
+        l.contenidoEnvase = contenido > 0 ? contenido : null;
+      }
     });
   }
 
@@ -306,9 +348,21 @@
         </div>
         <div class="linea-select-container cl-material"></div>
         <div class="form-row">
-          <input type="text" class="form-control cl-usd" placeholder="USD, ej: 5 o =50*100">
-          <input type="text" class="form-control cl-ars" placeholder="$, ej: 5000">
+          <div>
+            <span class="cotiz-precio-label">Precio USD</span>
+            <input type="text" class="form-control cl-usd" placeholder="ej: 5 o =50*100">
+          </div>
+          <div>
+            <span class="cotiz-precio-label">Precio $ (ARS)</span>
+            <input type="text" class="form-control cl-ars" placeholder="ej: 5000">
+          </div>
         </div>
+        ${l.contenidoEnvase && !l.envaseConvertido ? `
+        <div class="cotiz-envase-hint">
+          <span>El precio de arriba es por un envase de</span>
+          <input type="number" step="any" min="0" class="cotiz-envase-input cl-envase" value="${l.contenidoEnvase}">
+          <button type="button" class="btn btn-sm btn-outline cl-convertir">Convertir a precio por unidad</button>
+        </div>` : ''}
       </div>`).join('');
 
     state.lineas.forEach(l => {
@@ -335,6 +389,29 @@
         onChange: key => { l.materialKey = key; },
         onCreateNew: texto => openQuickMaterialInline(texto, l.rowId),
       });
+
+      const convertirBtn = row.querySelector('.cl-convertir');
+      if (convertirBtn) {
+        convertirBtn.addEventListener('click', () => {
+          const contenido = parseFloat(row.querySelector('.cl-envase').value);
+          if (!contenido || contenido <= 0) return;
+          if (usdInput.value.trim().startsWith('=')) usdInput.blur();
+          if (arsInput.value.trim().startsWith('=')) arsInput.blur();
+          const usd = parseMoneyString(usdInput.value);
+          const ars = parseMoneyString(arsInput.value);
+          if (!isNaN(usd)) {
+            l.precioUSD = Math.round((usd / contenido) * 100) / 100;
+            setCalcFormula(usdInput, null); usdInput.value = formatMoneyString(l.precioUSD);
+          }
+          if (!isNaN(ars)) {
+            l.precioARS = Math.round((ars / contenido) * 100) / 100;
+            setCalcFormula(arsInput, null); arsInput.value = formatMoneyString(l.precioARS);
+          }
+          l.envaseConvertido = true;
+          row.querySelector('.cotiz-envase-hint').remove();
+          showToast('Precio convertido a valor por unidad.');
+        });
+      }
     });
   }
 
@@ -483,6 +560,19 @@
     document.getElementById('cotiz-modal-cancel').addEventListener('click', closeCotizacionModal);
     document.getElementById('btn-cotiz-elegir-archivo').addEventListener('click', () => document.getElementById('cotiz-archivo-input').click());
     document.getElementById('cotiz-archivo-input').addEventListener('change', e => handleArchivoSeleccionado(e.target.files[0]));
+
+    const dropzone = document.getElementById('cotiz-dropzone');
+    ['dragover', 'dragenter'].forEach(evt => dropzone.addEventListener(evt, e => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    }));
+    ['dragleave', 'dragend'].forEach(evt => dropzone.addEventListener(evt, () => dropzone.classList.remove('dragover')));
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (file) handleArchivoSeleccionado(file);
+    });
     document.getElementById('btn-cotiz-add-linea').addEventListener('click', () => {
       capturarValoresDom();
       agregarLineaManual();

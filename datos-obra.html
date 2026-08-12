@@ -22,12 +22,17 @@
     .cotiz-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .2rem; flex-shrink: 0; }
     .cotiz-linea .cl-material { margin-bottom: .5rem; }
     .linea-select-container { min-width: 0; }
-    .cotiz-file-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+    .cotiz-file-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; justify-content: center; }
     .cotiz-file-nombre { font-size: .85rem; color: var(--gray-500); }
     .cotiz-file-nombre.tiene-archivo { color: var(--gray-800); font-weight: 600; }
     .cotiz-ia-loading { display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 1.75rem 0; color: var(--gray-600); font-size: .9rem; }
     .cotiz-ia-spinner { width: 20px; height: 20px; border: 2.5px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: cotiz-spin .8s linear infinite; flex-shrink: 0; }
     @keyframes cotiz-spin { to { transform: rotate(360deg); } }
+    .cotiz-dropzone { border: 2px dashed var(--gray-300); border-radius: var(--radius-lg); padding: 1.25rem 1rem; text-align: center; transition: border-color .15s, background-color .15s; }
+    .cotiz-dropzone.dragover { border-color: var(--primary); background: rgba(26,58,92,.05); }
+    .cotiz-precio-label { display: block; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-400); margin-bottom: .2rem; }
+    .cotiz-envase-hint { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; font-size: .78rem; color: var(--gray-600); margin-top: .5rem; }
+    .cotiz-envase-input { width: 55px; padding: .25rem .4rem; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: .78rem; }
   </style>
 </head>
 <body>
@@ -42,6 +47,7 @@
       <button class="btn btn-sm btn-outline" onclick="window.location.href='obras.html'">Volver</button>
     </div>
   </header>
+  <nav class="subtabs-bar" id="header-subtabs"></nav>
 
   <main class="app-main" id="main-content" style="display:none;">
     <div class="card">
@@ -102,9 +108,12 @@
         <div id="cotiz-paso-archivo">
           <div class="form-group u-mb-0">
             <label>Presupuesto del proveedor (PDF o foto)</label>
-            <div class="cotiz-file-row">
-              <button type="button" class="btn btn-sm btn-outline" id="btn-cotiz-elegir-archivo"><span id="cotiz-elegir-icon"></span> Elegir archivo</button>
-              <span class="cotiz-file-nombre" id="cotiz-file-nombre">Ningún archivo elegido</span>
+            <div class="cotiz-dropzone" id="cotiz-dropzone">
+              <div class="cotiz-file-row">
+                <button type="button" class="btn btn-sm btn-outline" id="btn-cotiz-elegir-archivo"><span id="cotiz-elegir-icon"></span> Elegir archivo</button>
+                <span class="cotiz-file-nombre" id="cotiz-file-nombre">Ningún archivo elegido</span>
+              </div>
+              <span class="form-hint" style="display:block;margin-top:.5rem;">o arrastrá el archivo acá</span>
             </div>
             <input type="file" id="cotiz-archivo-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
             <span class="form-hint">Se guarda el archivo para poder verlo después. Si hay conexión, se intenta leer el presupuesto con IA para precargar los materiales y precios.</span>
