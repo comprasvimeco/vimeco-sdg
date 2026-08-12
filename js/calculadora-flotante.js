@@ -38,10 +38,11 @@
     return !!input && document.activeElement === input;
   }
 
-  // Redondea a centavos y devuelve el número con punto decimal, sin
-  // separador de miles — el mismo formato que evalFormula() sabe leer.
+  // Limpia ruido binario de punto flotante y devuelve el número con punto
+  // decimal, sin separador de miles — el mismo formato que evalFormula()
+  // sabe leer. No redondea a centavos: mantiene la precisión real del valor.
   function fmtFormula(n) {
-    return (Math.round(n * 100) / 100).toString();
+    return roundLimpio(n).toString();
   }
 
   function calcularResultado() {

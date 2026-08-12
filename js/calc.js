@@ -2,6 +2,13 @@
    fórmula aritmética (+ - * / ^, paréntesis, "pi" y "raiz(...)") al salir del
    campo, sin usar eval(). */
 
+// Redondea sólo lo necesario para eliminar ruido binario de punto flotante
+// (ej. 0.1+0.2 = 0.30000000000000004) — no limita la precisión real del
+// valor, que puede seguir teniendo tantos decimales como haga falta. Usado
+// en todo punto de la app donde se guarda un valor calculado (no tipeado a
+// mano), para no arrastrar redondeo prematuro a los cálculos siguientes.
+window.roundLimpio = n => Math.round(n * 1e8) / 1e8;
+
 (function () {
   function evalFormula(expr) {
     let i = 0;
@@ -103,7 +110,7 @@
     try {
       const result = evalFormula(raw.slice(1));
       input.dataset.formula = raw;
-      input.value = String(Math.round(result * 100) / 100);
+      input.value = String(roundLimpio(result));
     } catch (_) {
       // Fórmula inválida: se deja el texto tal cual para que el usuario la corrija.
     }

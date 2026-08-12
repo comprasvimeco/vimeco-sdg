@@ -26,9 +26,9 @@ window.resolveDualPrecio = function (modo, valor) {
   const venta = window.dolarOficialVenta();
   if (!venta || isNaN(valor)) return null;
   if (modo === 'ARS') {
-    return { precioARS: valor, precioUSD: Math.round((valor / venta) * 100) / 100 };
+    return { precioARS: valor, precioUSD: roundLimpio(valor / venta) };
   }
-  return { precioARS: Math.round(valor * venta * 100) / 100, precioUSD: valor };
+  return { precioARS: roundLimpio(valor * venta), precioUSD: valor };
 };
 
 // Formatea un número (o string numérico) para mostrar en un input de plata:

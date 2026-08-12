@@ -401,11 +401,11 @@
           const usd = parseMoneyString(usdInput.value);
           const ars = parseMoneyString(arsInput.value);
           if (!isNaN(usd)) {
-            l.precioUSD = Math.round((usd / contenido) * 100) / 100;
+            l.precioUSD = roundLimpio(usd / contenido);
             setCalcFormula(usdInput, null); usdInput.value = formatMoneyString(l.precioUSD);
           }
           if (!isNaN(ars)) {
-            l.precioARS = Math.round((ars / contenido) * 100) / 100;
+            l.precioARS = roundLimpio(ars / contenido);
             setCalcFormula(arsInput, null); arsInput.value = formatMoneyString(l.precioARS);
           }
           l.envaseConvertido = true;
