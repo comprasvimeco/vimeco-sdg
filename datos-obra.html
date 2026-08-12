@@ -15,6 +15,13 @@
     .datos-extra-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
     .dolar-vivo-hint { display: flex; align-items: center; gap: .6rem; font-size: .85rem; color: var(--gray-600); margin-top: .35rem; }
     .dolar-vivo-hint button { background: none; border: none; color: var(--primary); cursor: pointer; padding: 0; font-size: .85rem; text-decoration: underline; }
+    .cotiz-linea { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: .65rem .75rem; margin-bottom: .6rem; }
+    .cotiz-linea-top { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; }
+    .cotiz-linea-detectado { flex: 1 1 auto; font-size: .8rem; color: var(--gray-500); font-style: italic; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cotiz-linea-aplicar { display: flex; align-items: center; gap: .3rem; font-size: .8rem; color: var(--gray-600); white-space: nowrap; flex-shrink: 0; }
+    .cotiz-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .2rem; flex-shrink: 0; }
+    .cotiz-linea .cl-material { margin-bottom: .5rem; }
+    .linea-select-container { min-width: 0; }
   </style>
 </head>
 <body>
@@ -64,8 +71,101 @@
         <div id="datos-extra-lista"></div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Cotizaciones</span>
+        <button class="btn btn-sm btn-primary" id="btn-add-cotizacion">+ Subir cotización</button>
+      </div>
+      <div class="card-body">
+        <span class="form-hint" style="display:block;margin-bottom:.75rem;">Presupuestos de proveedores subidos como fuente de precios de materiales para esta obra.</span>
+        <div id="cotizaciones-lista"></div>
+      </div>
+    </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando datos…</div></div>
+
+  <!-- Modal: Subir / revisar cotización -->
+  <div class="modal-overlay hidden" id="modal-cotizacion">
+    <div class="modal modal--lg">
+      <div class="modal-header">
+        <span class="modal-title" id="cotiz-modal-title">Subir cotización</span>
+        <button class="modal-close" id="cotiz-modal-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="cotiz-paso-archivo">
+          <div class="form-group u-mb-0">
+            <label for="cotiz-archivo-input">Presupuesto del proveedor (PDF o foto)</label>
+            <input type="file" id="cotiz-archivo-input" class="form-control" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <span class="form-hint">Se guarda el archivo para poder verlo después. Si hay conexión, se intenta leer el presupuesto con IA para precargar los materiales y precios.</span>
+          </div>
+          <div id="cotiz-archivo-error" class="alert alert-error hidden"></div>
+        </div>
+
+        <div id="cotiz-paso-revision" class="hidden">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cotiz-proveedor">Proveedor</label>
+              <input type="text" id="cotiz-proveedor" class="form-control" placeholder="Opcional">
+            </div>
+            <div class="form-group">
+              <label for="cotiz-fecha">Fecha del presupuesto</label>
+              <input type="date" id="cotiz-fecha" class="form-control">
+            </div>
+          </div>
+          <div id="cotiz-extraccion-hint" class="form-hint hidden" style="display:block;margin-bottom:.75rem;"></div>
+          <div id="cotiz-lineas-lista"></div>
+          <button class="btn btn-sm btn-outline" id="btn-cotiz-add-linea" type="button">+ Agregar línea manual</button>
+          <div id="cotiz-revision-error" class="alert alert-error hidden" style="margin-top:.75rem;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cotiz-modal-cancel">Cancelar</button>
+        <button class="btn btn-primary hidden" id="cotiz-modal-confirmar">Confirmar y guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: alta rápida de material (desde la revisión de una cotización) -->
+  <div class="modal-overlay hidden" id="modal-cotiz-quick-material">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Nuevo material</span>
+        <button class="modal-close" id="cqm-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="cqm-nombre">Nombre *</label>
+          <input type="text" id="cqm-nombre" class="form-control" placeholder="Ej: Cemento Portland x50kg">
+        </div>
+        <div class="form-group u-mb-0">
+          <label for="cqm-unidad">Unidad *</label>
+          <input type="text" id="cqm-unidad" class="form-control" placeholder="Ej: kg, m3, u">
+        </div>
+        <div id="cqm-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cqm-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="cqm-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
 
   <div class="toast-container" id="toast-container"></div>
 
@@ -74,8 +174,11 @@
   <script src="js/calc.js"></script>
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
+  <script src="js/searchable-select.js"></script>
   <script src="js/config.js"></script>
   <script src="js/firebase.js"></script>
+  <script src="js/storage.js"></script>
   <script src="js/datos-obra.js"></script>
+  <script src="js/cotizaciones-ia.js"></script>
 </body>
 </html>

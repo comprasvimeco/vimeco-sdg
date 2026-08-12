@@ -120,6 +120,7 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .modal-close { background: none; border: none; font-size: 1.1rem; cursor: pointer; color: var(--gray-400); padding: .3rem; border-radius: var(--radius); }
 .modal-close:hover { background: var(--gray-100); color: var(--gray-700); }
 .modal--sm { max-width: 340px; }
+.modal--lg { max-width: 720px; }
 
 /* ===== TOAST ===== */
 .toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 1000; display: flex; flex-direction: column; gap: .5rem; }
