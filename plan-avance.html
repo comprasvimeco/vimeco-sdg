@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Plan de Avance</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+  <style>
+    /* ===== Controles ===== */
+    .pa-controles { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
+    .pa-control { display: flex; flex-direction: column; gap: .25rem; }
+    .pa-control > label { font-size: .72rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; }
+    .pa-control input, .pa-control select { padding: .4rem .6rem; border: 1.5px solid var(--gray-300); border-radius: var(--radius); font-size: .87rem; background: var(--white); color: var(--gray-900); }
+    .pa-control input:focus, .pa-control select:focus { outline: none; border-color: var(--primary-light); box-shadow: 0 0 0 3px rgba(37,87,167,.12); }
+    .pa-control-sm input { width: 90px; }
+    .pa-segmented { display: inline-flex; border: 1.5px solid var(--gray-300); border-radius: 999px; overflow: hidden; background: var(--white); }
+    .pa-segmented button { border: none; background: none; padding: .4rem .9rem; font-size: .82rem; font-weight: 600; color: var(--gray-600); cursor: pointer; }
+    .pa-segmented button.active { background: var(--primary); color: var(--white); }
+    .pa-checks { display: flex; gap: 1rem; align-items: center; }
+    .pa-check { display: inline-flex; align-items: center; gap: .35rem; font-size: .82rem; color: var(--gray-600); cursor: pointer; }
+
+    /* ===== Resumen ===== */
+    .pa-resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
+    .pa-stat { display: flex; flex-direction: column; gap: .15rem; padding: .6rem .8rem; background: var(--gray-100); border-radius: var(--radius); }
+    .pa-stat-label { font-size: .72rem; font-weight: 600; color: var(--gray-500); text-transform: uppercase; letter-spacing: .04em; }
+    .pa-stat-valor { font-size: 1.05rem; font-weight: 700; color: var(--primary); }
+    .pa-stat-alerta { color: var(--warning); }
+    .pa-hint-alerta { color: var(--warning) !important; }
+
+    /* ===== Grilla ===== */
+    .pa-tabla-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--gray-200); border-radius: var(--radius); background: var(--white); }
+    .pa-tabla { border-collapse: separate; border-spacing: 0; font-size: .8rem; width: max-content; min-width: 100%; }
+    .pa-tabla th, .pa-tabla td { padding: .25rem .4rem; border-bottom: 1px solid var(--gray-200); white-space: nowrap; background: var(--white); }
+    .pa-tabla thead th { position: sticky; top: 0; z-index: 3; background: var(--gray-100); font-size: .72rem; font-weight: 600; color: var(--gray-600); border-bottom: 2px solid var(--gray-300); }
+    /* La columna del nombre queda fija a la izquierda: son decenas de períodos
+       y sin esto se pierde de vista qué ítem se está cargando. */
+    .pa-tabla .pa-col-nombre { position: sticky; left: 0; z-index: 2; min-width: 250px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; box-shadow: 1px 0 0 var(--gray-200); }
+    .pa-tabla thead .pa-col-nombre { z-index: 4; }
+    .pa-col-un { width: 52px; color: var(--gray-500); }
+    .pa-col-num { width: 78px; text-align: right; }
+    .pa-col-monto { width: 130px; text-align: right; white-space: nowrap; }
+    .pa-th-periodo { text-align: center; min-width: 62px; }
+    .pa-th-nro { display: block; font-weight: 700; color: var(--gray-700); }
+    .pa-th-fecha { display: block; font-size: .65rem; color: var(--gray-400); font-weight: 500; }
+
+    .pa-fila-rubro td { background: var(--gray-100); font-weight: 600; color: var(--gray-700); border-bottom: 1px solid var(--gray-300); }
+    .pa-rubro-numero { color: var(--primary); font-weight: 700; margin-right: .35rem; }
+    .pa-item-numero { color: var(--gray-400); margin-right: .4rem; font-size: .75rem; }
+    .pa-fila-item:hover td { background: #f8fafc; }
+    .pa-fila-sub td { background: #fbfcfd; color: var(--gray-500); font-size: .72rem; }
+    .pa-sub-label { padding-left: 2.2rem !important; font-style: italic; }
+
+    .pa-celda { text-align: right; padding: 0 !important; }
+    .pa-celda.pa-derivada { padding: .25rem .4rem !important; color: var(--gray-500); }
+    .pa-input { width: 100%; min-width: 58px; border: none; background: transparent; padding: .25rem .35rem; font-size: .78rem; text-align: right; color: var(--gray-900); font-family: inherit; }
+    .pa-input:focus { outline: 2px solid var(--primary-light); outline-offset: -2px; background: #eff6ff; }
+    .pa-input::placeholder { color: var(--gray-300); }
+
+    .pa-suma-ok { color: var(--success); font-weight: 600; }
+    .pa-suma-mal { color: var(--danger); font-weight: 600; }
+    .pa-suma-vacia { color: var(--gray-300); }
+
+    .pa-btn-distribuir { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .1rem .2rem; vertical-align: -.1em; }
+    .pa-btn-distribuir:hover { color: var(--primary); }
+    .pa-btn-distribuir .icon { width: .85em; height: .85em; }
+
+    /* El pie NO va pegado abajo: son 6 filas y tapaban los últimos ítems de la
+       grilla, dejándolos sin poder clickear. */
+    .pa-tabla tfoot td { background: var(--gray-100); font-weight: 600; color: var(--gray-700); }
+    .pa-tabla tfoot tr:first-child td { border-top: 2px solid var(--gray-300); }
+    .pa-total-label { font-size: .74rem; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-600); }
+    .pa-tabla tfoot .pa-acum { color: var(--primary); }
+
+    /* ===== Gráficos ===== */
+    /* Los gráficos scrollean solos en pantallas angostas en vez de encogerse
+       hasta que los ejes no se leen. */
+    .pa-grafico { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .pa-svg { width: 100%; min-width: 620px; height: auto; display: block; }
+    .pa-svg-tick { font-size: 11px; fill: var(--gray-500); font-family: 'Segoe UI', system-ui, sans-serif; }
+    .pa-svg-label { font-size: 11px; font-weight: 600; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .pa-hover-zone { cursor: crosshair; }
+    .pa-barra { cursor: pointer; }
+    .pa-barra:hover { opacity: .82; }
+    .pa-leyenda { display: flex; gap: 1.1rem; align-items: center; margin-bottom: .6rem; font-size: .8rem; color: var(--gray-600); }
+    .pa-leyenda span.swatch { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: .35rem; vertical-align: .15em; }
+    .pa-tooltip { position: fixed; z-index: 1400; background: var(--gray-900); color: var(--white); padding: .5rem .7rem; border-radius: var(--radius); font-size: .78rem; box-shadow: var(--shadow-lg); pointer-events: none; max-width: 280px; }
+    .pa-tt-titulo { font-weight: 700; margin-bottom: .25rem; }
+    .pa-tt-fila { display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
+    .pa-tt-punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+
+    @media (max-width: 700px) {
+      .pa-tabla .pa-col-nombre { min-width: 160px; max-width: 160px; }
+      .pa-col-monto { width: 105px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." class="header-logo">
+      <span class="header-title" id="header-obra-nombre">Plan de Avance</span>
+    </div>
+    <nav class="header-tabs" id="header-tabs"></nav>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    </div>
+  </header>
+  <nav class="subtabs-bar" id="header-subtabs"></nav>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card">
+      <div class="card-header"><span class="card-title">Cronograma</span></div>
+      <div class="card-body">
+        <div class="pa-controles">
+          <div class="pa-control">
+            <label>Cargar avance por</label>
+            <div class="pa-segmented">
+              <button id="pa-modo-items" type="button">Ítems</button>
+              <button id="pa-modo-rubros" type="button">Rubros</button>
+            </div>
+          </div>
+          <div class="pa-control">
+            <label for="pa-unidad">Período</label>
+            <select id="pa-unidad"><option value="semana">Semanas</option><option value="mes">Meses</option></select>
+          </div>
+          <div class="pa-control pa-control-sm">
+            <label for="pa-cantidad">Cantidad</label>
+            <input type="text" id="pa-cantidad" inputmode="numeric">
+          </div>
+          <div class="pa-control">
+            <label for="pa-fecha-inicio">Inicio de obra</label>
+            <input type="date" id="pa-fecha-inicio">
+          </div>
+          <div class="pa-control pa-control-sm">
+            <label for="pa-anticipo">Anticipo %</label>
+            <input type="text" id="pa-anticipo" inputmode="decimal" placeholder="0">
+          </div>
+          <div class="pa-control">
+            <label>Filas por ítem</label>
+            <div class="pa-checks">
+              <label class="pa-check"><input type="checkbox" id="pa-ver-obra"> % en Obra</label>
+              <label class="pa-check"><input type="checkbox" id="pa-ver-cant"> % en Cant.</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="pa-contenido" style="display:none;">
+      <div class="card">
+        <div class="card-header"><span class="card-title">Resumen</span></div>
+        <div class="card-body" id="pa-resumen"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Plan de Avance</span>
+          <span class="form-hint" style="margin:0;">Se carga el % de cada ítem que se ejecuta en cada período — la fila tiene que sumar 100%.</span>
+        </div>
+        <div class="card-body">
+          <div class="pa-tabla-wrap" id="pa-tabla-wrap"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Curva de inversión</span></div>
+        <div class="card-body">
+          <div class="pa-leyenda">
+            <span><span class="swatch" style="background:#2557a7"></span>Certificación acumulada</span>
+            <span><span class="swatch" style="background:#9a7420"></span>Remanente</span>
+          </div>
+          <div class="pa-grafico" id="pa-curva"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">Certificación por período</span></div>
+        <div class="card-body"><div class="pa-grafico" id="pa-barras"></div></div>
+      </div>
+    </div>
+
+    <div id="pa-vacio"></div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando plan de avance…</div></div>
+
+  <!-- Modal: distribuir el avance de una fila en partes iguales -->
+  <div class="modal-overlay hidden" id="modal-distribuir">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Distribuir parejo</span>
+        <button class="modal-close" id="distribuir-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:.85rem;color:var(--gray-600);margin-bottom:.9rem;"><b id="distribuir-nombre"></b></p>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="distribuir-desde">Desde el período</label>
+            <input type="text" class="form-control" id="distribuir-desde" inputmode="numeric">
+          </div>
+          <div class="form-group">
+            <label for="distribuir-hasta">Hasta el período</label>
+            <input type="text" class="form-control" id="distribuir-hasta" inputmode="numeric">
+          </div>
+        </div>
+        <p class="form-hint">Reparte el 100% del ítem en partes iguales entre esos períodos y borra lo que haya fuera del rango. Períodos disponibles: <span id="distribuir-rango"></span>.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="distribuir-cancelar">Cancelar</button>
+        <button class="btn btn-primary" id="distribuir-aplicar">Aplicar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/calcCostos.js"></script>
+  <script src="js/calculadora-flotante.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/plan-avance.js"></script>
+</body>
+</html>
