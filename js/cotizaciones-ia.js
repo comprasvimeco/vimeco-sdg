@@ -9,6 +9,41 @@
   const MAX_FILE_BYTES = 10 * 1024 * 1024; // límite de subida del plan free de Cloudinary
   const TIPOS_OK = ['application/pdf', 'image/jpeg', 'image/png'];
 
+  // Modelo multimodal vigente a agosto 2026 — Gemini 2.5 Flash se da de baja
+  // el 16/10/2026, revisar en ai.google.dev/gemini-api/docs/models si esto
+  // arranca a fallar con 404 más adelante.
+  const GEMINI_MODEL = 'gemini-3.5-flash';
+  const GEMINI_PROMPT = 'Sos un asistente que extrae datos de presupuestos de proveedores de ' +
+    'materiales de construcción para una empresa constructora argentina. Analizá el documento ' +
+    'adjunto (PDF o foto de un presupuesto) y extraé: 1) el proveedor que lo emite, 2) la fecha ' +
+    '(vacía si no figura), 3) cada línea de material con unidad, cantidad si figura, precio ' +
+    'unitario, y si el precio está en pesos argentinos o dólares (mirá el símbolo, la mención ' +
+    'explícita o el contexto; si no queda claro, asumí ARS). No inventes materiales que no estén ' +
+    'escritos en el documento. Si el documento no es un presupuesto o no se puede leer, devolvé ' +
+    '"lineas" como un array vacío.';
+  const GEMINI_SCHEMA = {
+    type: 'OBJECT',
+    properties: {
+      proveedor: { type: 'STRING' },
+      fecha: { type: 'STRING', description: 'YYYY-MM-DD, vacío si no figura' },
+      lineas: {
+        type: 'ARRAY',
+        items: {
+          type: 'OBJECT',
+          properties: {
+            material: { type: 'STRING' },
+            unidad: { type: 'STRING' },
+            cantidad: { type: 'NUMBER' },
+            precioUnitario: { type: 'NUMBER' },
+            moneda: { type: 'STRING', enum: ['ARS', 'USD'] },
+          },
+          required: ['material', 'precioUnitario', 'moneda'],
+        },
+      },
+    },
+    required: ['lineas'],
+  };
+
   let state = null; // { obraKey, onDone, allMateriales, file, lineas, nextRowId }
 
   function todayIso() {
@@ -38,9 +73,9 @@
     document.getElementById('modal-cotizacion').classList.remove('hidden');
 
     // Se guarda la promesa (no se espera acá) para no bloquear la elección de
-    // archivo — pero irAPasoRevision() la espera antes de armar la tabla, así
-    // el buscador de materiales de cada línea nunca se crea con la lista
-    // todavía vacía por una carrera con este fetch.
+    // archivo — pero extraerYMostrarRevision() la espera antes de armar la
+    // tabla, así el buscador de materiales de cada línea nunca se crea con
+    // la lista todavía vacía por una carrera con este fetch.
     state.materialesPromise = _fbGet('/materiales.json')
       .then(data => {
         state.allMateriales = Object.entries(data || {}).map(([key, m]) => ({ key, ...m }))
@@ -72,16 +107,123 @@
     }
 
     state.file = file;
-    await irAPasoRevision();
+    await extraerYMostrarRevision();
   }
 
-  async function irAPasoRevision() {
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+      reader.onerror = () => reject(new Error('No se pudo leer el archivo.'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function callGeminiExtract(file) {
+    if (!GEMINI_API_KEY) throw new Error('Gemini no configurado');
+    const base64 = await fileToBase64(file);
+    const resp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { text: GEMINI_PROMPT },
+            { inlineData: { mimeType: file.type, data: base64 } },
+          ] }],
+          generationConfig: {
+            responseMimeType: 'application/json',
+            responseSchema: GEMINI_SCHEMA,
+            // Extracción estructurada simple, no hace falta razonamiento
+            // profundo — con "medium" (default de gemini-3.5-flash) cada
+            // llamada tardaba ~60-70s, con "minimal" baja a pocos segundos
+            // sin perder precisión (probado con presupuestos de prueba).
+            thinkingConfig: { thinkingLevel: 'MINIMAL' },
+          },
+        }),
+      }
+    );
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    const text = data && data.candidates && data.candidates[0]
+      && data.candidates[0].content && data.candidates[0].content.parts
+      && data.candidates[0].content.parts[0] && data.candidates[0].content.parts[0].text;
+    if (!text) throw new Error('Respuesta vacía de Gemini');
+    return JSON.parse(text);
+  }
+
+  // Empareja el nombre que detectó la IA contra el catálogo por igualdad o
+  // contención (sin tildes/mayúsculas). Sólo auto-selecciona si hay un único
+  // candidato — con más de uno, mejor dejarlo vacío para que el usuario elija
+  // (dos materiales parecidos, ej. "Cemento" vs. "Cemento de albañilería").
+  function matchearMaterialPorNombre(nombreDetectado) {
+    if (!nombreDetectado) return null;
+    const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+    const target = norm(nombreDetectado);
+    if (!target) return null;
+    const exacto = state.allMateriales.find(m => norm(m.nombre) === target);
+    if (exacto) return exacto.key;
+    const candidatos = state.allMateriales.filter(m => {
+      const n = norm(m.nombre);
+      return n.includes(target) || target.includes(n);
+    });
+    return candidatos.length === 1 ? candidatos[0].key : null;
+  }
+
+  function crearLineaDesdeExtraccion(l) {
+    const detalle = [l.unidad, l.cantidad != null ? `cant: ${l.cantidad}` : ''].filter(Boolean).join(' · ');
+    // Gemini sólo detecta UNA moneda por línea — hay que resolver la otra acá
+    // mismo (misma conversión que attachDualPrecioInputs), porque renderLineas
+    // setea `.value` directo sin evento 'input', así que el auto-cálculo
+    // cruzado normal (que escucha 'input') no se dispara solo. Sin esto,
+    // confirmarCotizacion encontraba el campo sin tocar vacío/NaN y
+    // descartaba la línea entera aunque se viera "completa" en pantalla.
+    const tieneNumero = typeof l.precioUnitario === 'number';
+    const dual = tieneNumero ? window.resolveDualPrecio(l.moneda === 'USD' ? 'USD' : 'ARS', l.precioUnitario) : null;
+    return {
+      rowId: state.nextRowId++,
+      textoDetectado: detalle ? `${l.material} (${detalle})` : (l.material || ''),
+      materialKey: matchearMaterialPorNombre(l.material),
+      precioUSD: dual ? dual.precioUSD : null,
+      precioARS: dual ? dual.precioARS : null,
+      precioFormula: null,
+      aplicar: true,
+      select: null,
+    };
+  }
+
+  async function extraerYMostrarRevision() {
     document.getElementById('cotiz-paso-archivo').classList.add('hidden');
     document.getElementById('cotiz-paso-revision').classList.remove('hidden');
-    document.getElementById('cotiz-modal-confirmar').classList.remove('hidden');
-    if (state.materialesPromise) await state.materialesPromise;
+    // El botón de confirmar queda oculto hasta que termine de extraer: si el
+    // usuario lo clickeara mientras Gemini todavía está respondiendo,
+    // encontraría la tabla vacía (state.lineas todavía sin poblar).
+    const hintEl = document.getElementById('cotiz-extraccion-hint');
+    hintEl.textContent = 'Leyendo el presupuesto con IA…';
+    hintEl.classList.remove('hidden');
+    document.getElementById('cotiz-lineas-lista').innerHTML = '<p class="text-muted" style="font-size:.85rem;">Leyendo el presupuesto con IA…</p>';
+
+    const [extraido] = await Promise.all([
+      callGeminiExtract(state.file).catch(() => null),
+      state.materialesPromise,
+    ]);
+
+    if (extraido) {
+      if (extraido.proveedor) document.getElementById('cotiz-proveedor').value = extraido.proveedor;
+      if (extraido.fecha && /^\d{4}-\d{2}-\d{2}$/.test(extraido.fecha)) document.getElementById('cotiz-fecha').value = extraido.fecha;
+      const detectadas = (extraido.lineas || []).filter(l => l && l.material);
+      state.lineas = detectadas.map(crearLineaDesdeExtraccion);
+      hintEl.textContent = detectadas.length
+        ? `Se detectaron ${detectadas.length} línea(s) con IA — revisá y corregí antes de confirmar.`
+        : 'No se detectó ninguna línea automáticamente — cargalas a mano.';
+    } else {
+      hintEl.textContent = 'No se pudo leer el presupuesto con IA — cargá los materiales a mano.';
+    }
+
     if (!state.lineas.length) agregarLineaManual();
     renderLineas();
+    document.getElementById('cotiz-modal-confirmar').classList.remove('hidden');
   }
 
   function agregarLineaManual() {
