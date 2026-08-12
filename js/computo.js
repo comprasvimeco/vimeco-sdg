@@ -263,6 +263,19 @@ function updateLinea(lineaKey, cambios) {
   lineas[lineaKey] = { ...lineas[lineaKey], ...cambios };
   renderTodo();
   persistLineaCambios(lineaKey, cambios);
+  // El AP de esta línea (item.html) se llama tal cual sale acá — si cambia
+  // nombre/unidad, se propaga al ítem vinculado (best-effort, no bloquea).
+  if ((cambios.nombre !== undefined || cambios.unidad !== undefined) && lineas[lineaKey].itemKey) {
+    persistNombreUnidadItem(lineas[lineaKey].itemKey, { nombre: lineas[lineaKey].nombre, unidad: lineas[lineaKey].unidad });
+  }
+}
+
+async function persistNombreUnidadItem(itemKey, cambios) {
+  try {
+    await _fbPatch(`/items/${itemKey}.json`, cambios);
+  } catch (_) {
+    showToast('Error al sincronizar el nombre con el Análisis de Precio.', 'error');
+  }
 }
 
 function addRubro() {
@@ -339,6 +352,10 @@ function moverLineaARubro(lineaKey, rubroIdDestino) {
   updateLinea(lineaKey, { rubroId: rubroIdDestino, orden: nuevoOrden });
 }
 
+// No copia el itemKey del original: cada línea tiene su propio AP (se llama
+// tal cual sale la línea), así que la copia arranca sin vincular — el AP
+// original se puede traer con "Usar como base" desde el AP de la nueva línea
+// si hace falta la misma receta.
 function duplicarLinea(lineaKey) {
   const original = lineas[lineaKey];
   const nuevaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
@@ -350,7 +367,7 @@ function duplicarLinea(lineaKey) {
     unidad: original.unidad || '',
     cantidad: original.cantidad ?? null,
     cantidadFormula: original.cantidadFormula || null,
-    itemKey: original.itemKey || null,
+    itemKey: null,
     orden,
     creadoEn: Date.now(),
   };

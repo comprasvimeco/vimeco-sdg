@@ -56,105 +56,137 @@ function catalogoFor(tipo) {
   return roles;
 }
 
-// -- Modo "vincular ítem" (línea de Cómputo sin itemKey todavía) ----------
+// -- Auto-alta de ítem (línea de Cómputo sin itemKey todavía) --------------
+// Ya no se busca/crea a mano: el AP de una línea se crea solo, con el
+// nombre/unidad que tenga la línea en ese momento (pueden estar vacíos
+// todavía, se completan después en el Cómputo). Mismo mecanismo que antes
+// tenía vincularItem(), sin paso intermedio de búsqueda.
 
-function populateNiRubroSelect() {
-  const opts = rubros.map(r => `<option value="${escHtml(r.key)}">${escHtml(r.nombre)}</option>`).join('');
-  $('ni-rubro').innerHTML = '<option value="">— Elegir rubro —</option>' + opts;
-}
-
-async function vincularItem(key) {
+async function autoCrearYVincular() {
   try {
-    const cambios = { itemKey: key };
-    const itemVinculado = items.find(i => i.key === key);
     const lineaActual = await _fbGet(`/obras/${obraParam}/computo/${lineaParam}.json`);
-    if (itemVinculado && (!lineaActual || !lineaActual.unidad)) cambios.unidad = itemVinculado.unidad;
-    await _fbPatch(`/obras/${obraParam}/computo/${lineaParam}.json`, cambios);
+    const nombre = (lineaActual && lineaActual.nombre) || '';
+    const unidad = (lineaActual && lineaActual.unidad) || '';
+    const key = (nombre || 'item').toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+      + '_' + Date.now();
+    await _fbPut(`/items/${key}.json`, { nombre, unidad, creadoEn: Date.now() });
+    await _fbPut(`/items/${key}/versionesObra/${obraParam}.json`, { rendimiento: 1 });
+    await _fbPatch(`/obras/${obraParam}/computo/${lineaParam}.json`, { itemKey: key });
     window.location.href = `item.html?key=${encodeURIComponent(key)}&obra=${encodeURIComponent(obraParam)}`;
   } catch (_) {
-    showToast('Error al vincular el ítem. Intentá de nuevo.', 'error');
+    document.body.innerHTML = '<p style="padding:2rem;">Error al crear el Análisis de Precio. Volvé al Cómputo e intentá de nuevo.</p>';
   }
 }
 
-let niPendiente = false;
+// -- Encabezado: nombre/unidad/numeración en vivo desde la línea de Cómputo -
 
-function openNuevoItemModal(texto) {
-  $('ni-nombre').value = texto || '';
-  $('ni-unidad').value = '';
-  $('ni-rubro').value = '';
-  $('ni-rendimiento').value = '';
-  setCalcFormula($('ni-rendimiento'), null);
-  $('modal-item-nuevo-error').classList.add('hidden');
-  $('modal-item-nuevo').classList.remove('hidden');
-  setTimeout(() => $('ni-nombre').focus(), 50);
+// Si este AP tiene una línea propia en el Cómputo de esta obra (itemKey
+// coincide), esa línea manda sobre nombre/unidad/numeración — no se editan
+// más acá. Ítems legados sin línea propia (abiertos desde Biblioteca, o
+// huérfanos) caen al comportamiento anterior (nombre/unidad del ítem,
+// editables con "Editar datos").
+let lineaVinculada = null;
+let numeracionActiva = null;
+
+function ordenarPorOrden(list) {
+  return [...list].sort((a, b) => (a.orden || 0) - (b.orden || 0));
 }
 
-async function saveNuevoItem() {
-  const nombre = $('ni-nombre').value.trim();
-  const unidad = $('ni-unidad').value.trim();
-  const rubroKey = $('ni-rubro').value;
-  const errEl = $('modal-item-nuevo-error');
-
-  const rendInput = $('ni-rendimiento');
-  if (rendInput.value.trim().startsWith('=')) rendInput.blur();
-  const rendimiento = parseFloat(rendInput.value.replace(',', '.'));
-
-  if (!nombre || !unidad) {
-    errEl.textContent = 'Nombre y unidad son requeridos.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  if (!rubroKey) {
-    errEl.textContent = 'El rubro es requerido.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  if (isNaN(rendimiento) || rendimiento <= 0) {
-    errEl.textContent = 'El rendimiento tiene que ser un número mayor a 0.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-
-  const key = nombre.toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
-    + '_' + Date.now();
-  const data = { nombre, unidad, rubroKey, creadoEn: Date.now() };
-  const versionData = { rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
-
-  if (niPendiente) return;
-  niPendiente = true;
-  try {
-    await _fbPut(`/items/${key}.json`, data);
-    await _fbPut(`/items/${key}/versionesObra/${obraParam}.json`, versionData);
-    items.push({ key, ...data });
-    $('modal-item-nuevo').classList.add('hidden');
-    await vincularItem(key);
-  } catch (_) {
-    errEl.textContent = 'Error al guardar. Intentá de nuevo.';
-    errEl.classList.remove('hidden');
-    niPendiente = false;
-  }
-}
-
-function renderVincularUI() {
-  $('header-item-nombre').textContent = 'Análisis de Precio';
-  const options = items.map(it => ({ value: it.key, label: it.nombre, sublabel: rubrosMap[it.rubroKey] || 'Sin rubro' }));
-  createSearchableSelect($('link-item-select'), {
-    options,
-    value: null,
-    placeholder: 'Buscar ítem…',
-    onChange: v => vincularItem(v),
-    onCreateNew: texto => openNuevoItemModal(texto),
-  });
+// Mismo cálculo de numeración "N.M" que renderLineaRow() en computo.js.
+function ubicarLineaYNumeracion(computoData, rubrosComputoData) {
+  const todasLineas = Object.entries(computoData || {}).map(([key, l]) => ({ key, ...l }));
+  const entry = todasLineas.find(l => l.itemKey === itemKey);
+  if (!entry) return;
+  lineaVinculada = entry;
+  const rubros = ordenarPorOrden(Object.entries(rubrosComputoData || {}).map(([key, r]) => ({ key, ...r })));
+  const rubroIdx = rubros.findIndex(r => r.key === entry.rubroId);
+  if (rubroIdx === -1) return;
+  const grupo = ordenarPorOrden(todasLineas.filter(l => l.rubroId === entry.rubroId));
+  const lineaIdx = grupo.findIndex(l => l.key === entry.key);
+  if (lineaIdx === -1) return;
+  numeracionActiva = `${rubroIdx + 1}.${lineaIdx + 1}`;
 }
 
 function renderDatos() {
-  $('header-item-nombre').textContent = item.nombre;
-  $('item-titulo-card').textContent = item.nombre;
-  const rubroNombre = item.rubroKey && rubrosMap[item.rubroKey] ? rubrosMap[item.rubroKey] : 'Sin rubro';
-  $('item-datos-resumen').innerHTML =
-    `<span class="item-card-meta">${escHtml(rubroNombre)} · Unidad: ${escHtml(item.unidad)}</span>`;
+  if (lineaVinculada) {
+    const nombre = lineaVinculada.nombre || '(sin nombre)';
+    const unidad = lineaVinculada.unidad || '';
+    const prefijo = numeracionActiva ? `<span class="ap-titulo-numero">${escHtml(numeracionActiva)}</span>` : '';
+    $('header-item-nombre').textContent = (numeracionActiva ? numeracionActiva + '  ' : '') + nombre;
+    $('item-titulo-card').innerHTML = prefijo + escHtml(nombre);
+    $('item-datos-resumen').innerHTML = unidad ? `<span class="item-card-meta">Unidad: ${escHtml(unidad)}</span>` : '';
+    $('btn-editar-datos').classList.add('hidden');
+  } else {
+    $('header-item-nombre').textContent = item.nombre;
+    $('item-titulo-card').textContent = item.nombre;
+    const rubroNombre = item.rubroKey && rubrosMap[item.rubroKey] ? rubrosMap[item.rubroKey] : 'Sin rubro';
+    $('item-datos-resumen').innerHTML =
+      `<span class="item-card-meta">${escHtml(rubroNombre)} · Unidad: ${escHtml(item.unidad)}</span>`;
+    $('btn-editar-datos').classList.remove('hidden');
+  }
+}
+
+// -- "Usar otro AP como base" — copia receta+rendimiento de otra obra ------
+
+// allItemsFull: /items.json completo (todos los ítems, con sus
+// versionesObra) — sólo para armar la lista de búsqueda de este modal.
+let allItemsFull = {};
+
+function opcionesUsarComoBase() {
+  const opciones = [];
+  Object.entries(allItemsFull).forEach(([key, it]) => {
+    Object.entries(it.versionesObra || {}).forEach(([obraK, v]) => {
+      if (key === itemKey && obraK === activeVersion) return; // no copiarse a sí mismo
+      if (!v.lineas || !Object.keys(v.lineas).length) return; // nada para copiar
+      opciones.push({ value: `${key}::${obraK}`, label: it.nombre || '(sin nombre)', sublabel: obrasMap[obraK] || obraK, version: v });
+    });
+  });
+  return opciones.sort((a, b) => a.label.localeCompare(b.label, 'es'));
+}
+
+function openUsarComoBaseModal() {
+  const opciones = opcionesUsarComoBase();
+  createSearchableSelect($('usar-base-select'), {
+    options: opciones,
+    value: null,
+    placeholder: 'Buscar AP…',
+    onChange: v => seleccionarUsarComoBase(v, opciones),
+  });
+  $('modal-usar-base').classList.remove('hidden');
+}
+
+async function seleccionarUsarComoBase(value, opciones) {
+  const opt = opciones.find(o => o.value === value);
+  if (!opt) return;
+  $('modal-usar-base').classList.add('hidden');
+
+  const cantidadPropia = Object.keys(lineas).length;
+  if (cantidadPropia) {
+    const ok = await showConfirm('Usar como base', `Esto reemplaza las ${cantidadPropia} línea(s) cargadas en este Análisis de Precio por la receta de "${opt.label}" (${opt.sublabel}). ¿Continuar?`);
+    if (!ok) return;
+  }
+
+  const src = opt.version;
+  // Copia profunda: lineas acá abajo viene del caché de /items.json en
+  // memoria (allItemsFull) — sin clonar, editar esta versión mutaría en
+  // vivo el objeto cacheado de la versión de origen.
+  const data = { rendimiento: src.rendimiento || 1, rendimientoFormula: src.rendimientoFormula || null, lineas: JSON.parse(JSON.stringify(src.lineas || {})) };
+  try {
+    await _fbPut(`${basePath()}.json`, data);
+    versionesObra[activeVersion] = data;
+    versionExisteEnServidor = true;
+    lineas = data.lineas;
+    rendimientoActivo = data.rendimiento;
+    rendimientoFormulaActiva = data.rendimientoFormula;
+    renderVersionTabs();
+    renderVersionRendimiento();
+    renderTodasLasLineas();
+    showToast(`Receta copiada desde "${opt.label}" (${opt.sublabel}).`);
+  } catch (_) {
+    showToast('Error al copiar la receta. Intentá de nuevo.', 'error');
+  }
 }
 
 // -- Versiones de obra ------------------------------------------------------
@@ -203,15 +235,25 @@ function activarVersion(key) {
   renderTodasLasLineas();
 }
 
+// Sólo se muestran pestañas cuando el ítem tiene versión en más de una obra
+// (caso legado, ver memoria) — el caso normal de acá en más es 1 AP por
+// línea, con una única versión, sin nada que elegir.
 function renderVersionTabs() {
   const tabs = Object.keys(versionesObra).map(k => ({ key: k, label: obrasMap[k] || k }));
   if (obraParam && !versionesObra[obraParam]) tabs.push({ key: obraParam, label: (obrasMap[obraParam] || obraParam) + ' (nueva)' });
 
-  $('version-tabs').innerHTML = tabs.map(t => `
-    <button class="btn btn-sm ${t.key === activeVersion ? 'btn-primary' : 'btn-outline'} version-tab" data-version="${escHtml(t.key)}">${escHtml(t.label)}</button>`).join('');
-  $('version-tabs').querySelectorAll('.version-tab').forEach(btn => {
-    btn.addEventListener('click', () => activarVersion(btn.dataset.version));
-  });
+  const tabsEl = $('version-tabs');
+  if (tabs.length <= 1) {
+    tabsEl.innerHTML = '';
+    tabsEl.classList.add('hidden');
+  } else {
+    tabsEl.classList.remove('hidden');
+    tabsEl.innerHTML = tabs.map(t => `
+      <button class="btn btn-sm ${t.key === activeVersion ? 'btn-primary' : 'btn-outline'} version-tab" data-version="${escHtml(t.key)}">${escHtml(t.label)}</button>`).join('');
+    tabsEl.querySelectorAll('.version-tab').forEach(btn => {
+      btn.addEventListener('click', () => activarVersion(btn.dataset.version));
+    });
+  }
 
   const aviso = $('version-aviso');
   if (!versionExisteEnServidor) {
@@ -733,39 +775,24 @@ function populateRubroSelect() {
   $('item-rubro').innerHTML = '<option value="">— Sin rubro —</option>' + opts;
 }
 
-async function loadVincular() {
-  const [itemsData, rubrosData] = await Promise.all([
-    _fbGet('/items.json'),
-    _fbGet('/rubros.json'),
-  ]);
-  items = Object.entries(itemsData || {}).map(([key, it]) => ({ key, ...it })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-  rubrosMap = {};
-  rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
-
-  populateNiRubroSelect();
-  $('link-item-card').classList.remove('hidden');
-  $('normal-content').classList.add('hidden');
-  renderVincularUI();
-
-  $('main-loading').style.display = 'none';
-  $('main-content').style.display = '';
-}
-
 async function loadAll() {
-  if (modoVincular) { await loadVincular(); return; }
+  if (modoVincular) { await autoCrearYVincular(); return; }
   if (!itemKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
   }
-  const [itemData, versionesData, obrasData, materialesData, equiposData, rubrosData] = await Promise.all([
+  const fetches = [
     _fbGet(`/items/${itemKey}.json`),
     _fbGet(`/items/${itemKey}/versionesObra.json`),
     _fbGet('/obras.json'),
     _fbGet('/materiales.json'),
     _fbGet('/equipos.json'),
     _fbGet('/rubros.json'),
-  ]);
+    _fbGet('/items.json'),
+  ];
+  if (obraParam) fetches.push(_fbGet(`/obras/${obraParam}/computo.json`), _fbGet(`/obras/${obraParam}/rubrosComputo.json`));
+
+  const [itemData, versionesData, obrasData, materialesData, equiposData, rubrosData, allItemsData, computoData, rubrosComputoData] = await Promise.all(fetches);
 
   if (!itemData) {
     document.body.innerHTML = '<p style="padding:2rem;">No se encontró el ítem.</p>';
@@ -781,7 +808,10 @@ async function loadAll() {
   rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
+  allItemsFull = allItemsData || {};
   populateRubroSelect();
+
+  if (obraParam) ubicarLineaYNumeracion(computoData, rubrosComputoData);
   renderDatos();
 
   const versionInicial = resolverVersionInicial();
@@ -801,10 +831,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btn-header-volver').addEventListener('click', () => window.location.href = hrefVolver);
   $('btn-volver').addEventListener('click', () => window.location.href = hrefVolver);
 
-  $('modal-item-nuevo-close').addEventListener('click', () => $('modal-item-nuevo').classList.add('hidden'));
-  $('modal-item-nuevo-cancel').addEventListener('click', () => $('modal-item-nuevo').classList.add('hidden'));
-  $('modal-item-nuevo-save').addEventListener('click', saveNuevoItem);
-  attachCalcInput($('ni-rendimiento'));
+  $('btn-usar-como-base').addEventListener('click', openUsarComoBaseModal);
+  $('modal-usar-base-close').addEventListener('click', () => $('modal-usar-base').classList.add('hidden'));
 
   $('btn-editar-datos').addEventListener('click', openEditDatosModal);
   $('modal-item-close').addEventListener('click',  () => $('modal-item').classList.add('hidden'));

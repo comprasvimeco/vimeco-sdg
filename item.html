@@ -43,6 +43,9 @@
     .version-rendimiento input { max-width: 140px; }
     .version-rendimiento-edit { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .2rem; }
     .version-rendimiento-edit:hover { color: var(--primary); }
+
+    .ap-titulo-numero { color: var(--gray-500); font-weight: 600; margin-right: .35rem; }
+    .ap-usar-base-wrap { margin-top: .75rem; }
   </style>
 </head>
 <body>
@@ -58,26 +61,20 @@
   </header>
 
   <main class="app-main" id="main-content" style="display:none;">
-    <!-- Modo "vincular ítem": línea de Cómputo sin itemKey todavía (?linea=&obra=, sin ?key) -->
-    <div class="card hidden" id="link-item-card">
-      <div class="card-header"><span class="card-title">Análisis de Precio — elegir ítem</span></div>
-      <div class="card-body">
-        <p class="form-hint" style="margin-bottom:.75rem;">Buscá un ítem ya cargado en la Biblioteca para vincular a esta línea, o escribí uno nuevo para crearlo.</p>
-        <div class="linea-select-container" id="link-item-select"></div>
-      </div>
-    </div>
-
     <div id="normal-content">
       <div class="card">
         <div class="card-header">
           <span class="card-title" id="item-titulo-card">Ítem</span>
-          <button class="btn btn-sm btn-outline" id="btn-editar-datos">Editar datos</button>
+          <button class="btn btn-sm btn-outline hidden" id="btn-editar-datos">Editar datos</button>
         </div>
         <div class="card-body">
           <div id="item-datos-resumen"></div>
           <div id="version-tabs" class="version-tabs"></div>
           <div id="version-aviso" class="form-hint hidden" style="margin-top:.5rem;"></div>
           <div id="version-rendimiento" class="version-rendimiento hidden"></div>
+          <div class="ap-usar-base-wrap">
+            <button class="btn btn-sm btn-outline" id="btn-usar-como-base">Usar otro AP como base</button>
+          </div>
         </div>
       </div>
 
@@ -144,40 +141,32 @@
     </div>
   </div>
 
-  <!-- Modal: Alta de ítem nuevo (desde el buscador del modo "vincular ítem") -->
-  <div class="modal-overlay hidden" id="modal-item-nuevo">
+  <!-- Modal: Usar otro AP como base (copia receta+rendimiento de otra obra) -->
+  <div class="modal-overlay hidden" id="modal-usar-base">
     <div class="modal modal--sm">
       <div class="modal-header">
-        <span class="modal-title">Nuevo ítem</span>
-        <button class="modal-close" id="modal-item-nuevo-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        <span class="modal-title">Usar otro AP como base</span>
+        <button class="modal-close" id="modal-usar-base-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
-        <div class="form-group">
-          <label for="ni-nombre">Nombre *</label>
-          <input type="text" id="ni-nombre" class="form-control" placeholder="Ej: Contrapiso H°A° e=10cm">
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="ni-unidad">Unidad *</label>
-            <input type="text" id="ni-unidad" class="form-control" placeholder="Ej: m2, m3, gl">
-          </div>
-          <div class="form-group u-mb-0">
-            <label for="ni-rubro">Rubro *</label>
-            <select id="ni-rubro" class="form-control">
-              <option value="">— Elegir rubro —</option>
-            </select>
-          </div>
-        </div>
-        <div class="form-group u-mb-0" style="max-width:260px;">
-          <label for="ni-rendimiento">Rendimiento (uds./jornada) *</label>
-          <input type="text" id="ni-rendimiento" class="form-control" placeholder="Ej: 0.2">
-          <span class="form-hint">La receta se carga después, en la pantalla que se abre al guardar.</span>
-        </div>
-        <div id="modal-item-nuevo-error" class="alert alert-error hidden"></div>
+        <p class="form-hint" style="margin-bottom:.75rem;">Buscá un Análisis de Precio ya cargado en otra obra. Se copia su receta (materiales, equipos, mano de obra) y su rendimiento a este AP.</p>
+        <div class="linea-select-container" id="usar-base-select"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" id="modal-item-nuevo-cancel">Cancelar</button>
-        <button class="btn btn-primary" id="modal-item-nuevo-save">Guardar</button>
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
       </div>
     </div>
   </div>
