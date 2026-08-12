@@ -47,6 +47,30 @@
           </div>
         </div>
         <span class="form-hint">Se aplican solo a los roles de esta obra. Se guardan solos al salir del campo.</span>
+
+        <div class="form-row" style="margin-top:1rem;align-items:flex-end;">
+          <div class="form-group" style="display:flex;align-items:center;gap:.5rem;">
+            <input type="checkbox" id="param-seg-cap-activo" style="width:auto;">
+            <label for="param-seg-cap-activo" style="margin:0;">Seguridad y Capataz</label>
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="param-seg-cap-pct">% sobre costo diario de MO del AP</label>
+            <input type="text" id="param-seg-cap-pct" class="form-control" placeholder="Ej: 10">
+          </div>
+        </div>
+        <span class="form-hint">Si está activo, se agrega como adicional en los AP que tengan mano de obra cargada — se puede excluir puntualmente en cada AP.</span>
+
+        <div class="form-row" style="margin-top:1rem;align-items:flex-end;">
+          <div class="form-group" style="display:flex;align-items:center;gap:.5rem;">
+            <input type="checkbox" id="param-comida-activo" style="width:auto;">
+            <label for="param-comida-activo" style="margin:0;">Comida</label>
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="param-comida-monto">Monto ($/día por categoría)</label>
+            <input type="text" id="param-comida-monto" class="form-control" placeholder="Ej: 5000">
+          </div>
+        </div>
+        <span class="form-hint">Si está activo, se suma al jornal de todas las categorías de esta obra — cambia seguido, actualizalo cuando tengas el valor vigente.</span>
       </div>
     </div>
 

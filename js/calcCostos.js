@@ -5,14 +5,19 @@
    (CyP Taller Río Cuarto.xlsx, hoja A.P.). */
 
 // rol: { basico, extraPct, noRemunerativoMensual }
-// params: { asistenciaPct, cargasPct, diasMes, jornadaHoras }
+// params: { asistenciaPct, cargasPct, diasMes, jornadaHoras, comidaActivo, comidaMonto }
+// Comida es un monto fijo $/día de la obra (no por rol) que se suma parejo
+// al jornal de cada categoría cuando está activo — a diferencia del
+// "no remunerativo" (que es propio de cada rol y se prorratea por hora),
+// éste va directo al jornal completo, sin prorratear.
 window.calcCostoManoDeObra = function (rol, params) {
   const basicoEfectivo = rol.basico * (1 + (rol.extraPct || 0) / 100);
   const conAsistencia = basicoEfectivo * (1 + params.asistenciaPct / 100);
   const conCargas = conAsistencia * (1 + params.cargasPct / 100);
   const comidaPorHora = (rol.noRemunerativoMensual || 0) / (params.diasMes * params.jornadaHoras);
   const costoHorario = conCargas + comidaPorHora;
-  return { costoHorario, costoJornal: costoHorario * params.jornadaHoras, comidaPorHora };
+  const comidaDia = params.comidaActivo ? (params.comidaMonto || 0) : 0;
+  return { costoHorario, costoJornal: costoHorario * params.jornadaHoras + comidaDia, comidaPorHora, comidaDia };
 };
 
 // equipo: { costoUSD, vidaUtil, usoAnual, potencia }
@@ -123,7 +128,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
   const rendimiento = item.rendimiento || 1;
   let costoMateriales = 0;
   let costoDiarioEquipos = 0;
-  let costoDiarioMO = 0;
+  let costoDiarioMORoles = 0;
   const detallePorLinea = {};   // { lineaKey: { costoUnitario, costoTotal } }
   Object.entries(lineasItem || {}).forEach(([lineaKey, l]) => {
     const d = costoLineaDetalle(l);
@@ -131,8 +136,17 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     detallePorLinea[lineaKey] = d;
     if (l.tipo === 'material') costoMateriales += d.costoTotal;
     else if (l.tipo === 'equipo') costoDiarioEquipos += d.costoTotal;
-    else costoDiarioMO += d.costoTotal;
+    else costoDiarioMORoles += d.costoTotal;
   });
+  // Seguridad y Capataz: adicional opcional (activo/% en paramsMO de la
+  // obra), % sobre el costo diario de mano de obra de ESTE AP puntual. Se
+  // puede excluir por ítem aunque esté activo en la obra (item.sinSeguridadCapataz,
+  // ver /items/{key}/versionesObra/{obraKey}) — y no aplica si el AP no
+  // tiene mano de obra cargada.
+  const seguridadCapatazAplica = !!(paramsMO.seguridadCapatazActivo && !item.sinSeguridadCapataz && costoDiarioMORoles > 0);
+  const seguridadCapatazPctAplicado = seguridadCapatazAplica ? (paramsMO.seguridadCapatazPct || 0) : 0;
+  const costoDiarioSeguridadCapataz = costoDiarioMORoles * seguridadCapatazPctAplicado / 100;
+  const costoDiarioMO = costoDiarioMORoles + costoDiarioSeguridadCapataz;
   // Equipos (A) y Mano de Obra (B) se dividen por rendimiento cada uno por
   // separado (no combinados) — mismo criterio que la planilla de
   // referencia, para poder mostrar el subtotal de cada área por separado.
@@ -143,6 +157,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     costoMateriales,
     costoDiarioEquipos, costoUnitarioEquipos,
     costoDiarioMO, costoUnitarioMO,
+    costoDiarioSeguridadCapataz, seguridadCapatazPctAplicado,
     costoUnitario,
     detallePorLinea,
   };

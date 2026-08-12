@@ -25,6 +25,7 @@ let versionExisteEnServidor = true;
 let lineas = {};       // { lineaKey: { tipo, refKey, cantidad } } — de la versión activa
 let rendimientoActivo = null;
 let rendimientoFormulaActiva = null;
+let sinSeguridadCapatazActivo = false;   // excluye el adicional de Seguridad y Capataz en ESTE AP puntual
 let detallePorLineaActivo = {};   // { lineaKey: { costoUnitario, costoTotal } } — sólo en pestañas de obra
 
 let materiales = [];
@@ -221,6 +222,7 @@ function activarVersion(key) {
     lineas = v.lineas || {};
     rendimientoActivo = v.rendimiento;
     rendimientoFormulaActiva = v.rendimientoFormula;
+    sinSeguridadCapatazActivo = !!v.sinSeguridadCapataz;
     versionExisteEnServidor = true;
   } else {
     // No existe todavía para esta obra: arranca vacía, con 1 como punto de
@@ -228,6 +230,7 @@ function activarVersion(key) {
     lineas = {};
     rendimientoActivo = 1;
     rendimientoFormulaActiva = null;
+    sinSeguridadCapatazActivo = false;
     versionExisteEnServidor = false;
   }
   renderVersionTabs();
@@ -297,7 +300,7 @@ function renderVersionRendimiento() {
 function calcularDetalleActivo() {
   const catalogos = { materiales, equipos, roles };
   const preciosObra = window.resolverPreciosObra(materiales, activeVersion);
-  const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObraActivo);
+  const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo, sinSeguridadCapataz: sinSeguridadCapatazActivo }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObraActivo);
   detallePorLineaActivo = r.detallePorLinea;
   return r;
 }
@@ -326,6 +329,7 @@ async function ensureVersionExists() {
   if (versionExisteEnServidor) return false;
   try {
     const data = { rendimiento: rendimientoActivo, rendimientoFormula: rendimientoFormulaActiva, lineas };
+    if (sinSeguridadCapatazActivo) data.sinSeguridadCapataz = true;
     await _fbPut(`${basePath()}.json`, data);
     versionesObra[activeVersion] = data;
     versionExisteEnServidor = true;
@@ -345,6 +349,23 @@ async function persistRendimiento(cambios) {
     versionesObra[activeVersion] = { ...versionesObra[activeVersion], ...cambios };
   } catch (_) {
     showToast('Error al guardar el rendimiento.', 'error');
+  }
+}
+
+// Excluye/restaura el adicional de Seguridad y Capataz sólo para este AP,
+// aunque esté activo en los parámetros de la obra. Ausencia del campo =
+// incluido (comportamiento normal) — PATCH con null lo borra en vez de
+// dejar un "false" colgado.
+async function toggleSinSeguridadCapataz(excluir) {
+  sinSeguridadCapatazActivo = excluir;
+  renderTodasLasLineas();
+  const justCreated = await ensureVersionExists();
+  if (justCreated) return;
+  try {
+    await _fbPatch(`${basePath()}.json`, { sinSeguridadCapataz: excluir ? true : null });
+    versionesObra[activeVersion] = { ...versionesObra[activeVersion], sinSeguridadCapataz: excluir || undefined };
+  } catch (_) {
+    showToast('Error al guardar.', 'error');
   }
 }
 
@@ -466,11 +487,37 @@ function renderManoDeObraSeccion(r) {
         </div>`;
     }).join('');
   }
+  // Seguridad y Capataz: adicional opcional de la obra (paramsMO), % sobre
+  // el costo diario de MO de este AP. Sólo aparece si está activo en la
+  // obra y el AP tiene mano de obra cargada; se puede excluir puntualmente
+  // por AP sin tocar el % ni el toggle general.
+  const hayLineasMO = Object.values(lineas).some(l => l.tipo === 'manoDeObra' && l.cantidad);
+  if (paramsMO.seguridadCapatazActivo && hayLineasMO) {
+    if (sinSeguridadCapatazActivo) {
+      html += `<div class="ap-subtotal-linea"><span>Seguridad y Capataz — excluido en este AP</span><button type="button" class="btn btn-sm btn-outline" id="btn-restaurar-seg-cap">Incluir</button></div>`;
+    } else if (r) {
+      html += `
+        <div class="ap-linea-mo con-costo" data-extra="seguridadCapataz">
+          <span class="ap-linea-mo-nombre">Seguridad y Capataz</span>
+          <span class="ap-linea-costo-unit">${r.seguridadCapatazPctAplicado}%</span>
+          <span class="ap-linea-costo-unit">—</span>
+          <span class="ap-linea-costo-total">
+            <span data-calc-valor="${r.costoDiarioSeguridadCapataz}">${fmtARS(r.costoDiarioSeguridadCapataz)}</span>
+            <button type="button" class="ap-linea-del" id="btn-excluir-seg-cap" title="Excluir de este AP" style="margin-left:.4rem;">${icSvg('x')}</button>
+          </span>
+        </div>`;
+    }
+  }
   if (r) {
     html += `<div class="ap-subtotal-linea"><span>Costo diario Mano de Obra</span><span data-calc-valor="${r.costoDiarioMO}">${fmtARS(r.costoDiarioMO)}</span></div>
       <div class="ap-subtotal-linea total"><span>Costo unitario Mano de Obra (B)</span><span data-calc-valor="${r.costoUnitarioMO}">${fmtARS(r.costoUnitarioMO)}</span></div>`;
   }
   container.innerHTML = html;
+
+  const btnExcluirSegCap = container.querySelector('#btn-excluir-seg-cap');
+  if (btnExcluirSegCap) btnExcluirSegCap.addEventListener('click', () => toggleSinSeguridadCapataz(true));
+  const btnRestaurarSegCap = container.querySelector('#btn-restaurar-seg-cap');
+  if (btnRestaurarSegCap) btnRestaurarSegCap.addEventListener('click', () => toggleSinSeguridadCapataz(false));
 
   container.querySelectorAll('.ap-linea-mo[data-rol]').forEach(row => {
     const rolKey = row.dataset.rol;

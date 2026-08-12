@@ -26,7 +26,11 @@ const obraKey = params.get('obra');
 let obra = null;
 let allRoles = [];
 let editingKey = null;
-let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
+let paramsMO = {
+  asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8,
+  seguridadCapatazActivo: false, seguridadCapatazPct: 0,
+  comidaActivo: false, comidaMonto: 0,
+};
 
 function calcCosto(basico, noRemunerativoMensual, extraPct) {
   return window.calcCostoManoDeObra({ basico, extraPct, noRemunerativoMensual }, paramsMO);
@@ -37,6 +41,12 @@ function fillParamsForm() {
   $('param-cargas').value = paramsMO.cargasPct;
   $('param-dias').value = paramsMO.diasMes;
   $('param-jornada').value = paramsMO.jornadaHoras;
+  $('param-seg-cap-activo').checked = !!paramsMO.seguridadCapatazActivo;
+  $('param-seg-cap-pct').value = paramsMO.seguridadCapatazPct || '';
+  $('param-seg-cap-pct').disabled = !paramsMO.seguridadCapatazActivo;
+  $('param-comida-activo').checked = !!paramsMO.comidaActivo;
+  $('param-comida-monto').value = formatMoneyString(paramsMO.comidaMonto);
+  $('param-comida-monto').disabled = !paramsMO.comidaActivo;
 }
 
 async function saveParams() {
@@ -45,7 +55,16 @@ async function saveParams() {
   const diasMes         = parseFloat($('param-dias').value.replace(',', '.'));
   const jornadaHoras    = parseFloat($('param-jornada').value.replace(',', '.'));
   if ([asistenciaPct, cargasPct, diasMes, jornadaHoras].some(n => isNaN(n) || n < 0)) return;
-  paramsMO = { asistenciaPct, cargasPct, diasMes, jornadaHoras };
+
+  const seguridadCapatazActivo = $('param-seg-cap-activo').checked;
+  const seguridadCapatazPctRaw = parseFloat($('param-seg-cap-pct').value.replace(',', '.'));
+  const seguridadCapatazPct = isNaN(seguridadCapatazPctRaw) ? 0 : seguridadCapatazPctRaw;
+
+  const comidaActivo = $('param-comida-activo').checked;
+  const comidaMontoRaw = parseMoneyString($('param-comida-monto').value);
+  const comidaMonto = isNaN(comidaMontoRaw) ? 0 : comidaMontoRaw;
+
+  paramsMO = { asistenciaPct, cargasPct, diasMes, jornadaHoras, seguridadCapatazActivo, seguridadCapatazPct, comidaActivo, comidaMonto };
   try {
     await _fbPut(`/obras/${obraKey}/paramsMO.json`, paramsMO);
     applyFilter();
@@ -295,10 +314,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     $(id).addEventListener('blur', updatePreview);
   });
 
+  attachMoneyInput($('param-comida-monto'));
+
   $('param-asistencia').addEventListener('blur', saveParams);
   $('param-cargas').addEventListener('blur', saveParams);
   $('param-dias').addEventListener('blur', saveParams);
   $('param-jornada').addEventListener('blur', saveParams);
+  $('param-seg-cap-pct').addEventListener('blur', saveParams);
+  $('param-comida-monto').addEventListener('blur', saveParams);
+  $('param-seg-cap-activo').addEventListener('change', () => {
+    $('param-seg-cap-pct').disabled = !$('param-seg-cap-activo').checked;
+    saveParams();
+  });
+  $('param-comida-activo').addEventListener('change', () => {
+    $('param-comida-monto').disabled = !$('param-comida-activo').checked;
+    saveParams();
+  });
 
   $('btn-add-rol').addEventListener('click', openAddModal);
   $('modal-rol-close').addEventListener('click',  () => $('modal-rol').classList.add('hidden'));
