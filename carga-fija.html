@@ -38,7 +38,10 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Gastos fijos de la obra</span>
-        <button class="btn btn-sm btn-primary" id="btn-add-linea">+ Agregar concepto</button>
+        <div class="flex gap-2">
+          <button class="btn btn-sm btn-outline" id="btn-importar-cf">Importar de otra obra</button>
+          <button class="btn btn-sm btn-primary" id="btn-add-linea">+ Agregar concepto</button>
+        </div>
       </div>
       <div class="card-body">
         <div class="cf-linea-header">
@@ -55,6 +58,27 @@
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando carga fija…</div></div>
+
+  <!-- Modal: Importar carga fija de otra obra -->
+  <div class="modal-overlay hidden" id="modal-importar-cf">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Importar de otra obra</span>
+        <button class="modal-close" id="importar-cf-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group u-mb-0">
+          <label>Obra origen</label>
+          <div id="importar-cf-select"></div>
+        </div>
+        <p class="form-hint" id="importar-cf-info"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="importar-cf-cancelar">Cancelar</button>
+        <button class="btn btn-primary" id="importar-cf-confirmar" disabled>Importar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Confirmar acción -->
   <div class="modal-overlay hidden" id="modal-confirm">
@@ -80,6 +104,7 @@
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
   <script src="js/calcCostos.js"></script>
+  <script src="js/searchable-select.js"></script>
   <script src="js/config.js"></script>
   <script src="js/firebase.js"></script>
   <script src="js/carga-fija.js"></script>

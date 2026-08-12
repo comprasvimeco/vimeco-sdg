@@ -215,6 +215,75 @@ async function deleteLinea(lineaKey) {
   showToast('Concepto eliminado.');
 }
 
+// Importar de otra obra: siempre agrega los conceptos de la obra origen como
+// líneas nuevas (no pisa ni borra lo que ya haya en la obra destino). No
+// copia los % de Beneficio/Financiero/IVA — esos varían por obra/contrato.
+let obrasParaImportar = null; // cache: [{key, nombre}] — todas menos la actual
+let importarCfSelect = null;
+let lineasOrigenImportar = null; // { lineaKey: linea } de la obra elegida, o null
+
+async function abrirModalImportarCf() {
+  $('importar-cf-confirmar').disabled = true;
+  $('importar-cf-info').textContent = '';
+  lineasOrigenImportar = null;
+
+  if (!obrasParaImportar) {
+    const data = await _fbGet('/obras.json');
+    obrasParaImportar = Object.entries(data || {})
+      .filter(([key]) => key !== obraKey)
+      .map(([key, o]) => ({ key, nombre: o.nombre || key }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  importarCfSelect = createSearchableSelect($('importar-cf-select'), {
+    options: obrasParaImportar.map(o => ({ value: o.key, label: o.nombre })),
+    placeholder: 'Buscar obra…',
+    onChange: onElegirObraOrigenImportar,
+  });
+
+  $('modal-importar-cf').classList.remove('hidden');
+}
+
+function cerrarModalImportarCf() {
+  $('modal-importar-cf').classList.add('hidden');
+}
+
+async function onElegirObraOrigenImportar(obraOrigenKey) {
+  $('importar-cf-confirmar').disabled = true;
+  lineasOrigenImportar = null;
+  $('importar-cf-info').textContent = 'Buscando…';
+
+  const data = await _fbGet(`/obras/${obraOrigenKey}/cargaFija/lineas.json`);
+  const cantidad = Object.keys(data || {}).length;
+  if (!cantidad) {
+    $('importar-cf-info').textContent = 'Esa obra no tiene conceptos cargados en Carga Fija.';
+    return;
+  }
+  lineasOrigenImportar = data;
+  $('importar-cf-info').textContent = `Se van a agregar ${cantidad} concepto${cantidad === 1 ? '' : 's'} a los que ya tiene esta obra.`;
+  $('importar-cf-confirmar').disabled = false;
+}
+
+async function confirmarImportarCf() {
+  if (!lineasOrigenImportar) return;
+  const nuevas = {};
+  Object.values(lineasOrigenImportar).forEach(l => {
+    const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    nuevas[lineaKey] = { concepto: l.concepto, cantidad: l.cantidad, precioUnitario: l.precioUnitario, meses: l.meses };
+  });
+
+  Object.assign(lineas, nuevas);
+  renderTodo();
+  cerrarModalImportarCf();
+
+  try {
+    await _fbPatch(`/obras/${obraKey}/cargaFija/lineas.json`, nuevas);
+    showToast(`${Object.keys(nuevas).length} conceptos importados.`);
+  } catch (_) {
+    showToast('Error al importar los conceptos.', 'error');
+  }
+}
+
 function versionDe(it) {
   const propia = it.versionesObra && it.versionesObra[obraKey];
   return propia || it;
@@ -279,6 +348,10 @@ async function loadAll() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-linea').addEventListener('click', addLinea);
+  $('btn-importar-cf').addEventListener('click', abrirModalImportarCf);
+  $('importar-cf-close').addEventListener('click', cerrarModalImportarCf);
+  $('importar-cf-cancelar').addEventListener('click', cerrarModalImportarCf);
+  $('importar-cf-confirmar').addEventListener('click', confirmarImportarCf);
   await loadAll();
   await getDolarSnapshot().catch(() => {});
   if (obra) {
