@@ -117,12 +117,18 @@ window.attachMoneyInput = function (input) {
     let { intDigits, decDigits } = model;
     const sigBefore = sigCountBefore(before, selStart);
 
+    // Posición de inserción en intDigits — arranca en el cursor y avanza con
+    // cada dígito entero aceptado, para que un e.data de varios caracteres
+    // (pegar, autocompletar, IME) los vaya agregando en orden y no todos en
+    // el mismo lugar (bug real: quedaba fija en sigBefore para todo el
+    // batch, así que "5000" pegado guardaba "5").
+    let introPos = Math.min(sigBefore, intDigits.length);
     let accepted = 0;
     for (const ch of e.data) {
       if (/[0-9]/.test(ch)) {
         if (decDigits === null) {
-          const p = Math.min(sigBefore, intDigits.length);
-          intDigits = intDigits.slice(0, p) + ch + intDigits.slice(p);
+          intDigits = intDigits.slice(0, introPos) + ch + intDigits.slice(introPos);
+          introPos++;
           accepted++;
         } else if (decDigits.length < 2) {
           decDigits += ch;
