@@ -8,6 +8,9 @@
 (function () {
   const MAX_FILE_BYTES = 10 * 1024 * 1024; // límite de subida del plan free de Cloudinary
   const TIPOS_OK = ['application/pdf', 'image/jpeg', 'image/png'];
+  // La latencia real de Gemini varía bastante (se vieron casos legítimos de
+  // 5s a 40s en pruebas) — 90s da margen sin dejarlo colgado indefinidamente.
+  const GEMINI_TIMEOUT_MS = 90000;
 
   // Modelo multimodal vigente a agosto 2026 — Gemini 2.5 Flash se da de baja
   // el 16/10/2026, revisar en ai.google.dev/gemini-api/docs/models si esto
@@ -62,9 +65,12 @@
 
     document.getElementById('cotiz-modal-title').textContent = 'Subir cotización';
     document.getElementById('cotiz-archivo-input').value = '';
+    document.getElementById('cotiz-file-nombre').textContent = 'Ningún archivo elegido';
+    document.getElementById('cotiz-file-nombre').classList.remove('tiene-archivo');
     document.getElementById('cotiz-archivo-error').classList.add('hidden');
     document.getElementById('cotiz-revision-error').classList.add('hidden');
     document.getElementById('cotiz-extraccion-hint').classList.add('hidden');
+    document.getElementById('cotiz-ia-loading').classList.add('hidden');
     document.getElementById('cotiz-paso-archivo').classList.remove('hidden');
     document.getElementById('cotiz-paso-revision').classList.add('hidden');
     document.getElementById('cotiz-modal-confirmar').classList.add('hidden');
@@ -91,6 +97,7 @@
 
   async function handleArchivoSeleccionado(file) {
     const errEl = document.getElementById('cotiz-archivo-error');
+    const nombreEl = document.getElementById('cotiz-file-nombre');
     errEl.classList.add('hidden');
     if (!file) return;
 
@@ -106,6 +113,8 @@
       return;
     }
 
+    nombreEl.textContent = file.name;
+    nombreEl.classList.add('tiene-archivo');
     state.file = file;
     await extraerYMostrarRevision();
   }
@@ -122,28 +131,36 @@
   async function callGeminiExtract(file) {
     if (!GEMINI_API_KEY) throw new Error('Gemini no configurado');
     const base64 = await fileToBase64(file);
-    const resp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
-        body: JSON.stringify({
-          contents: [{ parts: [
-            { text: GEMINI_PROMPT },
-            { inlineData: { mimeType: file.type, data: base64 } },
-          ] }],
-          generationConfig: {
-            responseMimeType: 'application/json',
-            responseSchema: GEMINI_SCHEMA,
-            // Extracción estructurada simple, no hace falta razonamiento
-            // profundo — con "medium" (default de gemini-3.5-flash) cada
-            // llamada tardaba ~60-70s, con "minimal" baja a pocos segundos
-            // sin perder precisión (probado con presupuestos de prueba).
-            thinkingConfig: { thinkingLevel: 'MINIMAL' },
-          },
-        }),
-      }
-    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+    let resp;
+    try {
+      resp = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
+          signal: controller.signal,
+          body: JSON.stringify({
+            contents: [{ parts: [
+              { text: GEMINI_PROMPT },
+              { inlineData: { mimeType: file.type, data: base64 } },
+            ] }],
+            generationConfig: {
+              responseMimeType: 'application/json',
+              responseSchema: GEMINI_SCHEMA,
+              // Extracción estructurada simple, no hace falta razonamiento
+              // profundo — con "medium" (default de gemini-3.5-flash) cada
+              // llamada tardaba ~60-70s, con "minimal" baja a pocos segundos
+              // sin perder precisión (probado con presupuestos de prueba).
+              thinkingConfig: { thinkingLevel: 'MINIMAL' },
+            },
+          }),
+        }
+      );
+    } finally {
+      clearTimeout(timeoutId);
+    }
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     const text = data && data.candidates && data.candidates[0]
@@ -200,14 +217,21 @@
     // usuario lo clickeara mientras Gemini todavía está respondiendo,
     // encontraría la tabla vacía (state.lineas todavía sin poblar).
     const hintEl = document.getElementById('cotiz-extraccion-hint');
-    hintEl.textContent = 'Leyendo el presupuesto con IA…';
-    hintEl.classList.remove('hidden');
-    document.getElementById('cotiz-lineas-lista').innerHTML = '<p class="text-muted" style="font-size:.85rem;">Leyendo el presupuesto con IA…</p>';
+    const loadingEl = document.getElementById('cotiz-ia-loading');
+    hintEl.classList.add('hidden');
+    document.getElementById('cotiz-lineas-lista').classList.add('hidden');
+    document.getElementById('btn-cotiz-add-linea').classList.add('hidden');
+    loadingEl.classList.remove('hidden');
 
     const [extraido] = await Promise.all([
       callGeminiExtract(state.file).catch(() => null),
       state.materialesPromise,
     ]);
+
+    loadingEl.classList.add('hidden');
+    document.getElementById('cotiz-lineas-lista').classList.remove('hidden');
+    document.getElementById('btn-cotiz-add-linea').classList.remove('hidden');
+    hintEl.classList.remove('hidden');
 
     if (extraido) {
       if (extraido.proveedor) document.getElementById('cotiz-proveedor').value = extraido.proveedor;
@@ -454,8 +478,10 @@
   }
 
   document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('cotiz-elegir-icon').innerHTML = icSvg('file');
     document.getElementById('cotiz-modal-close').addEventListener('click', closeCotizacionModal);
     document.getElementById('cotiz-modal-cancel').addEventListener('click', closeCotizacionModal);
+    document.getElementById('btn-cotiz-elegir-archivo').addEventListener('click', () => document.getElementById('cotiz-archivo-input').click());
     document.getElementById('cotiz-archivo-input').addEventListener('change', e => handleArchivoSeleccionado(e.target.files[0]));
     document.getElementById('btn-cotiz-add-linea').addEventListener('click', () => {
       capturarValoresDom();

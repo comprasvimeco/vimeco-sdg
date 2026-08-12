@@ -22,6 +22,12 @@
     .cotiz-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .2rem; flex-shrink: 0; }
     .cotiz-linea .cl-material { margin-bottom: .5rem; }
     .linea-select-container { min-width: 0; }
+    .cotiz-file-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+    .cotiz-file-nombre { font-size: .85rem; color: var(--gray-500); }
+    .cotiz-file-nombre.tiene-archivo { color: var(--gray-800); font-weight: 600; }
+    .cotiz-ia-loading { display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 1.75rem 0; color: var(--gray-600); font-size: .9rem; }
+    .cotiz-ia-spinner { width: 20px; height: 20px; border: 2.5px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: cotiz-spin .8s linear infinite; flex-shrink: 0; }
+    @keyframes cotiz-spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -95,8 +101,12 @@
       <div class="modal-body">
         <div id="cotiz-paso-archivo">
           <div class="form-group u-mb-0">
-            <label for="cotiz-archivo-input">Presupuesto del proveedor (PDF o foto)</label>
-            <input type="file" id="cotiz-archivo-input" class="form-control" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <label>Presupuesto del proveedor (PDF o foto)</label>
+            <div class="cotiz-file-row">
+              <button type="button" class="btn btn-sm btn-outline" id="btn-cotiz-elegir-archivo"><span id="cotiz-elegir-icon"></span> Elegir archivo</button>
+              <span class="cotiz-file-nombre" id="cotiz-file-nombre">Ningún archivo elegido</span>
+            </div>
+            <input type="file" id="cotiz-archivo-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
             <span class="form-hint">Se guarda el archivo para poder verlo después. Si hay conexión, se intenta leer el presupuesto con IA para precargar los materiales y precios.</span>
           </div>
           <div id="cotiz-archivo-error" class="alert alert-error hidden"></div>
@@ -112,6 +122,10 @@
               <label for="cotiz-fecha">Fecha del presupuesto</label>
               <input type="date" id="cotiz-fecha" class="form-control">
             </div>
+          </div>
+          <div id="cotiz-ia-loading" class="cotiz-ia-loading hidden">
+            <span class="cotiz-ia-spinner"></span>
+            <span>Leyendo el presupuesto con IA…</span>
           </div>
           <div id="cotiz-extraccion-hint" class="form-hint hidden" style="display:block;margin-bottom:.75rem;"></div>
           <div id="cotiz-lineas-lista"></div>
