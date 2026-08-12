@@ -75,6 +75,11 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .btn-warning:hover { background: #b45309; }
 .btn-outline { background: transparent; border: 1.5px solid var(--primary); color: var(--primary); }
 .btn-outline:hover { background: var(--primary); color: var(--white); }
+.btn-icon { padding: .35rem .5rem; }
+/* Sobre el header azul el outline en --primary queda casi invisible: variante
+   clara (misma que design/header.html). */
+.app-header .btn-outline { border-color: rgba(255,255,255,.55); color: var(--white); }
+.app-header .btn-outline:hover { background: rgba(255,255,255,.18); border-color: rgba(255,255,255,.85); color: var(--white); }
 .btn-sm { padding: .35rem .7rem; font-size: .78rem; }
 .btn-full { width: 100%; }
 
@@ -95,6 +100,15 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .header-tab { color: rgba(255,255,255,.75); font-size: .85rem; font-weight: 600; text-decoration: none; padding: .4rem .85rem; border-radius: 999px; transition: background .15s, color .15s; white-space: nowrap; }
 .header-tab:hover { color: var(--white); background: rgba(255,255,255,.1); }
 .header-tab.active { color: var(--white); background: rgba(255,255,255,.18); }
+/* Barra de sub-pestañas: segundo nivel de navegación dentro de la obra
+   (ver renderHeaderTabs en js/ui.js). El fondo ocupa todo el ancho; las
+   pastillas se alinean con el contenido de .app-main. */
+.subtabs-bar { background: rgba(255,255,255,.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid rgba(26,58,92,.1); box-shadow: 0 2px 8px -4px rgba(26,58,92,.18); }
+.subtabs { max-width: 1100px; margin: 0 auto; padding: .45rem 1.5rem; display: flex; align-items: center; gap: .2rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+.subtabs::-webkit-scrollbar { display: none; }
+.subtab { color: var(--gray-600); font-size: .82rem; font-weight: 600; text-decoration: none; padding: .35rem .8rem; border-radius: 999px; white-space: nowrap; flex-shrink: 0; transition: background .15s, color .15s; }
+.subtab:hover { color: var(--primary); background: rgba(26,58,92,.07); }
+.subtab.active { color: var(--white); background: var(--primary); }
 .app-main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; animation: fadeIn .35s var(--ease-spring) both; }
 
 /* ===== CARDS (glass) ===== */
@@ -277,13 +291,13 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
   }
   .header-logo { height: 28px; }
   .header-title { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* fila 2 completa: tabs con scroll horizontal (no entran los 7 en el ancho del celular) */
-  .header-tabs {
-    order: 3; flex-basis: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
-    scrollbar-width: none; -ms-overflow-style: none; padding-bottom: .15rem;
-  }
-  .header-tabs::-webkit-scrollbar { display: none; }
-  .header-tab { flex-shrink: 0; font-size: .78rem; padding: .35rem .55rem; }
+  /* Sólo son 2 pastillas (Datos / CyP): comparten fila con el resto en vez de
+     ocupar una fila propia con scroll, como hacía falta cuando eran 7 tabs.
+     Así el header queda en 2 filas y no en 3 con la barra de sub-pestañas. */
+  .header-tabs { order: 2; flex-shrink: 0; gap: .35rem; }
+  .header-tab { flex-shrink: 0; font-size: .78rem; padding: .35rem .7rem; }
+  .subtabs { padding: .4rem .75rem; }
+  .subtab { font-size: .78rem; padding: .3rem .6rem; }
   .header-dolar { font-size: .72rem; padding: .25rem .5rem; }
 }
 @media (max-width: 380px) {

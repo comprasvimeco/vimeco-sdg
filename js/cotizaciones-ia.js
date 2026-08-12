@@ -1,9 +1,10 @@
-/* VIMECO S.A. — Sistema de Gestión — Cotizaciones (Datos de obra)
+/* VIMECO S.A. — Sistema de Gestión — Cotizaciones (alta con IA)
    Subir un presupuesto de proveedor (PDF/foto), revisar/corregir materiales
    y precios detectados (o cargados a mano), y aplicarlos a
    /materiales/{key}/precios/{obraKey}. El archivo se guarda en Cloudinary
-   (js/storage.js). No declara `$` acá — datos-obra.js ya lo declara a nivel
-   de script y ambos corren en el mismo scope global. */
+   (js/storage.js). El listado y el borrado viven en cotizaciones-obra.js,
+   que además declara el `$` que este archivo NO redeclara — ambos corren en
+   el mismo scope global. */
 
 (function () {
   const MAX_FILE_BYTES = 10 * 1024 * 1024; // límite de subida del plan free de Cloudinary

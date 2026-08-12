@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Cotizaciones</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+  <style>
+    .cotiz-linea { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: .65rem .75rem; margin-bottom: .6rem; }
+    .cotiz-linea-top { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; }
+    .cotiz-linea-detectado { flex: 1 1 auto; font-size: .8rem; color: var(--gray-500); font-style: italic; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cotiz-linea-aplicar { display: flex; align-items: center; gap: .3rem; font-size: .8rem; color: var(--gray-600); white-space: nowrap; flex-shrink: 0; }
+    .cotiz-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .2rem; flex-shrink: 0; }
+    .cotiz-linea .cl-material { margin-bottom: .5rem; }
+    .linea-select-container { min-width: 0; }
+    .cotiz-file-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; justify-content: center; }
+    .cotiz-file-nombre { font-size: .85rem; color: var(--gray-500); }
+    .cotiz-file-nombre.tiene-archivo { color: var(--gray-800); font-weight: 600; }
+    .cotiz-ia-loading { display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 1.75rem 0; color: var(--gray-600); font-size: .9rem; }
+    .cotiz-ia-spinner { width: 20px; height: 20px; border: 2.5px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: cotiz-spin .8s linear infinite; flex-shrink: 0; }
+    @keyframes cotiz-spin { to { transform: rotate(360deg); } }
+    .cotiz-dropzone { border: 2px dashed var(--gray-300); border-radius: var(--radius-lg); padding: 1.25rem 1rem; text-align: center; transition: border-color .15s, background-color .15s; }
+    .cotiz-dropzone.dragover { border-color: var(--primary); background: rgba(26,58,92,.05); }
+    .cotiz-precio-label { display: block; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-400); margin-bottom: .2rem; }
+    .cotiz-envase-hint { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; font-size: .78rem; color: var(--gray-600); margin-top: .5rem; }
+    .cotiz-envase-input { width: 55px; padding: .25rem .4rem; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: .78rem; }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." class="header-logo">
+      <span class="header-title" id="header-obra-nombre">Cotizaciones</span>
+    </div>
+    <nav class="header-tabs" id="header-tabs"></nav>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    </div>
+  </header>
+  <nav class="subtabs-bar" id="header-subtabs"></nav>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Cotizaciones</span>
+        <button class="btn btn-sm btn-primary" id="btn-add-cotizacion">+ Subir cotización</button>
+      </div>
+      <div class="card-body">
+        <span class="form-hint" style="display:block;margin-bottom:.75rem;">Presupuestos de proveedores subidos como fuente de precios de materiales para esta obra.</span>
+        <div id="cotizaciones-lista"></div>
+      </div>
+    </div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando cotizaciones…</div></div>
+
+  <!-- Modal: Subir / revisar cotización -->
+  <div class="modal-overlay hidden" id="modal-cotizacion">
+    <div class="modal modal--lg">
+      <div class="modal-header">
+        <span class="modal-title" id="cotiz-modal-title">Subir cotización</span>
+        <button class="modal-close" id="cotiz-modal-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="cotiz-paso-archivo">
+          <div class="form-group u-mb-0">
+            <label>Presupuesto del proveedor (PDF o foto)</label>
+            <div class="cotiz-dropzone" id="cotiz-dropzone">
+              <div class="cotiz-file-row">
+                <button type="button" class="btn btn-sm btn-outline" id="btn-cotiz-elegir-archivo"><span id="cotiz-elegir-icon"></span> Elegir archivo</button>
+                <span class="cotiz-file-nombre" id="cotiz-file-nombre">Ningún archivo elegido</span>
+              </div>
+              <span class="form-hint" style="display:block;margin-top:.5rem;">o arrastrá el archivo acá</span>
+            </div>
+            <input type="file" id="cotiz-archivo-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <span class="form-hint">Se guarda el archivo para poder verlo después. Si hay conexión, se intenta leer el presupuesto con IA para precargar los materiales y precios.</span>
+          </div>
+          <div id="cotiz-archivo-error" class="alert alert-error hidden"></div>
+        </div>
+
+        <div id="cotiz-paso-revision" class="hidden">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cotiz-proveedor">Proveedor</label>
+              <input type="text" id="cotiz-proveedor" class="form-control" placeholder="Opcional">
+            </div>
+            <div class="form-group">
+              <label for="cotiz-fecha">Fecha del presupuesto</label>
+              <input type="date" id="cotiz-fecha" class="form-control">
+            </div>
+          </div>
+          <div id="cotiz-ia-loading" class="cotiz-ia-loading hidden">
+            <span class="cotiz-ia-spinner"></span>
+            <span>Leyendo el presupuesto con IA…</span>
+          </div>
+          <div id="cotiz-extraccion-hint" class="form-hint hidden" style="display:block;margin-bottom:.75rem;"></div>
+          <div id="cotiz-lineas-lista"></div>
+          <button class="btn btn-sm btn-outline" id="btn-cotiz-add-linea" type="button">+ Agregar línea manual</button>
+          <div id="cotiz-revision-error" class="alert alert-error hidden" style="margin-top:.75rem;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cotiz-modal-cancel">Cancelar</button>
+        <button class="btn btn-primary hidden" id="cotiz-modal-confirmar">Confirmar y guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: alta rápida de material (desde la revisión de una cotización) -->
+  <div class="modal-overlay hidden" id="modal-cotiz-quick-material">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Nuevo material</span>
+        <button class="modal-close" id="cqm-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="cqm-nombre">Nombre *</label>
+          <input type="text" id="cqm-nombre" class="form-control" placeholder="Ej: Cemento Portland x50kg">
+        </div>
+        <div class="form-group u-mb-0">
+          <label for="cqm-unidad">Unidad *</label>
+          <input type="text" id="cqm-unidad" class="form-control" placeholder="Ej: kg, m3, u">
+        </div>
+        <div id="cqm-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cqm-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="cqm-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmar acción -->
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/searchable-select.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/cotizaciones-obra.js"></script>
+  <script src="js/cotizaciones-ia.js"></script>
+</body>
+</html>

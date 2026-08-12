@@ -14,7 +14,6 @@ const obraKey = params.get('obra');
 let obra = null;
 let dolarObra = { valor: null, fecha: null };
 let datosExtra = {};   // { campoKey: { etiqueta, valor, creadoEn } }
-let cotizaciones = {}; // { cotizacionKey: { proveedor, fecha, archivoNombre, archivoUrl, estado, ... } }
 
 function renderDatosExtra() {
   const container = $('datos-extra-lista');
@@ -83,64 +82,6 @@ async function deleteDato(campoKey) {
   showToast('Dato eliminado.');
 }
 
-const fmtFecha = iso => {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-};
-
-const ESTADO_LABEL = { aplicada: 'Aplicada', aplicada_parcial: 'Aplicada parcial' };
-
-function renderCotizaciones() {
-  const container = $('cotizaciones-lista');
-  const entradas = Object.entries(cotizaciones).sort((a, b) => (b[1].creadoEn || 0) - (a[1].creadoEn || 0));
-  if (!entradas.length) {
-    container.innerHTML = '<div class="list-empty">No hay cotizaciones subidas todavía.</div>';
-    return;
-  }
-  container.innerHTML = entradas.map(([key, c]) => {
-    const meta = [c.proveedor, c.fecha ? fmtFecha(c.fecha) : '', ESTADO_LABEL[c.estado] || c.estado].filter(Boolean).join(' · ');
-    return `
-      <div class="item-card" data-key="${escHtml(key)}">
-        <div class="item-card-info">
-          <span class="item-card-title">${escHtml(c.archivoNombre || 'Cotización')}</span>
-          <span class="item-card-meta">${escHtml(meta)}</span>
-        </div>
-        <div class="item-card-actions">
-          ${c.archivoUrl ? `<a class="btn btn-sm btn-outline" href="${escHtml(c.archivoUrl)}" target="_blank" rel="noopener">${icSvg('file')} Ver archivo</a>` : ''}
-          <button class="btn btn-sm btn-danger btn-del-cotizacion">Eliminar</button>
-        </div>
-      </div>`;
-  }).join('');
-
-  container.querySelectorAll('.btn-del-cotizacion').forEach(btn => {
-    const key = btn.closest('.item-card').dataset.key;
-    btn.addEventListener('click', () => deleteCotizacion(key));
-  });
-}
-
-async function refreshCotizaciones() {
-  try {
-    cotizaciones = await _fbGet(`/obras/${obraKey}/cotizaciones.json`) || {};
-  } catch (_) {
-    cotizaciones = {};
-  }
-  renderCotizaciones();
-}
-
-async function deleteCotizacion(key) {
-  const ok = await showConfirm('Eliminar cotización', 'Se borra el registro (y el link al archivo). Los precios de materiales que ya se aplicaron NO se revierten — esto sólo elimina la evidencia.');
-  if (!ok) return;
-  delete cotizaciones[key];
-  renderCotizaciones();
-  try {
-    await _fbDel(`/obras/${obraKey}/cotizaciones/${key}.json`);
-  } catch (_) {
-    showToast('Error al eliminar la cotización.', 'error');
-  }
-  showToast('Cotización eliminada.');
-}
-
 function renderDolarVivo() {
   const venta = window.dolarOficialVenta();
   $('dolar-vivo-txt').textContent = venta ? `Dólar oficial en vivo: ${fmtARS(venta)}` : 'Dólar oficial en vivo: —';
@@ -193,11 +134,10 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, dolarData, datosExtraData, cotizacionesData] = await Promise.all([
+  const [obraData, dolarData, datosExtraData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/dolar.json`),
     _fbGet(`/obras/${obraKey}/datosExtra.json`),
-    _fbGet(`/obras/${obraKey}/cotizaciones.json`),
   ]);
 
   if (!obraData) {
@@ -207,7 +147,6 @@ async function loadAll() {
   obra = obraData;
   dolarObra = dolarData || { valor: null, fecha: null };
   datosExtra = datosExtraData || {};
-  cotizaciones = cotizacionesData || {};
 
   $('header-obra-nombre').textContent = 'Datos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'datos');
@@ -215,7 +154,6 @@ async function loadAll() {
   setupDolar();
   renderDolarVivo();
   renderDatosExtra();
-  renderCotizaciones();
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
@@ -223,7 +161,6 @@ async function loadAll() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-dato').addEventListener('click', addDato);
-  $('btn-add-cotizacion').addEventListener('click', () => openCotizacionModal(obraKey, refreshCotizaciones));
   await loadAll();
   await getDolarSnapshot().catch(() => {});
   if (obra) renderDolarVivo();
