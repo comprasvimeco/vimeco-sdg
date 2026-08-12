@@ -46,9 +46,9 @@ const HEADER_GROUPS = [
   {
     id: 'cyp', label: 'CyP', tabs: [
       { id: 'computo',     label: 'Cómputo',     href: 'computo.html' },
-      { id: 'materiales',  label: 'Materiales',  href: 'materiales-obra.html' },
       { id: 'carga-fija',  label: 'Carga Fija',  href: 'carga-fija.html' },
       { id: 'presupuesto', label: 'Presupuesto', href: 'presupuesto.html' },
+      { id: 'materiales',  label: 'Materiales',  href: 'materiales-obra.html' },
     ],
   },
 ];
