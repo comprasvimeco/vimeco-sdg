@@ -32,9 +32,14 @@ function fmtCantidad(n) {
 }
 
 function precioUnitarioMaterial(mat) {
-  const venta = window.dolarOficialVenta();
   const precio = preciosObra[mat.key];
-  if (!precio || !precio.precioUSD || !venta) return null;
+  if (!precio) return null;
+  // El precio en pesos cargado es la fuente de verdad; el dólar es sólo
+  // ayuda de cálculo. Se reconvierte desde USD sólo si el material no
+  // tiene precioARS guardado (datos viejos, antes del campo dual).
+  if (precio.precioARS != null) return precio.precioARS;
+  const venta = window.dolarOficialVenta();
+  if (!precio.precioUSD || !venta) return null;
   return precio.precioUSD * venta;
 }
 

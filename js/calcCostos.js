@@ -88,10 +88,15 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     return catalogos.roles;
   }
   function precioUnitarioMaterial(mat) {
-    const venta = dolarValor;
-    if (!mat || venta == null) return null;
+    if (!mat) return null;
     const precio = preciosObra[mat.key];
-    if (!precio || !precio.precioUSD) return null;
+    if (!precio) return null;
+    // El precio en pesos cargado es la fuente de verdad; el dólar es sólo
+    // ayuda de cálculo. Se reconvierte desde USD sólo si el material no
+    // tiene precioARS guardado (datos viejos, antes del campo dual).
+    if (precio.precioARS != null) return precio.precioARS;
+    const venta = dolarValor;
+    if (!precio.precioUSD || venta == null) return null;
     return precio.precioUSD * venta;
   }
   // costoUnitario acá es el precio de LA UNIDAD del material/equipo/rol
