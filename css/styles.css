@@ -104,12 +104,12 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
    (ver renderHeaderTabs en js/ui.js). El fondo ocupa todo el ancho; las
    pastillas se alinean con el contenido de .app-main. */
 .subtabs-bar { background: rgba(255,255,255,.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid rgba(26,58,92,.1); box-shadow: 0 2px 8px -4px rgba(26,58,92,.18); }
-.subtabs { max-width: 1100px; margin: 0 auto; padding: .45rem 1.5rem; display: flex; align-items: center; gap: .2rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+.subtabs { max-width: 1320px; margin: 0 auto; padding: .45rem 1.5rem; display: flex; align-items: center; gap: .2rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
 .subtabs::-webkit-scrollbar { display: none; }
 .subtab { color: var(--gray-600); font-size: .82rem; font-weight: 600; text-decoration: none; padding: .35rem .8rem; border-radius: 999px; white-space: nowrap; flex-shrink: 0; transition: background .15s, color .15s; }
 .subtab:hover { color: var(--primary); background: rgba(26,58,92,.07); }
 .subtab.active { color: var(--white); background: var(--primary); }
-.app-main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; animation: fadeIn .35s var(--ease-spring) both; }
+.app-main { max-width: 1320px; margin: 0 auto; padding: 1.5rem; animation: fadeIn .35s var(--ease-spring) both; }
 
 /* ===== CARDS (glass) ===== */
 .card {
@@ -155,7 +155,7 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .u-badge-info     { background: #dbeafe; color: #1e40af; }
 
 /* ===== MENU CARDS (dashboard) ===== */
-.menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+.menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
 .menu-card { background: var(--glass-bg-strong); border: 1px solid var(--glass-border); box-shadow: var(--shadow-glass); backdrop-filter: blur(var(--glass-blur)) saturate(150%); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%); border-radius: var(--radius-lg); padding: 1.4rem 1.25rem; position: relative; overflow: hidden; transition: transform .22s var(--ease-spring), box-shadow .22s, border-color .22s; cursor: pointer; text-decoration: none; display: block; }
 .menu-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--grad-accent); opacity: 0; transition: opacity .22s; }
 .menu-card:hover { transform: translateY(-6px) scale(1.015); border-color: rgba(37,87,167,.4); box-shadow: var(--shadow-glow); }
