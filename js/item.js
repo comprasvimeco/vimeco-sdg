@@ -39,6 +39,61 @@ let paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS };   // se refresca por obra en 
 let paramsMO = { ...DEFAULT_PARAMS_MO };             // se refresca por obra en activarVersion()
 let dolarObraActivo = null;   // dólar propio de la obra de la pestaña activa (/obras/{obraKey}/dolar)
 
+// -- Precio Unitario: Subtotal × Coeficiente K de Carga Fija de la obra ----
+// Misma fórmula que presupuesto.js — el AP muestra a título informativo
+// cuánto sale este ítem YA con Carga Fija de la obra activa aplicada, sin
+// tocar el Presupuesto (que sigue siendo la fuente de verdad, K no se
+// cachea acá tampoco). Se cachea por obra dentro de esta carga de página
+// nomás (kPorObra), con fetch propio porque item.js no trae el Cómputo
+// completo de la obra (sólo lo necesita para la numeración de esta línea).
+let kPorObra = {};   // { obraKey: number|null } — null = no se pudo calcular (obra sin costo de Cómputo todavía)
+
+function fmtCoef(n) {
+  return n.toLocaleString('es-AR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
+}
+
+function costoComputoDeObra(obraKeyX, computoDataX) {
+  const obraFullX = obrasFull[obraKeyX] || {};
+  const paramsEq = { ...DEFAULT_PARAMS_EQUIPOS, ...(obraFullX.paramsEquipos || {}) };
+  const paramsMoX = { ...DEFAULT_PARAMS_MO, ...(obraFullX.paramsMO || {}) };
+  const dolarX = obraFullX.dolar ? obraFullX.dolar.valor : null;
+  const rolesX = Object.entries(obraFullX.roles || {}).map(([k, r]) => ({ key: k, ...r }));
+  const preciosObraX = window.resolverPreciosObra(materiales, obraKeyX);
+  const catalogos = { materiales, equipos, roles: rolesX };
+  return Object.values(computoDataX || {}).reduce((acc, l) => {
+    if (!l.itemKey) return acc;
+    const it = allItemsFull[l.itemKey];
+    if (!it) return acc;
+    const version = (it.versionesObra && it.versionesObra[obraKeyX]) || it;
+    if (!version.lineas || !Object.keys(version.lineas).length) return acc;
+    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEq, paramsMoX, preciosObraX, dolarX);
+    const cantidad = l.cantidad != null && !isNaN(l.cantidad) ? l.cantidad : 0;
+    return acc + r.costoUnitario * cantidad;
+  }, 0);
+}
+
+async function calcularKObra(obraKeyX) {
+  if (kPorObra[obraKeyX] !== undefined) return kPorObra[obraKeyX];
+  const [computoDataX, cargaFijaLineasX, cargaFijaConfigX] = await Promise.all([
+    _fbGet(`/obras/${obraKeyX}/computo.json`),
+    _fbGet(`/obras/${obraKeyX}/cargaFija/lineas.json`),
+    _fbGet(`/obras/${obraKeyX}/cargaFija/config.json`),
+  ]);
+  const costoComputo = costoComputoDeObra(obraKeyX, computoDataX);
+  const config = { beneficioPct: null, costoFinancieroPct: null, ivaPct: 21, ...(cargaFijaConfigX || {}) };
+  const gastosFijos = window.totalGastosFijosCargaFija(cargaFijaLineasX || {}, costoComputo, (obrasFull[obraKeyX] || {}).presupuestoOficial);
+  const ggFrac = costoComputo > 0 ? gastosFijos / costoComputo : null;
+  let k = null;
+  if (ggFrac != null) {
+    const benefFrac = (config.beneficioPct || 0) / 100;
+    const cfFrac = (config.costoFinancieroPct || 0) / 100;
+    const ivaFrac = (config.ivaPct || 0) / 100;
+    k = (1 + ggFrac + benefFrac) * (1 + cfFrac) * (1 + ivaFrac);
+  }
+  kPorObra[obraKeyX] = k;
+  return k;
+}
+
 const HINTS = {
   material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
   equipo: 'Cantidad de uso por jornada — se divide por el rendimiento del ítem.',
@@ -91,6 +146,12 @@ async function autoCrearYVincular() {
 let lineaVinculada = null;
 let numeracionActiva = null;
 
+// -- Navegación entre AP: recorre todas las líneas del Cómputo de esta obra
+// en orden (cruzando de un rubro al siguiente), igual al orden que se ve en
+// computo.html. Se arma junto con la numeración de esta línea. -------------
+let lineasOrdenadas = [];   // [{ key, itemKey, numeracion }] — todas las líneas del Cómputo, en orden
+let apNavIndex = -1;        // índice de esta línea dentro de lineasOrdenadas (-1 si no está)
+
 function ordenarPorOrden(list) {
   return [...list].sort((a, b) => (a.orden || 0) - (b.orden || 0));
 }
@@ -98,16 +159,47 @@ function ordenarPorOrden(list) {
 // Mismo cálculo de numeración "N.M" que renderLineaRow() en computo.js.
 function ubicarLineaYNumeracion(computoData, rubrosComputoData) {
   const todasLineas = Object.entries(computoData || {}).map(([key, l]) => ({ key, ...l }));
+  const rubros = ordenarPorOrden(Object.entries(rubrosComputoData || {}).map(([key, r]) => ({ key, ...r })));
+
+  lineasOrdenadas = [];
+  rubros.forEach((rubro, rubroIdx) => {
+    const grupo = ordenarPorOrden(todasLineas.filter(l => l.rubroId === rubro.key));
+    grupo.forEach((l, lineaIdx) => {
+      lineasOrdenadas.push({ key: l.key, itemKey: l.itemKey || null, numeracion: `${rubroIdx + 1}.${lineaIdx + 1}` });
+    });
+  });
+  apNavIndex = lineasOrdenadas.findIndex(l => l.itemKey === itemKey);
+
   const entry = todasLineas.find(l => l.itemKey === itemKey);
   if (!entry) return;
   lineaVinculada = entry;
-  const rubros = ordenarPorOrden(Object.entries(rubrosComputoData || {}).map(([key, r]) => ({ key, ...r })));
-  const rubroIdx = rubros.findIndex(r => r.key === entry.rubroId);
-  if (rubroIdx === -1) return;
-  const grupo = ordenarPorOrden(todasLineas.filter(l => l.rubroId === entry.rubroId));
-  const lineaIdx = grupo.findIndex(l => l.key === entry.key);
-  if (lineaIdx === -1) return;
-  numeracionActiva = `${rubroIdx + 1}.${lineaIdx + 1}`;
+  numeracionActiva = apNavIndex !== -1 ? lineasOrdenadas[apNavIndex].numeracion : null;
+}
+
+// Vecina sin AP vinculado todavía: navega igual, a item.html?linea=...&obra=...
+// (mismo modo que el ícono "Análisis de Precio" de una línea nueva en
+// computo.html), que crea/vincula el ítem en el momento.
+function hrefParaLinea(l) {
+  return l.itemKey
+    ? `item.html?key=${encodeURIComponent(l.itemKey)}&obra=${encodeURIComponent(obraParam)}`
+    : `item.html?linea=${encodeURIComponent(l.key)}&obra=${encodeURIComponent(obraParam)}`;
+}
+
+function renderApNav() {
+  const nav = $('ap-nav');
+  if (apNavIndex === -1 || lineasOrdenadas.length <= 1) {
+    nav.classList.add('hidden');
+    return;
+  }
+  nav.classList.remove('hidden');
+  $('btn-ap-prev').disabled = apNavIndex <= 0;
+  $('btn-ap-next').disabled = apNavIndex >= lineasOrdenadas.length - 1;
+}
+
+function irAApVecino(dir) {
+  const destino = lineasOrdenadas[apNavIndex + dir];
+  if (!destino) return;
+  window.location.href = hrefParaLinea(destino);
 }
 
 function renderDatos() {
@@ -236,6 +328,7 @@ function activarVersion(key) {
   renderVersionTabs();
   renderVersionRendimiento();
   renderTodasLasLineas();
+  calcularKObra(key).then(() => { if (activeVersion === key) renderTodasLasLineas(); });
 }
 
 // Sólo se muestran pestañas cuando el ítem tiene versión en más de una obra
@@ -311,12 +404,20 @@ function renderResumenCosto(r) {
   const card = $('resumen-card');
   if (!r) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
+  const k = kPorObra[activeVersion];
+  const precioUnitarioHtml = k
+    ? `<div class="ap-resumen-row total"><span>Precio Unitario</span><span data-calc-valor="${r.costoUnitario * k}">${fmtARS(r.costoUnitario * k)}</span></div>
+       <p class="form-hint" style="margin-top:.4rem;">Precio Unitario = Subtotal × Coeficiente K (${fmtCoef(k)}) de <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> de esta obra.</p>`
+    : k === null
+      ? `<p class="form-hint" style="margin-top:.4rem;">No se pudo calcular el Precio Unitario — a esta obra le falta Cómputo o <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> cargada.</p>`
+      : '';
   $('resumen').innerHTML = `
     <div class="ap-resumen-row"><span>Costo unitario de Equipos (A)</span><span data-calc-valor="${r.costoUnitarioEquipos}">${fmtARS(r.costoUnitarioEquipos)}</span></div>
     <div class="ap-resumen-row"><span>Costo unitario Mano de Obra (B)</span><span data-calc-valor="${r.costoUnitarioMO}">${fmtARS(r.costoUnitarioMO)}</span></div>
     <div class="ap-resumen-row"><span>Costo unitario de Materiales (C)</span><span data-calc-valor="${r.costoMateriales}">${fmtARS(r.costoMateriales)}</span></div>
     <div class="ap-resumen-row total"><span>SUBTOTAL (A+B+C)</span><span data-calc-valor="${r.costoUnitario}">${fmtARS(r.costoUnitario)}</span></div>
-    <p class="form-hint" style="margin-top:.5rem;">Costo de referencia con precios generales — no incluye Gastos Generales ni beneficio.</p>`;
+    <p class="form-hint" style="margin-top:.4rem;">Costo de referencia con precios generales — no incluye Gastos Generales ni beneficio.</p>
+    ${precioUnitarioHtml}`;
 }
 
 // Si la versión activa (de obra) todavía no existe en el servidor, la crea
@@ -860,6 +961,7 @@ async function loadAll() {
 
   if (obraParam) ubicarLineaYNumeracion(computoData, rubrosComputoData);
   renderDatos();
+  renderApNav();
 
   const versionInicial = resolverVersionInicial();
   if (!versionInicial) {
@@ -877,6 +979,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   const hrefVolver = obraParam ? `computo.html?obra=${encodeURIComponent(obraParam)}` : 'biblioteca.html';
   $('btn-header-volver').addEventListener('click', () => window.location.href = hrefVolver);
   $('btn-volver').addEventListener('click', () => window.location.href = hrefVolver);
+
+  $('btn-ap-prev').addEventListener('click', () => irAApVecino(-1));
+  $('btn-ap-next').addEventListener('click', () => irAApVecino(1));
 
   $('btn-usar-como-base').addEventListener('click', openUsarComoBaseModal);
   $('modal-usar-base-close').addEventListener('click', () => $('modal-usar-base').classList.add('hidden'));
