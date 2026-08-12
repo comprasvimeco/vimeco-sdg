@@ -1,13 +1,19 @@
 /* VIMECO S.A. — Sistema de Gestión — Carga Fija de obra
-   Calcula el coeficiente K que en el Presupuesto (etapa siguiente, todavía no
-   construida) convierte costo unitario en precio unitario:
+   Calcula el coeficiente K que en Presupuesto (presupuesto.js) convierte
+   costo unitario en precio unitario:
 
      K = (1 + %GastosGenerales + %Beneficio) × (1 + %CostoFinanciero) × (1 + %IVA)
 
    %GastosGenerales NO se carga a mano: sale de
      (suma de gastos fijos de esta obra) / (costo total del Cómputo de esta obra)
    Beneficio, Costo Financiero e IVA sí son porcentajes directos por obra.
-   Fórmula verificada contra la hoja "Carga fija" de CyP Taller Río Cuarto.xlsx. */
+   Fórmula verificada contra la hoja "Carga fija" de CyP Taller Río Cuarto.xlsx.
+
+   Cada línea de gasto fijo puede ser un monto fijo (cantidad×precioUnitario×
+   meses) o un % de una base — Costo del Cómputo o Presupuesto oficial (campo
+   manual en Datos de la obra) — ver totalLineaCargaFija en calcCostos.js. No
+   existe "% de Presupuesto propio" porque ese valor sale de aplicar este
+   mismo K: sería circular. */
 
 const $ = id => document.getElementById(id);
 
@@ -15,7 +21,7 @@ const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
 
 let obra = null;
-let lineas = {};     // { lineaKey: { concepto, cantidad, precioUnitario, meses } }
+let lineas = {};     // { lineaKey: { concepto, tipo, cantidad, precioUnitario, meses, porcentaje } }
 let config = { beneficioPct: null, costoFinancieroPct: null, ivaPct: 21 };
 let costoComputo = 0;
 let computoData = null;
@@ -27,16 +33,36 @@ let preciosObra = {};   // { materialKey: {precioUSD,...} } — resuelto de los 
 let dolarObra = null;   // dólar propio de esta obra (/obras/{obraKey}/dolar)
 
 function totalLinea(l) {
-  if (l.cantidad == null || l.precioUnitario == null || l.meses == null) return null;
-  if (isNaN(l.cantidad) || isNaN(l.precioUnitario) || isNaN(l.meses)) return null;
-  return l.cantidad * l.precioUnitario * l.meses;
+  return window.totalLineaCargaFija(l, costoComputo, obra ? obra.presupuestoOficial : null);
 }
 
 function totalGastosFijos() {
-  return Object.values(lineas).reduce((acc, l) => {
-    const t = totalLinea(l);
-    return t == null ? acc : acc + t;
-  }, 0);
+  return window.totalGastosFijosCargaFija(lineas, costoComputo, obra ? obra.presupuestoOficial : null);
+}
+
+const TIPO_BASE_LABEL = { pctComputo: 'del Costo del Cómputo', pctOficial: 'del Presupuesto oficial' };
+
+function tipoSelectHtml(tipo) {
+  const opciones = [
+    ['monto', 'Monto fijo'],
+    ['pctComputo', '% Costo Cómputo'],
+    ['pctOficial', '% Presup. oficial'],
+  ];
+  return `<select class="form-control cf-tipo">${opciones.map(([v, label]) =>
+    `<option value="${v}" ${v === tipo ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
+}
+
+function camposLineaHtml(l, tipo) {
+  if (tipo === 'pctComputo' || tipo === 'pctOficial') {
+    return `
+      <input type="text" class="form-control cf-porcentaje" value="${l.porcentaje ?? ''}" placeholder="0">
+      <span class="cf-base-label">${TIPO_BASE_LABEL[tipo]}</span>
+      <span></span>`;
+  }
+  return `
+    <input type="text" class="form-control cf-cantidad" value="${l.cantidad ?? ''}" placeholder="0">
+    <input type="text" class="form-control cf-precio" value="${escHtml(formatMoneyString(l.precioUnitario))}" placeholder="0">
+    <input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0">`;
 }
 
 function renderLineas() {
@@ -46,13 +72,13 @@ function renderLineas() {
     container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Sin conceptos todavía.</p>';
   } else {
     container.innerHTML = entradas.map(([lineaKey, l]) => {
+      const tipo = l.tipo || 'monto';
       const total = totalLinea(l);
       return `
         <div class="cf-linea" data-key="${escHtml(lineaKey)}">
           <input type="text" class="form-control cf-concepto" value="${escHtml(l.concepto || '')}" placeholder="Ej: Jefe de obra">
-          <input type="text" class="form-control cf-cantidad" value="${l.cantidad ?? ''}" placeholder="0">
-          <input type="text" class="form-control cf-precio" value="${escHtml(formatMoneyString(l.precioUnitario))}" placeholder="0">
-          <input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0">
+          ${tipoSelectHtml(tipo)}
+          ${camposLineaHtml(l, tipo)}
           <span class="cf-linea-total">${total != null ? fmtARS(total) : '—'}</span>
           <button class="cf-linea-del" title="Eliminar concepto">${icSvg('x')}</button>
         </div>`;
@@ -62,17 +88,14 @@ function renderLineas() {
   container.querySelectorAll('.cf-linea').forEach(row => {
     const lineaKey = row.dataset.key;
     const l = lineas[lineaKey];
+    const tipo = l.tipo || 'monto';
     const concepto = row.querySelector('.cf-concepto');
-    const cantidad = row.querySelector('.cf-cantidad');
-    const precio = row.querySelector('.cf-precio');
-    const meses = row.querySelector('.cf-meses');
-    attachCalcInput(cantidad, l.cantidadFormula);
-    attachCalcInput(precio, l.precioUnitarioFormula);
-    attachMoneyInput(precio);
-    attachCalcInput(meses, l.mesesFormula);
+    const tipoSelect = row.querySelector('.cf-tipo');
 
     concepto.addEventListener('blur', () => updateLinea(lineaKey, { concepto: concepto.value.trim() }));
     concepto.addEventListener('keydown', e => { if (e.key === 'Enter') concepto.blur(); });
+
+    tipoSelect.addEventListener('change', () => updateLinea(lineaKey, { tipo: tipoSelect.value }));
 
     const numField = (input, key) => {
       input.addEventListener('blur', () => {
@@ -81,13 +104,28 @@ function renderLineas() {
       });
       input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
     };
-    numField(cantidad, 'cantidad');
-    numField(meses, 'meses');
-    precio.addEventListener('blur', () => {
-      const n = parseMoneyString(precio.value);
-      updateLinea(lineaKey, { precioUnitario: isNaN(n) ? null : n, precioUnitarioFormula: getCalcFormula(precio) });
-    });
-    precio.addEventListener('keydown', e => { if (e.key === 'Enter') precio.blur(); });
+
+    if (tipo === 'pctComputo' || tipo === 'pctOficial') {
+      const porcentaje = row.querySelector('.cf-porcentaje');
+      attachCalcInput(porcentaje, l.porcentajeFormula);
+      numField(porcentaje, 'porcentaje');
+    } else {
+      const cantidad = row.querySelector('.cf-cantidad');
+      const precio = row.querySelector('.cf-precio');
+      const meses = row.querySelector('.cf-meses');
+      attachCalcInput(cantidad, l.cantidadFormula);
+      attachCalcInput(precio, l.precioUnitarioFormula);
+      attachMoneyInput(precio);
+      attachCalcInput(meses, l.mesesFormula);
+
+      numField(cantidad, 'cantidad');
+      numField(meses, 'meses');
+      precio.addEventListener('blur', () => {
+        const n = parseMoneyString(precio.value);
+        updateLinea(lineaKey, { precioUnitario: isNaN(n) ? null : n, precioUnitarioFormula: getCalcFormula(precio) });
+      });
+      precio.addEventListener('keydown', e => { if (e.key === 'Enter') precio.blur(); });
+    }
 
     row.querySelector('.cf-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
   });
@@ -199,7 +237,7 @@ function updateConfig(cambios) {
 
 function addLinea() {
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-  lineas[lineaKey] = { concepto: '', cantidad: null, precioUnitario: null, meses: null };
+  lineas[lineaKey] = { concepto: '', tipo: 'monto', cantidad: null, precioUnitario: null, meses: null };
   renderTodo();
   persistLineaNueva(lineaKey);
 }
@@ -269,7 +307,11 @@ async function confirmarImportarCf() {
   const nuevas = {};
   Object.values(lineasOrigenImportar).forEach(l => {
     const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    nuevas[lineaKey] = { concepto: l.concepto, cantidad: l.cantidad, precioUnitario: l.precioUnitario, meses: l.meses };
+    nuevas[lineaKey] = {
+      concepto: l.concepto, tipo: l.tipo || 'monto',
+      cantidad: l.cantidad, precioUnitario: l.precioUnitario, meses: l.meses,
+      porcentaje: l.porcentaje ?? null, porcentajeFormula: l.porcentajeFormula ?? null,
+    };
   });
 
   Object.assign(lineas, nuevas);

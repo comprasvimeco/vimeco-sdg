@@ -53,16 +53,9 @@ function costoTotalComputo() {
   return Object.values(lineas).reduce((acc, l) => acc + costoTotalLinea(l), 0);
 }
 
-function totalGastosFijosCargaFija() {
-  return Object.values(cargaFijaLineas).reduce((acc, l) => {
-    if (l.cantidad == null || l.precioUnitario == null || l.meses == null) return acc;
-    if (isNaN(l.cantidad) || isNaN(l.precioUnitario) || isNaN(l.meses)) return acc;
-    return acc + l.cantidad * l.precioUnitario * l.meses;
-  }, 0);
-}
-
 function calcularK(costoComputo) {
-  const ggFrac = costoComputo > 0 ? totalGastosFijosCargaFija() / costoComputo : null;
+  const gastosFijos = window.totalGastosFijosCargaFija(cargaFijaLineas, costoComputo, obra ? obra.presupuestoOficial : null);
+  const ggFrac = costoComputo > 0 ? gastosFijos / costoComputo : null;
   if (ggFrac == null) return null;
   const benefFrac = (cargaFijaConfig.beneficioPct || 0) / 100;
   const cfFrac = (cargaFijaConfig.costoFinancieroPct || 0) / 100;

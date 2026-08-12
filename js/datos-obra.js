@@ -129,6 +129,24 @@ function setupDolar() {
   });
 }
 
+function setupPresupuestoOficial() {
+  const input = $('obra-presupuesto-oficial');
+  input.value = formatMoneyString(obra.presupuestoOficial);
+  attachCalcInput(input);
+  attachMoneyInput(input);
+
+  input.addEventListener('blur', async () => {
+    const n = parseMoneyString(input.value);
+    const presupuestoOficial = isNaN(n) ? null : n;
+    try {
+      await _fbPatch(`/obras/${obraKey}.json`, { presupuestoOficial });
+    } catch (_) {
+      showToast('Error al guardar el presupuesto oficial.', 'error');
+    }
+  });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+}
+
 async function loadAll() {
   if (!obraKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
@@ -152,6 +170,7 @@ async function loadAll() {
   renderHeaderTabs(obraKey, 'datos');
   setupComitente();
   setupDolar();
+  setupPresupuestoOficial();
   renderDolarVivo();
   renderDatosExtra();
 

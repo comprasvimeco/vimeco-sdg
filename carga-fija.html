@@ -8,12 +8,13 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .cf-linea-header, .cf-linea { display: grid; grid-template-columns: 1.4fr 90px 130px 80px 130px 40px; gap: .5rem; align-items: center; }
+    .cf-linea-header, .cf-linea { display: grid; grid-template-columns: 1.1fr 150px 90px 130px 80px 130px 40px; gap: .5rem; align-items: center; }
     .cf-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: 1px solid var(--gray-200); }
     .cf-linea { padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .cf-linea:last-child { border-bottom: none; }
     .cf-linea-total { text-align: right; font-weight: 600; color: var(--gray-700); white-space: nowrap; }
     .cf-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
+    .cf-base-label { color: var(--gray-500); font-size: .8rem; }
     .cf-total-fijos { display: flex; justify-content: space-between; padding-top: .75rem; margin-top: .4rem; border-top: 1px solid var(--gray-200); font-weight: 700; color: var(--gray-700); }
     .ap-resumen-row { display: flex; justify-content: space-between; align-items: center; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); gap: 1rem; }
     .ap-resumen-row input { max-width: 110px; text-align: right; }
@@ -45,7 +46,7 @@
       </div>
       <div class="card-body">
         <div class="cf-linea-header">
-          <span>Concepto</span><span>Cantidad</span><span>Precio unitario</span><span>Meses</span><span style="text-align:right;">Total</span><span></span>
+          <span>Concepto</span><span>Tipo</span><span>Cantidad / %</span><span>Precio unitario / Base</span><span>Meses</span><span style="text-align:right;">Total</span><span></span>
         </div>
         <div id="lineas-carga-fija"></div>
         <div class="cf-total-fijos"><span>Total gastos fijos</span><span id="total-gastos-fijos">$ 0,00</span></div>

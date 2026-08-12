@@ -162,3 +162,34 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     detallePorLinea,
   };
 };
+
+// Carga Fija — usado por carga-fija.js (edición) y presupuesto.js (sólo
+// lectura, para el Coeficiente K): una sola fórmula para que las dos
+// pantallas no se desincronicen.
+// l.tipo: 'monto' (cantidad×precioUnitario×meses, default para líneas viejas
+// sin el campo) | 'pctComputo' (% del costo del Cómputo) | 'pctOficial' (%
+// del presupuesto oficial cargado a mano en Datos de la obra). No existe
+// "% de Presupuesto propio" porque ese presupuesto sale de aplicar el
+// Coeficiente K, que a su vez depende del total de Carga Fija — sería
+// circular.
+window.totalLineaCargaFija = function (l, costoComputo, presupuestoOficial) {
+  const tipo = l.tipo || 'monto';
+  if (tipo === 'pctComputo') {
+    if (l.porcentaje == null || isNaN(l.porcentaje) || costoComputo == null) return null;
+    return (l.porcentaje / 100) * costoComputo;
+  }
+  if (tipo === 'pctOficial') {
+    if (l.porcentaje == null || isNaN(l.porcentaje) || presupuestoOficial == null) return null;
+    return (l.porcentaje / 100) * presupuestoOficial;
+  }
+  if (l.cantidad == null || l.precioUnitario == null || l.meses == null) return null;
+  if (isNaN(l.cantidad) || isNaN(l.precioUnitario) || isNaN(l.meses)) return null;
+  return l.cantidad * l.precioUnitario * l.meses;
+};
+
+window.totalGastosFijosCargaFija = function (lineas, costoComputo, presupuestoOficial) {
+  return Object.values(lineas || {}).reduce((acc, l) => {
+    const t = window.totalLineaCargaFija(l, costoComputo, presupuestoOficial);
+    return t == null ? acc : acc + t;
+  }, 0);
+};
