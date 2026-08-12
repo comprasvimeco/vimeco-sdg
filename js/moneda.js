@@ -124,7 +124,16 @@ window.attachMoneyInput = function (input) {
     // batch, así que "5000" pegado guardaba "5").
     let introPos = Math.min(sigBefore, intDigits.length);
     let accepted = 0;
-    for (const ch of e.data) {
+    // Un "." pegado/autocompletado en un batch de varios caracteres es un
+    // separador de miles de un valor ya formateado (ej. "10.000.000" copiado
+    // de otro lado), no un decimal tecleado a mano — si no se descarta acá,
+    // el primer "." del batch abría modo decimal y truncaba el resto
+    // (bug real: "10.000.000" pegado guardaba 10). Mismo criterio que
+    // parseMoneyString, que ya ignora todos los "." y sólo mira la ",".
+    // Un "." tecleado solo (e.data de 1 char) sigue interpretándose como
+    // decimal, ver comentario de attachMoneyInput más arriba.
+    const datos = e.data.length > 1 ? e.data.replace(/\./g, '') : e.data;
+    for (const ch of datos) {
       if (/[0-9]/.test(ch)) {
         if (decDigits === null) {
           intDigits = intDigits.slice(0, introPos) + ch + intDigits.slice(introPos);
