@@ -1,13 +1,11 @@
 /* VIMECO S.A. — Sistema de Gestión — Ítem: Rendimientos
-   Un ítem tiene varias VERSIONES de rendimiento+receta: la "Teórica" (la de
-   referencia, vive en los campos de siempre de /items/{key}) y opcionalmente
-   una por cada obra donde se usó (/items/{key}/versionesObra/{obraKey}),
-   cada una con su propia receta completa — no comparten líneas. La versión
-   de una obra se crea sola la primera vez que se edita algo estando parado
-   en esa obra (arranca como copia en memoria de la teórica). La Teórica no
-   muestra costo (mismo criterio de siempre); las versiones de obra sí,
-   calculado en vivo con calcCostoUnitarioItem (js/calcCostos.js) — para
-   poder comparar costo real entre obras. */
+   Un ítem no tiene receta propia en la raíz — vive en una o más obras
+   (/items/{key}/versionesObra/{obraKey}), cada una con su propia receta
+   completa y su propio rendimiento (no comparten líneas entre obras). La
+   versión de una obra se crea sola la primera vez que se edita algo estando
+   parado en esa obra (arranca vacía). El costo de cada versión se calcula en
+   vivo con calcCostoUnitarioItem (js/calcCostos.js), con el dólar/roles
+   propios de esa obra. */
 
 const $ = id => document.getElementById(id);
 
@@ -18,13 +16,10 @@ const lineaParam = params.get('linea');
 const modoVincular = !itemKey && !!lineaParam && !!obraParam;
 
 let item = null;
-let lineasTeorico = {};
-let rendimientoTeorico = null;
-let rendimientoFormulaTeorico = null;
 let versionesObra = {};    // { obraKey: { rendimiento, rendimientoFormula, lineas } }
 let obrasMap = {};
 let obrasFull = {};        // { obraKey: obra } — para leer paramsEquipos/dolar propios de cada obra
-let activeVersion = 'teorico';
+let activeVersion = null;
 let versionExisteEnServidor = true;
 
 let lineas = {};       // { lineaKey: { tipo, refKey, cantidad } } — de la versión activa
@@ -42,7 +37,6 @@ const DEFAULT_PARAMS_MO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jorn
 let paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS };   // se refresca por obra en activarVersion()
 let paramsMO = { ...DEFAULT_PARAMS_MO };             // se refresca por obra en activarVersion()
 let dolarObraActivo = null;   // dólar propio de la obra de la pestaña activa (/obras/{obraKey}/dolar)
-let rolesGlobalFallback = [];   // catálogo global de roles — sólo se usa en la pestaña Teórico, que no tiene obra propia
 
 const HINTS = {
   material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
@@ -125,12 +119,14 @@ async function saveNuevoItem() {
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
     .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
     + '_' + Date.now();
-  const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput), creadoEn: Date.now() };
+  const data = { nombre, unidad, rubroKey, creadoEn: Date.now() };
+  const versionData = { rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
 
   if (niPendiente) return;
   niPendiente = true;
   try {
     await _fbPut(`/items/${key}.json`, data);
+    await _fbPut(`/items/${key}/versionesObra/${obraParam}.json`, versionData);
     items.push({ key, ...data });
     $('modal-item-nuevo').classList.add('hidden');
     await vincularItem(key);
@@ -158,13 +154,27 @@ function renderDatos() {
   $('item-titulo-card').textContent = item.nombre;
   const rubroNombre = item.rubroKey && rubrosMap[item.rubroKey] ? rubrosMap[item.rubroKey] : 'Sin rubro';
   $('item-datos-resumen').innerHTML =
-    `<span class="item-card-meta">${escHtml(rubroNombre)} · Unidad: ${escHtml(item.unidad)} · Rendimiento teórico: ${escHtml(String(rendimientoTeorico))} uds./jornada</span>`;
+    `<span class="item-card-meta">${escHtml(rubroNombre)} · Unidad: ${escHtml(item.unidad)}</span>`;
 }
 
-// -- Versiones (Teórico / obra) -------------------------------------------
+// -- Versiones de obra ------------------------------------------------------
 
 function basePath() {
-  return activeVersion === 'teorico' ? `/items/${itemKey}` : `/items/${itemKey}/versionesObra/${activeVersion}`;
+  return `/items/${itemKey}/versionesObra/${activeVersion}`;
+}
+
+// Sin ?obra= en la URL, entra a la versión de la obra más reciente que
+// tenga este ítem (proxy: fecha de creación de la obra, las versiones no
+// tienen fecha propia). Devuelve null si el ítem no tiene ninguna todavía.
+function resolverVersionInicial() {
+  if (obraParam) return obraParam;
+  const keys = Object.keys(versionesObra);
+  if (!keys.length) return null;
+  return keys.reduce((mejor, k) => {
+    const creadaK = (obrasFull[k] && obrasFull[k].creadaEn) || 0;
+    const creadaMejor = (obrasFull[mejor] && obrasFull[mejor].creadaEn) || 0;
+    return creadaK > creadaMejor ? k : mejor;
+  }, keys[0]);
 }
 
 function activarVersion(key) {
@@ -173,28 +183,20 @@ function activarVersion(key) {
   paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS, ...((obraActiva && obraActiva.paramsEquipos) || {}) };
   paramsMO = { ...DEFAULT_PARAMS_MO, ...((obraActiva && obraActiva.paramsMO) || {}) };
   dolarObraActivo = (obraActiva && obraActiva.dolar) ? obraActiva.dolar.valor : null;
-  roles = key === 'teorico'
-    ? rolesGlobalFallback
-    : Object.entries((obraActiva && obraActiva.roles) || {}).map(([k, r]) => ({ key: k, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
-  if (key === 'teorico') {
-    lineas = lineasTeorico;
-    rendimientoActivo = rendimientoTeorico;
-    rendimientoFormulaActiva = rendimientoFormulaTeorico;
+  roles = Object.entries((obraActiva && obraActiva.roles) || {}).map(([k, r]) => ({ key: k, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
+  const v = versionesObra[key];
+  if (v) {
+    lineas = v.lineas || {};
+    rendimientoActivo = v.rendimiento;
+    rendimientoFormulaActiva = v.rendimientoFormula;
     versionExisteEnServidor = true;
   } else {
-    const v = versionesObra[key];
-    if (v) {
-      lineas = v.lineas || {};
-      rendimientoActivo = v.rendimiento;
-      rendimientoFormulaActiva = v.rendimientoFormula;
-      versionExisteEnServidor = true;
-    } else {
-      // No existe todavía: arranca como copia en memoria de la teórica.
-      lineas = JSON.parse(JSON.stringify(lineasTeorico));
-      rendimientoActivo = rendimientoTeorico;
-      rendimientoFormulaActiva = rendimientoFormulaTeorico;
-      versionExisteEnServidor = false;
-    }
+    // No existe todavía para esta obra: arranca vacía, con 1 como punto de
+    // partida editable (mismo default que se usa al crear un ítem nuevo).
+    lineas = {};
+    rendimientoActivo = 1;
+    rendimientoFormulaActiva = null;
+    versionExisteEnServidor = false;
   }
   renderVersionTabs();
   renderVersionRendimiento();
@@ -202,8 +204,7 @@ function activarVersion(key) {
 }
 
 function renderVersionTabs() {
-  const tabs = [{ key: 'teorico', label: 'Teórico' }];
-  Object.keys(versionesObra).forEach(k => tabs.push({ key: k, label: obrasMap[k] || k }));
+  const tabs = Object.keys(versionesObra).map(k => ({ key: k, label: obrasMap[k] || k }));
   if (obraParam && !versionesObra[obraParam]) tabs.push({ key: obraParam, label: (obrasMap[obraParam] || obraParam) + ' (nueva)' });
 
   $('version-tabs').innerHTML = tabs.map(t => `
@@ -213,8 +214,8 @@ function renderVersionTabs() {
   });
 
   const aviso = $('version-aviso');
-  if (activeVersion !== 'teorico' && !versionExisteEnServidor) {
-    aviso.textContent = 'Esta obra todavía no tiene una versión propia — se crea en cuanto edites algo. Por ahora se muestra una copia del Teórico.';
+  if (!versionExisteEnServidor) {
+    aviso.textContent = 'Esta obra todavía no tiene una versión propia — se crea en cuanto edites algo.';
     aviso.classList.remove('hidden');
   } else {
     aviso.classList.add('hidden');
@@ -223,7 +224,6 @@ function renderVersionTabs() {
 
 function renderVersionRendimiento() {
   const wrap = $('version-rendimiento');
-  if (activeVersion === 'teorico') { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
   wrap.classList.remove('hidden');
   wrap.innerHTML = `<span>Rendimiento en esta obra: <strong>${escHtml(String(rendimientoActivo))}</strong> uds./jornada</span>
     <button class="version-rendimiento-edit" id="btn-editar-rend-obra" title="Editar rendimiento de esta obra">${icSvg('edit')}</button>`;
@@ -251,9 +251,8 @@ function renderVersionRendimiento() {
 
 // Calcula (una sola vez por render) el costo agregado y el detalle por
 // línea de la versión activa — lo usan tanto el resumen como cada sección
-// de líneas, para no repetir el cálculo. En Teórico no calcula nada.
+// de líneas, para no repetir el cálculo.
 function calcularDetalleActivo() {
-  if (activeVersion === 'teorico') { detallePorLineaActivo = {}; return null; }
   const catalogos = { materiales, equipos, roles };
   const preciosObra = window.resolverPreciosObra(materiales, activeVersion);
   const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObraActivo);
@@ -265,7 +264,7 @@ function calcularDetalleActivo() {
 // mismo criterio que la planilla de referencia (CyP Taller Río Cuarto.xlsx).
 function renderResumenCosto(r) {
   const card = $('resumen-card');
-  if (activeVersion === 'teorico' || !r) { card.classList.add('hidden'); return; }
+  if (!r) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
   $('resumen').innerHTML = `
     <div class="ap-resumen-row"><span>Costo unitario de Equipos (A)</span><span data-calc-valor="${r.costoUnitarioEquipos}">${fmtARS(r.costoUnitarioEquipos)}</span></div>
@@ -282,7 +281,7 @@ function renderResumenCosto(r) {
 // caso el llamador no necesita hacer ningún otro write, ya quedó todo
 // guardado).
 async function ensureVersionExists() {
-  if (activeVersion === 'teorico' || versionExisteEnServidor) return false;
+  if (versionExisteEnServidor) return false;
   try {
     const data = { rendimiento: rendimientoActivo, rendimientoFormula: rendimientoFormulaActiva, lineas };
     await _fbPut(`${basePath()}.json`, data);
@@ -301,7 +300,7 @@ async function persistRendimiento(cambios) {
   if (justCreated) return;
   try {
     await _fbPatch(`${basePath()}.json`, cambios);
-    if (activeVersion !== 'teorico') versionesObra[activeVersion] = { ...versionesObra[activeVersion], ...cambios };
+    versionesObra[activeVersion] = { ...versionesObra[activeVersion], ...cambios };
   } catch (_) {
     showToast('Error al guardar el rendimiento.', 'error');
   }
@@ -311,7 +310,6 @@ function renderLineasSeccion(tipo, r) {
   const container = $(`lineas-${tipo}`);
   const cat = catalogoFor(tipo);
   const entradas = Object.entries(lineas).filter(([, l]) => l.tipo === tipo);
-  const conCosto = activeVersion !== 'teorico';
 
   // Equipos: desplegable, colapsado por defecto (la mayoría de los ítems no
   // llevan). Se abre solo mientras haya al menos una línea cargada, o si el
@@ -324,22 +322,22 @@ function renderLineasSeccion(tipo, r) {
   } else if (!cat.length && tipo !== 'material') {
     html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo cargado para este tipo.</p>';
   } else {
-    if (conCosto) html += `<div class="ap-linea ap-linea-header con-costo"><span></span><span>Cantidad</span><span>Costo unitario</span><span>Costo total</span><span></span></div>`;
+    html += `<div class="ap-linea ap-linea-header con-costo"><span></span><span>Cantidad</span><span>Costo unitario</span><span>Costo total</span><span></span></div>`;
     html += entradas.map(([lineaKey]) => {
       const d = detallePorLineaActivo[lineaKey];
       return `
-        <div class="ap-linea${conCosto ? ' con-costo' : ''}" data-key="${escHtml(lineaKey)}">
+        <div class="ap-linea con-costo" data-key="${escHtml(lineaKey)}">
           <div class="linea-select-wrap">
             <div class="linea-select-container"></div>
             ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
-          ${conCosto ? `<button type="button" class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d ? ` data-calc-valor="${d.costoTotal}"` : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
+          <button type="button" class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d ? ` data-calc-valor="${d.costoTotal}"` : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
         </div>`;
     }).join('');
   }
-  if (conCosto && r) {
+  if (r) {
     html += tipo === 'material'
       ? `<div class="ap-subtotal-linea total"><span>Costo unitario de Materiales (C)</span><span data-calc-valor="${r.costoMateriales}">${fmtARS(r.costoMateriales)}</span></div>`
       : `<div class="ap-subtotal-linea"><span>Costo diario Equipos</span><span data-calc-valor="${r.costoDiarioEquipos}">${fmtARS(r.costoDiarioEquipos)}</span></div>
@@ -409,25 +407,24 @@ function renderLineasSeccion(tipo, r) {
 // línea (si existía); no afecta el costo de todas formas si queda vacía.
 function renderManoDeObraSeccion(r) {
   const container = $('lineas-manoDeObra');
-  const conCosto = activeVersion !== 'teorico';
   let html = `<p class="form-hint" style="margin-bottom:.75rem;">${HINTS.manoDeObra}</p>`;
   if (!roles.length) {
     html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo de Mano de Obra cargado todavía.</p>';
   } else {
-    if (conCosto) html += `<div class="ap-linea-mo ap-linea-header con-costo"><span></span><span>Cantidad</span><span>Costo unitario</span><span>Costo total</span></div>`;
+    html += `<div class="ap-linea-mo ap-linea-header con-costo"><span></span><span>Cantidad</span><span>Costo unitario</span><span>Costo total</span></div>`;
     html += roles.map(rol => {
       const entry = Object.entries(lineas).find(([, l]) => l.tipo === 'manoDeObra' && l.refKey === rol.key);
       const cantidad = entry ? entry[1].cantidad : null;
       const d = entry ? detallePorLineaActivo[entry[0]] : null;
       return `
-        <div class="ap-linea-mo${conCosto ? ' con-costo' : ''}" data-rol="${escHtml(rol.key)}">
+        <div class="ap-linea-mo con-costo" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}" data-calc-valor="${cantidad ?? 0}">
-          ${conCosto ? `<span class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total"${d ? ` data-calc-valor="${d.costoTotal}"` : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>` : ''}
+          <span class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total"${d ? ` data-calc-valor="${d.costoTotal}"` : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
         </div>`;
     }).join('');
   }
-  if (conCosto && r) {
+  if (r) {
     html += `<div class="ap-subtotal-linea"><span>Costo diario Mano de Obra</span><span data-calc-valor="${r.costoDiarioMO}">${fmtARS(r.costoDiarioMO)}</span></div>
       <div class="ap-subtotal-linea total"><span>Costo unitario Mano de Obra (B)</span><span data-calc-valor="${r.costoUnitarioMO}">${fmtARS(r.costoUnitarioMO)}</span></div>`;
   }
@@ -507,9 +504,8 @@ function openQuickMaterialModal(texto, lineaKey) {
   $('qm-precio-nota').textContent = '';
   $('qm-proveedor').value = '';
   $('qm-fecha').value = new Date().toISOString().slice(0, 10);
-  const conPrecio = activeVersion !== 'teorico';
-  $('qm-precio-bloque').classList.toggle('hidden', !conPrecio);
-  $('qm-precio-hint').textContent = conPrecio ? `El precio se carga para la obra activa (${obrasMap[activeVersion] || activeVersion}).` : '';
+  $('qm-precio-bloque').classList.remove('hidden');
+  $('qm-precio-hint').textContent = `El precio se carga para la obra activa (${obrasMap[activeVersion] || activeVersion}).`;
   $('modal-material-error-qm').classList.add('hidden');
   $('modal-material-quick').classList.remove('hidden');
   setTimeout(() => $('qm-nombre').focus(), 50);
@@ -519,7 +515,6 @@ async function saveQuickMaterial() {
   const nombre = $('qm-nombre').value.trim();
   const unidad = $('qm-unidad').value.trim();
   const errEl = $('modal-material-error-qm');
-  const conPrecio = activeVersion !== 'teorico';
 
   if (!nombre || !unidad) {
     errEl.textContent = 'Nombre y unidad son requeridos.';
@@ -528,7 +523,7 @@ async function saveQuickMaterial() {
   }
 
   let precioData = null;
-  if (conPrecio) {
+  {
     const proveedor = $('qm-proveedor').value.trim();
     const fecha = $('qm-fecha').value || new Date().toISOString().slice(0, 10);
     const usdInput = $('qm-precio-usd');
@@ -703,8 +698,6 @@ function openEditDatosModal() {
   $('item-nombre').value = item.nombre || '';
   $('item-unidad').value = item.unidad || '';
   $('item-rubro').value = item.rubroKey || '';
-  $('item-rendimiento').value = item.rendimiento ?? '';
-  setCalcFormula($('item-rendimiento'), item.rendimientoFormula);
   $('modal-item-error').classList.add('hidden');
   $('modal-item').classList.remove('hidden');
 }
@@ -715,28 +708,16 @@ async function saveDatosModal() {
   const rubroKey = $('item-rubro').value;
   const errEl = $('modal-item-error');
 
-  const rendInput = $('item-rendimiento');
-  if (rendInput.value.trim().startsWith('=')) rendInput.blur();
-  const rendimiento = parseFloat(rendInput.value.replace(',', '.'));
-
   if (!nombre || !unidad) {
     errEl.textContent = 'Nombre y unidad son requeridos.';
     errEl.classList.remove('hidden');
     return;
   }
-  if (isNaN(rendimiento) || rendimiento <= 0) {
-    errEl.textContent = 'El rendimiento tiene que ser un número mayor a 0.';
-    errEl.classList.remove('hidden');
-    return;
-  }
 
   try {
-    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
+    const data = { nombre, unidad, rubroKey };
     await _fbPatch(`/items/${itemKey}.json`, data);
     item = { ...item, ...data };
-    rendimientoTeorico = rendimiento;
-    rendimientoFormulaTeorico = data.rendimientoFormula;
-    if (activeVersion === 'teorico') { rendimientoActivo = rendimientoTeorico; rendimientoFormulaActiva = rendimientoFormulaTeorico; }
     $('modal-item').classList.add('hidden');
     showToast('Datos actualizados.');
     renderDatos();
@@ -777,14 +758,12 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
     return;
   }
-  const [itemData, lineasData, versionesData, obrasData, materialesData, equiposData, rolesData, rubrosData] = await Promise.all([
+  const [itemData, versionesData, obrasData, materialesData, equiposData, rubrosData] = await Promise.all([
     _fbGet(`/items/${itemKey}.json`),
-    _fbGet(`/items/${itemKey}/lineas.json`),
     _fbGet(`/items/${itemKey}/versionesObra.json`),
     _fbGet('/obras.json'),
     _fbGet('/materiales.json'),
     _fbGet('/equipos.json'),
-    _fbGet('/manoDeObra.json'),
     _fbGet('/rubros.json'),
   ]);
 
@@ -793,26 +772,24 @@ async function loadAll() {
     return;
   }
   item = itemData;
-  lineasTeorico = lineasData || {};
-  rendimientoTeorico = item.rendimiento;
-  rendimientoFormulaTeorico = item.rendimientoFormula;
   versionesObra = versionesData || {};
   obrasMap = {};
   obrasFull = {};
   Object.entries(obrasData || {}).forEach(([key, o]) => { obrasMap[key] = o.nombre; obrasFull[key] = o; });
   materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e })).sort((a, b) => a.codigo.localeCompare(b.codigo, 'es'));
-  // Orden jerárquico (Oficial Especializado > Oficial > Ayudante), no
-  // alfabético — casualmente es el alfabético invertido con los roles de
-  // hoy. Si se agrega un rol que no encaje en ese orden (ej. "Capataz"),
-  // hace falta un campo `orden` real en /manoDeObra (mano-de-obra.html).
-  rolesGlobalFallback = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
   rubros = Object.entries(rubrosData || {}).map(([key, r]) => ({ key, ...r })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
   populateRubroSelect();
   renderDatos();
-  activarVersion(obraParam || 'teorico');
+
+  const versionInicial = resolverVersionInicial();
+  if (!versionInicial) {
+    document.body.innerHTML = '<p style="padding:2rem;">Este ítem todavía no tiene ninguna obra cargada.</p>';
+    return;
+  }
+  activarVersion(versionInicial);
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
@@ -828,8 +805,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-item-nuevo-cancel').addEventListener('click', () => $('modal-item-nuevo').classList.add('hidden'));
   $('modal-item-nuevo-save').addEventListener('click', saveNuevoItem);
   attachCalcInput($('ni-rendimiento'));
-
-  attachCalcInput($('item-rendimiento'));
 
   $('btn-editar-datos').addEventListener('click', openEditDatosModal);
   $('modal-item-close').addEventListener('click',  () => $('modal-item').classList.add('hidden'));

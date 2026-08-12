@@ -21,10 +21,12 @@ window.calcCostoManoDeObra = function (rol, params) {
 // suya (/obras/{obraKey}/dolar), no se lee más el dólar en vivo acá adentro.
 // Desglose del costo diario de un equipo, término por término (para mostrarlo
 // en pantalla — ver planilla de referencia, hoja A.P., sección "A-Equipos").
-// Devuelve null si falta algún dato necesario (costo, vida útil, uso anual, cotización del dólar).
+// Devuelve null si falta algún dato necesario (costo, vida útil, uso anual, cotización
+// del dólar) — pero un dólar en 0 (obra de referencia sin costo real) es una cotización
+// válida, no un dato faltante, así que da costo 0 en vez de null.
 window.calcDesgloseCostoEquipo = function (equipo, params, jornadaHoras, dolarValor) {
   const venta = dolarValor;
-  if (!equipo.costoUSD || !equipo.vidaUtil || !equipo.usoAnual || !venta) return null;
+  if (!equipo.costoUSD || !equipo.vidaUtil || !equipo.usoAnual || venta == null) return null;
   const costoActual = equipo.costoUSD * venta;
   const amortizacionDia = costoActual * jornadaHoras / equipo.vidaUtil;
   const interesesDia = (costoActual * params.tasaInteresPct / 100 / 2) / equipo.usoAnual * jornadaHoras;
@@ -87,7 +89,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
   }
   function precioUnitarioMaterial(mat) {
     const venta = dolarValor;
-    if (!mat || !venta) return null;
+    if (!mat || venta == null) return null;
     const precio = preciosObra[mat.key];
     if (!precio || !precio.precioUSD) return null;
     return precio.precioUSD * venta;

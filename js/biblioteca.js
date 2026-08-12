@@ -1,14 +1,14 @@
 /* VIMECO S.A. — Sistema de Gestión — Biblioteca (catálogo de ítems + rubros)
-   Los Rendimientos de cada ítem (receta de materiales/equipos/mano de obra
-   + rendimiento) se editan en item.html?key=... — acá sólo viven los datos
-   básicos y el rendimiento teórico. Un ítem puede tener, además de la
-   versión Teórica, una versión de Rendimientos propia por cada obra donde
-   se usó (con su propio costo) — se editan desde item.html también. */
+   Acá sólo viven los datos básicos del ítem (nombre, unidad, rubro) — no
+   tiene receta propia. La receta (materiales/equipos/mano de obra +
+   rendimiento) vive por obra en item.html?key=...&obra=... — un ítem nuevo
+   arranca con su primera versión de obra vacía, elegida al crearlo acá. */
 
 const $ = id => document.getElementById(id);
 
 let allItems = [];
 let allRubros = [];
+let allObras = [];
 let rubrosMap = {};
 let editingKey = null;
 let editingRubroKey = null;
@@ -17,7 +17,6 @@ function metaLine(it) {
   const parts = [];
   if (it.rubroKey && rubrosMap[it.rubroKey]) parts.push(rubrosMap[it.rubroKey]);
   parts.push(it.unidad);
-  if (it.rendimiento) parts.push(`rendimiento ${it.rendimiento}/jornada`);
   return parts.filter(Boolean).join(' · ');
 }
 
@@ -75,6 +74,16 @@ async function loadRubros() {
     allRubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
     populateRubroSelects();
     renderRubrosModal();
+  } catch (_) {}
+}
+
+async function loadObras() {
+  try {
+    const data = await _fbGet('/obras.json');
+    allObras = Object.entries(data || {}).map(([key, o]) => ({ key, ...o }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+    const opts = allObras.map(o => `<option value="${escHtml(o.key)}">${escHtml(o.nombre)}</option>`).join('');
+    $('item-obra').innerHTML = '<option value="">— Elegir obra —</option>' + opts;
   } catch (_) {}
 }
 
@@ -172,8 +181,8 @@ function openAddModal() {
   $('item-nombre').value = '';
   $('item-unidad').value = '';
   $('item-rubro').value = '';
-  $('item-rendimiento').value = '1';
-  setCalcFormula($('item-rendimiento'), null);
+  $('item-obra').value = '';
+  $('item-obra-grupo').classList.remove('hidden');
   $('modal-item').classList.remove('hidden');
   setTimeout(() => $('item-nombre').focus(), 50);
 }
@@ -185,8 +194,7 @@ function openEditModal(it) {
   $('item-nombre').value = it.nombre || '';
   $('item-unidad').value = it.unidad || '';
   $('item-rubro').value = it.rubroKey || '';
-  $('item-rendimiento').value = it.rendimiento ?? '1';
-  setCalcFormula($('item-rendimiento'), it.rendimientoFormula);
+  $('item-obra-grupo').classList.add('hidden');
   $('modal-item').classList.remove('hidden');
   setTimeout(() => $('item-nombre').focus(), 50);
 }
@@ -195,11 +203,8 @@ async function saveItemModal() {
   const nombre = $('item-nombre').value.trim();
   const unidad = $('item-unidad').value.trim();
   const rubroKey = $('item-rubro').value;
+  const obraKey = $('item-obra').value;
   const errEl = $('modal-item-error');
-
-  const rendInput = $('item-rendimiento');
-  if (rendInput.value.trim().startsWith('=')) rendInput.blur();
-  const rendimiento = parseFloat(rendInput.value.replace(',', '.'));
 
   if (!nombre) {
     errEl.textContent = 'El nombre es requerido.';
@@ -211,8 +216,8 @@ async function saveItemModal() {
     errEl.classList.remove('hidden');
     return;
   }
-  if (isNaN(rendimiento) || rendimiento <= 0) {
-    errEl.textContent = 'El rendimiento tiene que ser un número mayor a 0.';
+  if (!editingKey && !obraKey) {
+    errEl.textContent = 'Elegí la primera obra para este ítem.';
     errEl.classList.remove('hidden');
     return;
   }
@@ -222,7 +227,7 @@ async function saveItemModal() {
   saveBtn.textContent = 'Guardando…';
 
   try {
-    const data = { nombre, unidad, rubroKey, rendimiento, rendimientoFormula: getCalcFormula(rendInput) };
+    const data = { nombre, unidad, rubroKey };
     if (editingKey) {
       await _fbPatch(`/items/${editingKey}.json`, data);
       $('modal-item').classList.add('hidden');
@@ -234,8 +239,9 @@ async function saveItemModal() {
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
       await _fbPut(`/items/${key}.json`, { ...data, creadoEn: Date.now() });
+      await _fbPut(`/items/${key}/versionesObra/${obraKey}.json`, { rendimiento: 1 });
       // Ítem nuevo: se abre directo su Rendimientos en vez de quedarse en la lista.
-      window.location.href = `item.html?key=${encodeURIComponent(key)}`;
+      window.location.href = `item.html?key=${encodeURIComponent(key)}&obra=${encodeURIComponent(obraKey)}`;
     }
   } catch (_) {
     errEl.textContent = 'Error al guardar. Intentá de nuevo.';
@@ -266,8 +272,6 @@ function closeRubrosModal() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  attachCalcInput($('item-rendimiento'));
-
   $('btn-add-item').addEventListener('click', openAddModal);
   $('modal-item-close').addEventListener('click',  () => $('modal-item').classList.add('hidden'));
   $('modal-item-cancel').addEventListener('click', () => $('modal-item').classList.add('hidden'));
@@ -281,5 +285,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('rubro-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') saveRubro(); });
 
   await loadRubros();
+  await loadObras();
   await loadItems();
 });
