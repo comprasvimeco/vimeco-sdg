@@ -89,6 +89,7 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .app-header { background: var(--grad-header); color: var(--white); padding: 0 1.5rem; height: 60px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 6px 24px -8px rgba(26,58,92,.55); position: sticky; top: 0; z-index: 100; }
 .app-header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--grad-gold); opacity: .85; }
 .header-brand { display: flex; align-items: center; gap: .85rem; }
+.header-logo { height: 35px; width: auto; flex-shrink: 0; }
 .header-title { font-size: .95rem; font-weight: 700; }
 .header-tabs { display: flex; align-items: center; gap: .3rem; }
 .header-tab { color: rgba(255,255,255,.75); font-size: .85rem; font-weight: 600; text-decoration: none; padding: .4rem .85rem; border-radius: 999px; transition: background .15s, color .15s; white-space: nowrap; }
@@ -270,6 +271,20 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
   .form-control { font-size: 16px !important; } /* evita auto-zoom de iOS */
 }
 @media (max-width: 700px) {
-  .app-header { padding: 0 .75rem; }
-  .header-tab { font-size: .78rem; padding: .35rem .55rem; }
+  .app-header {
+    height: auto; min-height: 60px; padding: .5rem .65rem; flex-wrap: wrap; row-gap: .4rem;
+  }
+  .header-logo { height: 28px; }
+  .header-title { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* fila 2 completa: tabs con scroll horizontal (no entran los 7 en el ancho del celular) */
+  .header-tabs {
+    order: 3; flex-basis: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none; -ms-overflow-style: none; padding-bottom: .15rem;
+  }
+  .header-tabs::-webkit-scrollbar { display: none; }
+  .header-tab { flex-shrink: 0; font-size: .78rem; padding: .35rem .55rem; }
+  .header-dolar { font-size: .72rem; padding: .25rem .5rem; }
+}
+@media (max-width: 380px) {
+  .header-dolar { display: none; }
 }

@@ -44,12 +44,44 @@
     .computo-linea-del:hover { color: var(--danger); }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+
+    /* ===== MOBILE: las grillas de ancho fijo (columnas en px) no entran en
+       una pantalla de celular -- se reacomodan en 2-4 filas por ítem/rubro,
+       misma info, sin tocar el HTML/JS (el orden de los elementos en el DOM
+       no cambia, solo dónde caen en la grilla). ===== */
+    @media (max-width: 700px) {
+      .computo-rubro-header {
+        grid-template-columns: 26px 1fr auto;
+        grid-template-areas: "num nombre nombre" "acc acc subtotal";
+        row-gap: .35rem; padding: .5rem .6rem;
+      }
+      .computo-rubro-numero { grid-area: num; }
+      .computo-rubro-nombre-input { grid-area: nombre; }
+      .computo-rubro-acciones { grid-area: acc; }
+      .computo-rubro-subtotal { grid-area: subtotal; }
+
+      .computo-linea-header { display: none; }
+      .computo-linea {
+        grid-template-columns: 26px 1fr 1fr;
+        grid-template-areas: "num nombre nombre" ". unidad cantidad" ". costo total" ". acc acc";
+        row-gap: .3rem; column-gap: .5rem; padding: .6rem 0;
+      }
+      .computo-linea-numero { grid-area: num; }
+      .linea-nombre { grid-area: nombre; }
+      .linea-unidad { grid-area: unidad; }
+      .linea-cantidad { grid-area: cantidad; }
+      .computo-linea-costo { grid-area: costo; text-align: left; font-size: .8rem; color: var(--gray-500); }
+      .computo-linea-costo::before { content: "Costo unit.: "; }
+      .computo-linea-total { grid-area: total; }
+      .computo-linea-total::before { content: "Total: "; font-weight: 400; color: var(--gray-500); }
+      .computo-linea-acciones { grid-area: acc; justify-content: flex-start; }
+    }
   </style>
 </head>
 <body>
   <header class="app-header">
     <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
-      <img src="assets/logo_claro.png" alt="VIMECO S.A." style="height:35px; width:auto;">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." class="header-logo">
       <span class="header-title" id="header-obra-nombre">Cómputo</span>
     </div>
     <nav class="header-tabs" id="header-tabs"></nav>
