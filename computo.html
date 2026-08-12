@@ -45,6 +45,33 @@
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
 
+    /* ===== Modal "Armar cómputo con IA" ===== */
+    .cia-dropzone { border: 2px dashed var(--gray-300); border-radius: var(--radius-lg); padding: 1.25rem 1rem; text-align: center; transition: border-color .15s, background-color .15s; }
+    .cia-dropzone.dragover { border-color: var(--primary); background: rgba(26,58,92,.05); }
+    .cia-file-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; justify-content: center; }
+    .cia-file-nombre { font-size: .85rem; color: var(--gray-500); }
+    .cia-file-nombre.tiene-archivo { color: var(--gray-800); font-weight: 600; }
+    .cia-ia-loading { display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 1.75rem 0; color: var(--gray-600); font-size: .9rem; }
+    .cia-ia-spinner { width: 20px; height: 20px; border: 2.5px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: cia-spin .8s linear infinite; flex-shrink: 0; }
+    @keyframes cia-spin { to { transform: rotate(360deg); } }
+    .cia-rubro { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: .65rem .75rem; margin-bottom: .6rem; }
+    .cia-rubro-top { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+    .cia-rubro-top .form-control { font-weight: 700; }
+    .cia-rubro-add-item, .cia-rubro-del { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .25rem; flex-shrink: 0; }
+    .cia-rubro-add-item:hover { color: var(--primary); }
+    .cia-rubro-del:hover { color: var(--danger); }
+    .cia-rubro-add-item .icon, .cia-rubro-del .icon, .cia-item-del .icon { width: 16px; height: 16px; }
+    .cia-item { display: grid; grid-template-columns: 1fr 90px 100px 28px; gap: .5rem; align-items: center; margin-top: .4rem; }
+    .cia-item-del { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .25rem; }
+    .cia-item-del:hover { color: var(--danger); }
+    @media (max-width: 700px) {
+      .cia-item { grid-template-columns: 1fr 1fr; grid-template-areas: "nombre nombre" "unidad cantidad" "del del"; row-gap: .3rem; }
+      .cia-item input:nth-child(1) { grid-area: nombre; }
+      .cia-item input:nth-child(2) { grid-area: unidad; }
+      .cia-item input:nth-child(3) { grid-area: cantidad; }
+      .cia-item-del { grid-area: del; justify-self: end; }
+    }
+
     /* ===== MOBILE: las grillas de ancho fijo (columnas en px) no entran en
        una pantalla de celular -- se reacomodan en 2-4 filas por ítem/rubro,
        misma info, sin tocar el HTML/JS (el orden de los elementos en el DOM
@@ -97,6 +124,7 @@
       <div class="card-header">
         <span class="card-title">Ítems del cómputo</span>
         <div class="flex gap-2">
+          <button class="btn btn-sm btn-outline" id="btn-computo-ia"><span id="computo-ia-icon"></span> Armar con IA</button>
           <button class="btn btn-sm btn-outline" id="btn-add-rubro">+ Agregar rubro</button>
         </div>
       </div>
@@ -109,6 +137,48 @@
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando cómputo…</div></div>
+
+  <!-- Modal: Armar cómputo con IA -->
+  <div class="modal-overlay hidden" id="modal-computo-ia">
+    <div class="modal modal--lg">
+      <div class="modal-header">
+        <span class="modal-title">Armar cómputo con IA</span>
+        <button class="modal-close" id="cia-modal-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="cia-paso-archivo">
+          <div class="form-group u-mb-0">
+            <label>Presupuesto (PDF o foto)</label>
+            <div class="cia-dropzone" id="cia-dropzone">
+              <div class="cia-file-row">
+                <button type="button" class="btn btn-sm btn-outline" id="btn-cia-elegir-archivo"><span id="cia-elegir-icon"></span> Elegir archivo</button>
+                <span class="cia-file-nombre" id="cia-file-nombre">Ningún archivo elegido</span>
+              </div>
+              <span class="form-hint" style="display:block;margin-top:.5rem;">o arrastrá el archivo acá</span>
+            </div>
+            <input type="file" id="cia-archivo-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
+            <span class="form-hint">Se lee el rubrado, los ítems, unidades y cantidades con IA — los precios del documento no se usan, el costo se define después con el Análisis de Precio de cada ítem. Sólo disponible con el cómputo vacío.</span>
+          </div>
+          <div id="cia-archivo-error" class="alert alert-error hidden"></div>
+        </div>
+
+        <div id="cia-paso-revision" class="hidden">
+          <div id="cia-ia-loading" class="cia-ia-loading hidden">
+            <span class="cia-ia-spinner"></span>
+            <span>Leyendo el presupuesto con IA…</span>
+          </div>
+          <div id="cia-extraccion-hint" class="form-hint hidden" style="display:block;margin-bottom:.75rem;"></div>
+          <div id="cia-rubros-lista"></div>
+          <button class="btn btn-sm btn-outline" id="btn-cia-add-rubro" type="button">+ Agregar rubro manual</button>
+          <div id="cia-revision-error" class="alert alert-error hidden" style="margin-top:.75rem;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cia-modal-cancel">Cancelar</button>
+        <button class="btn btn-primary hidden" id="cia-modal-confirmar">Confirmar y crear cómputo</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Confirmar acción -->
   <div class="modal-overlay hidden" id="modal-confirm">
@@ -138,5 +208,6 @@
   <script src="js/config.js"></script>
   <script src="js/firebase.js"></script>
   <script src="js/computo.js"></script>
+  <script src="js/computo-ia.js"></script>
 </body>
 </html>

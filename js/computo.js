@@ -217,9 +217,20 @@ function renderResumen() {
     <p class="form-hint" style="margin-top:.5rem;">Costo sin Gastos Generales, beneficio ni IVA — eso se aplica en el Presupuesto de la obra.</p>`;
 }
 
+// El armado con IA sólo tiene sentido si el cómputo está completamente
+// vacío (ver js/computo-ia.js): la extracción reemplaza la nada, nunca
+// convive con líneas ya cargadas a mano.
+function actualizarBotonComputoIA() {
+  const btn = $('btn-computo-ia');
+  if (!btn) return;
+  btn.disabled = rubros.length > 0;
+  btn.title = rubros.length > 0 ? 'Sólo disponible con el cómputo vacío' : '';
+}
+
 function renderTodo() {
   renderLineas();
   renderResumen();
+  actualizarBotonComputoIA();
 }
 
 // Cada línea/rubro se guarda en su propio path (PUT al crear, PATCH al
@@ -477,6 +488,10 @@ async function loadAll() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-rubro').addEventListener('click', addRubro);
+  $('btn-computo-ia').addEventListener('click', () => {
+    if (rubros.length) return;
+    window.openComputoIAModal();
+  });
 
   await loadAll();
   await getDolarSnapshot().catch(() => {});
