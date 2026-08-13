@@ -55,27 +55,24 @@
   // Número pelado (cantidades, coeficientes). '' si no hay valor: en una
   // grilla de carga, una celda vacía se lee mejor que un "0,00" inventado.
   window.fmtNum  = n => vacio(n) ? '' : fmt(n);
+  window.fmtCoef = n => vacio(n) ? '' : fmt(n);
   window.fmtARS  = n => vacio(n) ? '' : fmt(n, { style: 'currency', currency: 'ARS' });
   window.fmtUSD  = n => vacio(n) ? '' : fmt(n, { style: 'currency', currency: 'USD' });
-
-  // Coeficientes (K y sus subtotales): NUNCA menos de 4 decimales, aunque el
-  // header pida menos. No son plata: son multiplicadores que se aplican sobre
-  // cientos de millones, así que "1,83" en vez de "1,8312" mueve el
-  // presupuesto casi un 0,1%. Si el header pide más de 4, manda el header.
-  window.fmtCoef = n => vacio(n) ? '' : fmt(n, null, window.decimalesCarga());
 
   // Recibe la FRACCIÓN (0.25), muestra el porcentaje (25%).
   window.fmtPct = frac => vacio(frac) ? '—' : fmt(frac * 100) + '%';
 
-  /* ===== Campos de carga ===== */
-  // Lo que se CARGA a mano se muestra siempre con 4 decimales como mínimo,
-  // aunque el header esté en menos: el selector es para leer los números
-  // calculados, pero un valor que se tipeó no se puede mostrar recortado —
-  // ahí es donde se controla lo que se cargó. Si el header pide más de 4,
-  // manda el header.
-  const MIN_DECIMALES_CARGA = 4;
-  window.decimalesCarga = () => Math.max(MIN_DECIMALES_CARGA, window.decimalesVista());
-  window.fmtNumCarga = n => vacio(n) ? '' : fmt(n, null, window.decimalesCarga());
+  /* ===== Coeficiente K (la "Carga Fija") ===== */
+  // El K SIEMPRE se muestra con 4 decimales como mínimo, aunque el header
+  // pida menos: no es plata, es el multiplicador que convierte costo en
+  // precio sobre cientos de millones, así que "1,83" en vez de "1,8312"
+  // mueve el presupuesto casi un 0,1%. Es la única excepción al selector:
+  // todo lo que ENTRA en su cálculo (los % cargados, los subtotales) lo
+  // sigue como el resto de la app. Si el header pide más de 4, manda el
+  // header.
+  const MIN_DECIMALES_K = 4;
+  window.decimalesK = () => Math.max(MIN_DECIMALES_K, window.decimalesVista());
+  window.fmtK = n => vacio(n) ? '' : fmt(n, null, window.decimalesK());
 
   /* ===== Control del header ===== */
   // Se inyecta al lado del dólar, así vale para todas las pantallas sin

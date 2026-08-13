@@ -22,7 +22,7 @@ const obraKey = params.get('obra');
 
 let obra = null;
 let lineas = {};     // { lineaKey: { concepto, tipo, cantidad, precioUnitario, meses, porcentaje } }
-let config = { beneficioPct: null, costoFinancieroPct: null, ivaPct: 21 };
+let config = { beneficioPct: null, costoFinancieroPct: null };
 let costoComputo = 0;
 let computoData = null;
 let items = [];
@@ -145,17 +145,24 @@ function renderLineas() {
 }
 
 function calcularK() {
-  const ggFrac = costoComputo > 0 ? totalGastosFijos() / costoComputo : null;
-  const benefFrac = (config.beneficioPct || 0) / 100;
-  const cfFrac = (config.costoFinancieroPct || 0) / 100;
-  const ivaFrac = (config.ivaPct || 0) / 100;
+  return window.calcCoeficienteK(config, totalGastosFijos(), costoComputo);
+}
 
-  if (ggFrac == null) return { ggFrac: null, subtotalCosto: null, subtotalConFinanciero: null, k: null };
+// Fila del bloque: etiqueta, el campo/valor del medio y el aporte al K en la
+// última columna — la misma lectura que la hoja "Carga fija" de la planilla,
+// donde cada concepto muestra cuánto suma al coeficiente.
+function filaK({ label, medio, aporte, clase, id, calcLabel }) {
+  const attrs = aporte == null ? '' : calcAttrs(aporte, id, calcLabel);
+  return `
+    <div class="ap-resumen-row cf-fila-k ${clase || ''}">
+      <span>${label}</span>
+      <span class="cf-fila-k-medio">${medio || ''}</span>
+      <span class="cf-fila-k-aporte"${attrs}>${aporte == null ? '' : fmtCoef(aporte)}</span>
+    </div>`;
+}
 
-  const subtotalCosto = 1 + ggFrac + benefFrac;
-  const subtotalConFinanciero = subtotalCosto * (1 + cfFrac);
-  const k = subtotalConFinanciero * (1 + ivaFrac);
-  return { ggFrac, subtotalCosto, subtotalConFinanciero, k };
+function pctInputHtml(id, valor, placeholder, calcId, calcLabel) {
+  return `<input type="text" class="form-control cf-pct" id="${id}" value="${valor ?? ''}" placeholder="${placeholder}" data-calc-id="${calcId}" data-calc-label="${escHtml(calcLabel)}">`;
 }
 
 function renderCoeficienteK() {
@@ -167,32 +174,127 @@ function renderCoeficienteK() {
     return;
   }
 
+  // Gastos Generales: a la izquierda el calculado (gastos fijos / costo del
+  // Cómputo) y al lado la celda editable, que arranca con ese mismo número
+  // pero se puede pisar a mano. Vaciarla vuelve a seguir al calculado.
+  const ggValorCelda = config.ggPct != null ? config.ggPct : window.roundLimpio(r.ggFracCalculado * 100);
+  const ggCalculado = `<span class="cf-gg-calculado"${calcAttrs(r.ggFracCalculado * 100, 'cargafija:ggPctCalculado', '% Gastos Generales calculado')}>calculado ${fmtPct(r.ggFracCalculado)}</span>`;
+
+  const filasImpuestos = r.impuestos.map(i => filaK({
+    label: `<input type="text" class="form-control cf-impuesto-nombre" data-key="${escHtml(i.key)}" value="${escHtml(i.nombre)}" placeholder="Nombre del impuesto">`,
+    medio: `${pctInputHtml('cf-imp-' + i.key, i.porcentaje, '0', `cargafija:impuesto:${i.key}`, i.nombre || 'Impuesto')}
+            <button class="cf-impuesto-del" data-key="${escHtml(i.key)}" title="Eliminar impuesto">${icSvg('x')}</button>`,
+    aporte: r.aportePorImpuesto[i.key],
+    clase: 'cf-fila-impuesto',
+    id: `cargafija:impuesto:${i.key}:aporte`,
+    calcLabel: `${i.nombre || 'Impuesto'} · Aporte`,
+  })).join('');
+
   el.innerHTML = `
     <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(costoComputo, 'cargafija:costoComputo', 'Costo total del Cómputo')}>${fmtARS(costoComputo)}</span></div>
-    <div class="ap-resumen-row"><span>% Gastos Generales (calculado)</span><span${calcAttrs(r.ggFrac * 100, 'cargafija:ggPct', '% Gastos Generales')}>${fmtPct(r.ggFrac)}</span></div>
-    <div class="ap-resumen-row"><span>% Beneficio</span><span><input type="text" class="form-control" id="cf-beneficio" value="${config.beneficioPct ?? ''}" placeholder="0" data-calc-id="cargafija:beneficioPct" data-calc-label="% Beneficio"></span></div>
-    <div class="ap-resumen-row"><span>Subtotal Costo</span><span${calcAttrs(r.subtotalCosto, 'cargafija:subtotalCosto', 'Subtotal Costo')}>${fmtCoef(r.subtotalCosto)}</span></div>
-    <div class="ap-resumen-row"><span>% Costo Financiero</span><span><input type="text" class="form-control" id="cf-financiero" value="${config.costoFinancieroPct ?? ''}" placeholder="0" data-calc-id="cargafija:costoFinancieroPct" data-calc-label="% Costo Financiero"></span></div>
-    <div class="ap-resumen-row"><span>Subtotal con gasto financiero</span><span${calcAttrs(r.subtotalConFinanciero, 'cargafija:subtotalConFinanciero', 'Subtotal con gasto financiero')}>${fmtCoef(r.subtotalConFinanciero)}</span></div>
-    <div class="ap-resumen-row"><span>% IVA</span><span><input type="text" class="form-control" id="cf-iva" value="${config.ivaPct ?? ''}" placeholder="21" data-calc-id="cargafija:ivaPct" data-calc-label="% IVA"></span></div>
-    <div class="ap-resumen-row total"><span>TOTAL (K)</span><span${calcAttrs(r.k, 'cargafija:k', 'Coeficiente K')}>${fmtCoef(r.k)}</span></div>
-    <p class="form-hint" style="margin-top:.5rem;">K se aplica al costo unitario de cada ítem en el Presupuesto de la obra para sacar el precio unitario.</p>`;
+    ${filaK({
+      label: 'Gastos Generales',
+      medio: ggCalculado + pctInputHtml('cf-gg', ggValorCelda, '0', 'cargafija:ggPct', '% Gastos Generales'),
+      aporte: r.ggFrac,
+      clase: r.ggEsManual ? 'cf-gg-manual' : '',
+      id: 'cargafija:ggAporte', calcLabel: 'Gastos Generales · Aporte',
+    })}
+    ${filaK({
+      label: 'Beneficio',
+      medio: pctInputHtml('cf-beneficio', config.beneficioPct, '0', 'cargafija:beneficioPct', '% Beneficio'),
+      aporte: r.beneficioFrac,
+      id: 'cargafija:beneficioAporte', calcLabel: 'Beneficio · Aporte',
+    })}
+    ${filaK({ label: 'Subtotal Costo', aporte: r.subtotalCosto, clase: 'cf-subtotal', id: 'cargafija:subtotalCosto', calcLabel: 'Subtotal Costo' })}
+    ${filaK({
+      label: 'Costo Financiero',
+      medio: pctInputHtml('cf-financiero', config.costoFinancieroPct, '0', 'cargafija:costoFinancieroPct', '% Costo Financiero'),
+      aporte: r.aporteFinanciero,
+      id: 'cargafija:financieroAporte', calcLabel: 'Costo Financiero · Aporte',
+    })}
+    ${filaK({ label: 'Subtotal con gasto financiero', aporte: r.subtotalConFinanciero, clase: 'cf-subtotal', id: 'cargafija:subtotalConFinanciero', calcLabel: 'Subtotal con gasto financiero' })}
+    <div class="cf-impuestos-titulo">Impuestos</div>
+    ${filasImpuestos || '<p class="form-hint">Esta obra no tiene impuestos cargados.</p>'}
+    <button type="button" class="btn btn-sm btn-outline cf-impuesto-add" id="cf-add-impuesto">+ Agregar impuesto</button>
+    ${filaK({ label: 'Impuesto', aporte: r.impuestoFrac, clase: 'cf-subtotal', id: 'cargafija:impuestoTotal', calcLabel: 'Impuesto (total)' })}
+    ${filaK({ label: 'TOTAL (K)', aporte: r.k, clase: 'total', id: 'cargafija:k', calcLabel: 'Coeficiente K' })}
+    <p class="form-hint" style="margin-top:.5rem;">K se aplica al costo unitario de cada ítem en el Presupuesto de la obra para sacar el precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
 
-  const pctField = (id, key) => {
-    const input = $(id);
-    attachCalcInput(input, config[key + 'Formula']);
-    attachValorInput(input, config[key] ?? null);
+  // El TOTAL (K) no sigue el selector de decimales del header: siempre 4 como
+  // mínimo (ver fmtK en moneda.js). Es la única excepción de la app.
+  const kEl = el.querySelector('.total .cf-fila-k-aporte');
+  if (kEl) kEl.textContent = fmtK(r.k);
+
+  engancharCamposK(r);
+}
+
+// Campo de % del bloque: mismo enganche que el resto de la app
+// (attachCalcInput → attachValorInput → leer con valorCampo) y no escribe si
+// no cambió nada.
+function pctFieldK(input, valorActual, formulaActual, guardar) {
+  attachCalcInput(input, formulaActual);
+  attachValorInput(input, valorActual);
+  input.addEventListener('blur', () => {
+    const n = valorCampo(input);
+    const formula = getCalcFormula(input);
+    if (n === valorActual && formula === (formulaActual || null)) return;
+    guardar(n, formula);
+  });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+}
+
+function engancharCamposK(r) {
+  const campoConfig = key => {
+    const input = $(key === 'ggPct' ? 'cf-gg' : key === 'beneficioPct' ? 'cf-beneficio' : 'cf-financiero');
+    if (!input) return;
+    pctFieldK(input, config[key] ?? null, config[key + 'Formula'],
+      (n, formula) => updateConfig({ [key]: n, [key + 'Formula']: formula }));
+  };
+  campoConfig('beneficioPct');
+  campoConfig('costoFinancieroPct');
+
+  // Gastos Generales: la celda muestra el calculado mientras no haya valor
+  // propio, así que guardar "lo mismo que el calculado" no cuenta como pisarlo
+  // a mano — si no, con sólo pasar por el campo la obra quedaría con el % del
+  // momento congelado y dejaría de seguir al Cómputo.
+  const ggInput = $('cf-gg');
+  if (ggInput) {
+    const calculado = window.roundLimpio(r.ggFracCalculado * 100);
+    attachCalcInput(ggInput, config.ggPctFormula);
+    attachValorInput(ggInput, config.ggPct != null ? config.ggPct : calculado);
+    ggInput.addEventListener('blur', () => {
+      const n = valorCampo(ggInput);
+      const formula = getCalcFormula(ggInput);
+      const nuevo = (n == null || isNaN(n) || (n === calculado && !formula)) ? null : n;
+      if (nuevo === (config.ggPct ?? null) && formula === (config.ggPctFormula || null)) return;
+      updateConfig({ ggPct: nuevo, ggPctFormula: nuevo == null ? null : formula });
+    });
+    ggInput.addEventListener('keydown', e => { if (e.key === 'Enter') ggInput.blur(); });
+  }
+
+  r.impuestos.forEach(i => {
+    const input = $('cf-imp-' + i.key);
+    if (input) {
+      pctFieldK(input, i.porcentaje ?? null, (config.impuestos && config.impuestos[i.key] || {}).porcentajeFormula,
+        (n, formula) => updateImpuesto(i.key, { porcentaje: n, porcentajeFormula: formula }));
+    }
+  });
+
+  $('coeficiente-k').querySelectorAll('.cf-impuesto-nombre').forEach(input => {
     input.addEventListener('blur', () => {
-      const n = valorCampo(input);
-      const formula = getCalcFormula(input);
-      if (n === (config[key] ?? null) && formula === (config[key + 'Formula'] || null)) return;
-      updateConfig({ [key]: n, [key + 'Formula']: formula });
+      const v = input.value.trim();
+      const actual = (window.impuestosDeConfig(config).find(i => i.key === input.dataset.key) || {}).nombre;
+      if (v === (actual || '')) return;
+      updateImpuesto(input.dataset.key, { nombre: v });
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
-  };
-  pctField('cf-beneficio', 'beneficioPct');
-  pctField('cf-financiero', 'costoFinancieroPct');
-  pctField('cf-iva', 'ivaPct');
+  });
+
+  $('coeficiente-k').querySelectorAll('.cf-impuesto-del').forEach(btn => {
+    btn.addEventListener('click', () => eliminarImpuesto(btn.dataset.key));
+  });
+  const addBtn = $('cf-add-impuesto');
+  if (addBtn) addBtn.addEventListener('click', agregarImpuesto);
 }
 
 // Igual que en el Cómputo: recién renderizado, cada celda del DOM tiene su
@@ -200,7 +302,7 @@ function renderCoeficienteK() {
 // apunta a otras celdas (ver js/refs.js). Tope de pasadas para cortar una
 // referencia circular.
 const CAMPOS_LINEA = ['cantidad', 'precioUnitario', 'meses', 'porcentaje'];
-const CAMPOS_CONFIG = ['beneficioPct', 'costoFinancieroPct', 'ivaPct'];
+const CAMPOS_CONFIG = ['beneficioPct', 'costoFinancieroPct', 'ggPct'];
 let pasadasVivas = 0;
 
 function refrescarFormulasVivas() {
@@ -225,6 +327,17 @@ function refrescarFormulasVivas() {
       formula: config[campo + 'Formula'],
       valor: config[campo] ?? null,
       aplicar: valor => { config[campo] = valor; persistConfigCambios({ [campo]: valor }); },
+    });
+  });
+  Object.entries(config.impuestos || {}).forEach(([key, i]) => {
+    if (!window.formulaTieneRefs(i.porcentajeFormula)) return;
+    campos.push({
+      formula: i.porcentajeFormula,
+      valor: i.porcentaje ?? null,
+      aplicar: valor => {
+        config.impuestos[key].porcentaje = valor;
+        persistImpuestoCambios(key, { porcentaje: valor });
+      },
     });
   });
   if (!campos.length || !window.recalcularCeldasVivas(campos)) { pasadasVivas = 0; return; }
@@ -272,6 +385,22 @@ async function persistConfigCambios(cambios) {
   }
 }
 
+async function persistImpuestoCambios(key, cambios) {
+  try {
+    await _fbPatch(`/obras/${obraKey}/cargaFija/config/impuestos/${key}.json`, cambios);
+  } catch (_) {
+    showToast('Error al guardar el impuesto.', 'error');
+  }
+}
+
+async function persistImpuestoNuevo(key, impuesto) {
+  try {
+    await _fbPut(`/obras/${obraKey}/cargaFija/config/impuestos/${key}.json`, impuesto);
+  } catch (_) {
+    showToast('Error al guardar el impuesto.', 'error');
+  }
+}
+
 function updateLinea(lineaKey, cambios) {
   lineas[lineaKey] = { ...lineas[lineaKey], ...cambios };
   renderTodo();
@@ -282,6 +411,86 @@ function updateConfig(cambios) {
   config = { ...config, ...cambios };
   renderCoeficienteK();
   persistConfigCambios(cambios);
+}
+
+/* ===== Impuestos =====
+   Antes había un único `ivaPct`. Ahora es una lista, porque en la planilla
+   conviven varios (IVA, Otros impuestos) que aportan al mismo coeficiente.
+   Las obras viejas se siguen leyendo por compatibilidad (ver
+   impuestosDeConfig en calcCostos.js); la lista se "materializa" en la
+   primera edición: se escribe la lista completa, se marca la obra con
+   `impuestosCargados` y recién ahí se anula el `ivaPct` viejo, para que no
+   queden dos fuentes de verdad. */
+
+// Devuelve la lista tal como debe quedar guardada, partiendo de lo que la
+// obra tenga hoy (lista propia o el IVA legado).
+function impuestosComoObjeto() {
+  const obj = {};
+  window.impuestosDeConfig(config).forEach((i, idx) => {
+    obj[i.key] = {
+      nombre: i.nombre || '',
+      porcentaje: i.porcentaje ?? null,
+      porcentajeFormula: (config.impuestos && config.impuestos[i.key] || {}).porcentajeFormula || null,
+      orden: i.orden || idx,
+    };
+  });
+  return obj;
+}
+
+// Deja la obra con la lista ya materializada en `config` (en memoria) y
+// devuelve los cambios que hay que persistir junto con la edición.
+function asegurarListaImpuestos() {
+  if (config.impuestosCargados) return {};
+  config.impuestos = impuestosComoObjeto();
+  config.impuestosCargados = true;
+  config.ivaPct = null;
+  return { impuestos: config.impuestos, impuestosCargados: true, ivaPct: null };
+}
+
+function updateImpuesto(key, cambios) {
+  const base = asegurarListaImpuestos();
+  config.impuestos = { ...config.impuestos, [key]: { ...(config.impuestos || {})[key], ...cambios } };
+  renderCoeficienteK();
+  if (Object.keys(base).length) {
+    // Primera edición de la obra: se escribe la lista completa junto con la
+    // marca y el ivaPct anulado, en un solo PATCH.
+    persistConfigCambios({ ...base, impuestos: config.impuestos });
+  } else {
+    // PATCH por impuesto: sólo toca ese nodo, no reescribe la lista entera
+    // (mismo criterio que las líneas de gasto fijo).
+    persistImpuestoCambios(key, cambios);
+  }
+}
+
+function agregarImpuesto() {
+  const base = asegurarListaImpuestos();
+  const key = 'imp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const orden = Object.values(config.impuestos || {}).reduce((max, i) => Math.max(max, i.orden || 0), -1) + 1;
+  const nuevo = { nombre: '', porcentaje: null, porcentajeFormula: null, orden };
+  config.impuestos = { ...config.impuestos, [key]: nuevo };
+  renderCoeficienteK();
+  if (Object.keys(base).length) persistConfigCambios({ ...base, impuestos: config.impuestos });
+  else persistImpuestoNuevo(key, nuevo);
+}
+
+async function eliminarImpuesto(key) {
+  const base = asegurarListaImpuestos();
+  const impuestos = { ...config.impuestos };
+  delete impuestos[key];
+  config.impuestos = impuestos;
+  renderCoeficienteK();
+  if (Object.keys(base).length) {
+    // Primera edición de la obra: se escribe la lista ya sin ese impuesto.
+    persistConfigCambios({ ...base, impuestos });
+    return;
+  }
+  try {
+    // Path con la key incluida — sin ella se borraría la lista entera
+    // (ver memoria feedback_firebase_delete_paths).
+    await _fbDel(`/obras/${obraKey}/cargaFija/config/impuestos/${key}.json`);
+  } catch (_) {
+    showToast('Error al eliminar el impuesto.', 'error');
+  }
 }
 
 function addLinea() {

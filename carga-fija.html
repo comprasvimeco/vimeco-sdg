@@ -19,6 +19,24 @@
     .ap-resumen-row { display: flex; justify-content: space-between; align-items: center; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); gap: 1rem; }
     .ap-resumen-row input { max-width: 110px; text-align: right; }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+
+    /* Bloque del Coeficiente K: cada concepto muestra su aporte al coeficiente
+       en la última columna, igual que la hoja "Carga fija" de la planilla. */
+    .cf-fila-k { display: grid; grid-template-columns: 1fr auto 100px; gap: .75rem; }
+    .cf-fila-k-medio { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; }
+    .cf-fila-k-aporte { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .cf-subtotal { font-weight: 700; color: var(--gray-700); border-top: 1px solid var(--gray-200); padding-top: .45rem; }
+    .cf-gg-calculado { font-size: .78rem; color: var(--gray-400); white-space: nowrap; }
+    /* Gastos Generales pisado a mano: se marca para que no pase inadvertido
+       que dejó de seguir al calculado. */
+    .cf-gg-manual .cf-gg-calculado { text-decoration: line-through; }
+    .cf-gg-manual input { border-color: var(--gold, #c8a852); }
+    .cf-impuestos-titulo { font-size: .74rem; color: var(--gray-500); text-transform: uppercase; letter-spacing: .05em; margin-top: .7rem; padding-top: .55rem; border-top: 1px solid var(--gray-200); }
+    .cf-impuesto-nombre { max-width: 100%; text-align: left !important; }
+    .cf-fila-impuesto .cf-fila-k-medio { gap: .25rem; }
+    .cf-impuesto-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .25rem; line-height: 1; }
+    .cf-impuesto-del .icon { width: 14px; height: 14px; }
+    .cf-impuesto-add { margin: .4rem 0 .25rem; }
   </style>
 </head>
 <body>

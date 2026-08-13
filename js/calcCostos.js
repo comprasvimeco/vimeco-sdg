@@ -193,3 +193,87 @@ window.totalGastosFijosCargaFija = function (lineas, costoComputo, presupuestoOf
     return t == null ? acc : acc + t;
   }, 0);
 };
+
+// IVA por defecto de una obra que nunca tocó sus impuestos. Estaba repetido
+// como `ivaPct: 21` en las cuatro pantallas que calculaban el K; vive acá
+// porque sacarlo cambiaría de golpe el K de las obras que hoy no tienen
+// ningún porcentaje guardado y lo reciben de ese default.
+const IVA_POR_DEFECTO = 21;
+
+// Impuestos de una obra, normalizados a [{ key, nombre, porcentaje, orden }].
+//
+// `impuestosCargados` marca que la obra ya usa la lista: sin esa marca se cae
+// al `ivaPct` viejo (un único IVA). Hace falta el marcador y no alcanza con
+// mirar si existe el nodo `impuestos`, porque RTDB borra el nodo entero
+// cuando se elimina su último hijo — y "me quedé sin impuestos" volvería a
+// leerse como "obra vieja, ponele 21%".
+window.impuestosDeConfig = function (config) {
+  config = config || {};
+  if (config.impuestosCargados) {
+    return Object.entries(config.impuestos || {})
+      .map(([key, i]) => ({ key, nombre: i.nombre || '', porcentaje: i.porcentaje, orden: i.orden || 0 }))
+      .sort((a, b) => a.orden - b.orden);
+  }
+  const pct = config.ivaPct != null ? config.ivaPct : IVA_POR_DEFECTO;
+  return [{ key: 'iva', nombre: 'IVA', porcentaje: pct, orden: 0 }];
+};
+
+// Coeficiente K de una obra — UNA sola implementación, usada por Carga Fija
+// (edición), Presupuesto, Plan de Avance y el AP. Antes estaba copiada en las
+// cuatro pantallas y cualquier cambio había que hacerlo cuatro veces.
+//
+//   K = (1 + %GastosGenerales + %Beneficio) × (1 + %CostoFinanciero) × (1 + Σ%Impuestos)
+//
+// Verificada contra la hoja "Carga fija" de la planilla: cada impuesto se
+// aplica sobre el Subtotal con gasto financiero y los aportes se suman
+// (1,372 × 2,5% = 0,034 · 1,372 × 21% = 0,288 · Impuesto = 0,322 · K = 1,695).
+//
+// %GastosGenerales sale de (gastos fijos / costo del Cómputo), pero se puede
+// pisar a mano por obra (config.ggPct): se devuelven los dos, el calculado y
+// el que efectivamente se usó. Sin costo de Cómputo no hay % que prorratear y
+// K da null — la pantalla que llama decide qué mostrar.
+//
+// Devuelve el desglose completo (no sólo el K) para que Carga Fija pueda
+// pintar el aporte de cada fila sin recalcular nada por su cuenta.
+window.calcCoeficienteK = function (config, gastosFijos, costoComputo) {
+  config = config || {};
+  const ggFracCalculado = costoComputo > 0 ? gastosFijos / costoComputo : null;
+  const ggManual = config.ggPct != null && !isNaN(config.ggPct) ? config.ggPct / 100 : null;
+  const ggFrac = ggManual != null ? ggManual : ggFracCalculado;
+
+  const beneficioFrac = (config.beneficioPct || 0) / 100;
+  const costoFinancieroFrac = (config.costoFinancieroPct || 0) / 100;
+  const impuestos = window.impuestosDeConfig(config);
+
+  if (ggFrac == null) {
+    return {
+      ggFracCalculado, ggFrac: null, ggEsManual: false, beneficioFrac,
+      subtotalCosto: null, costoFinancieroFrac, subtotalConFinanciero: null,
+      impuestos, aportePorImpuesto: {}, impuestoFrac: null, k: null,
+    };
+  }
+
+  // Los totales se calculan multiplicando (1 + %), igual que antes de que esto
+  // fuera una función compartida: sumar los aportes uno por uno daría lo mismo
+  // en papel pero no bit a bit en punto flotante, y el K de las obras ya
+  // cargadas se movería en el último decimal sin motivo. Los aportes de cada
+  // fila salen por diferencia, sólo para mostrarlos.
+  const subtotalCosto = 1 + ggFrac + beneficioFrac;
+  const subtotalConFinanciero = subtotalCosto * (1 + costoFinancieroFrac);
+  const impuestosFracTotal = impuestos.reduce((acc, i) => acc + (i.porcentaje || 0) / 100, 0);
+  const k = subtotalConFinanciero * (1 + impuestosFracTotal);
+
+  const aportePorImpuesto = {};
+  impuestos.forEach(i => {
+    aportePorImpuesto[i.key] = subtotalConFinanciero * ((i.porcentaje || 0) / 100);
+  });
+
+  return {
+    ggFracCalculado, ggFrac, ggEsManual: ggManual != null,
+    beneficioFrac, subtotalCosto,
+    costoFinancieroFrac, aporteFinanciero: subtotalConFinanciero - subtotalCosto,
+    subtotalConFinanciero,
+    impuestos, aportePorImpuesto, impuestoFrac: k - subtotalConFinanciero,
+    k,
+  };
+};

@@ -38,7 +38,7 @@ let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8
 let preciosObra = {};
 let dolarObra = null;
 let cargaFijaLineas = {};
-let cargaFijaConfig = { beneficioPct: null, costoFinancieroPct: null, ivaPct: 21 };
+let cargaFijaConfig = { beneficioPct: null, costoFinancieroPct: null };
 
 let config = { modo: 'items', unidad: 'semana', cantidad: 12, fechaInicio: '', anticipoPct: null };
 let distItems = {};    // { lineaKey: { p0: fracción, p1: … } }
@@ -73,14 +73,11 @@ function costoTotalComputo() {
   return Object.values(lineas).reduce((acc, l) => acc + costoUnitarioDe(l.itemKey) * cantidadDe(l), 0);
 }
 
+// La fórmula del K vive en calcCostos.js (calcCoeficienteK), compartida con
+// Carga Fija, Presupuesto y el AP — acá sólo se usa el resultado.
 function calcularK(costoComputo) {
   const gastosFijos = window.totalGastosFijosCargaFija(cargaFijaLineas, costoComputo, obra ? obra.presupuestoOficial : null);
-  if (!(costoComputo > 0)) return null;
-  const ggFrac = gastosFijos / costoComputo;
-  const benefFrac = (cargaFijaConfig.beneficioPct || 0) / 100;
-  const cfFrac = (cargaFijaConfig.costoFinancieroPct || 0) / 100;
-  const ivaFrac = (cargaFijaConfig.ivaPct || 0) / 100;
-  return (1 + ggFrac + benefFrac) * (1 + cfFrac) * (1 + ivaFrac);
+  return window.calcCoeficienteK(cargaFijaConfig, gastosFijos, costoComputo).k;
 }
 
 /* ===== Períodos ===== */

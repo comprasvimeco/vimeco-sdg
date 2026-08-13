@@ -76,16 +76,11 @@ async function calcularKObra(obraKeyX) {
     _fbGet(`/obras/${obraKeyX}/cargaFija/config.json`),
   ]);
   const costoComputo = costoComputoDeObra(obraKeyX, computoDataX);
-  const config = { beneficioPct: null, costoFinancieroPct: null, ivaPct: 21, ...(cargaFijaConfigX || {}) };
+  const config = { ...(cargaFijaConfigX || {}) };
   const gastosFijos = window.totalGastosFijosCargaFija(cargaFijaLineasX || {}, costoComputo, (obrasFull[obraKeyX] || {}).presupuestoOficial);
-  const ggFrac = costoComputo > 0 ? gastosFijos / costoComputo : null;
-  let k = null;
-  if (ggFrac != null) {
-    const benefFrac = (config.beneficioPct || 0) / 100;
-    const cfFrac = (config.costoFinancieroPct || 0) / 100;
-    const ivaFrac = (config.ivaPct || 0) / 100;
-    k = (1 + ggFrac + benefFrac) * (1 + cfFrac) * (1 + ivaFrac);
-  }
+  // La fórmula del K vive en calcCostos.js (calcCoeficienteK), compartida con
+  // Carga Fija, Presupuesto y Plan de Avance.
+  const k = window.calcCoeficienteK(config, gastosFijos, costoComputo).k;
   kPorObra[obraKeyX] = k;
   return k;
 }
@@ -413,7 +408,7 @@ function renderResumenCosto(r) {
   const k = kPorObra[activeVersion];
   const precioUnitarioHtml = k
     ? `<div class="ap-resumen-row total"><span>Precio Unitario</span><span${calcAttrs(r.costoUnitario * k, 'ap:precioUnitario', 'Precio Unitario')}>${fmtARS(r.costoUnitario * k)}</span></div>
-       <p class="form-hint" style="margin-top:.4rem;">Precio Unitario = Subtotal × Coeficiente K (${fmtCoef(k)}) de <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> de esta obra.</p>`
+       <p class="form-hint" style="margin-top:.4rem;">Precio Unitario = Subtotal × Coeficiente K (${fmtK(k)}) de <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> de esta obra.</p>`
     : k === null
       ? `<p class="form-hint" style="margin-top:.4rem;">No se pudo calcular el Precio Unitario — a esta obra le falta Cómputo o <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> cargada.</p>`
       : '';

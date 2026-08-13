@@ -5,7 +5,7 @@
    edita acá — cantidades y receta se editan en Cómputo, %Beneficio/
    %CostoFinanciero/%IVA/gastos fijos en Carga Fija.
 
-   K = (1 + %GastosGenerales + %Beneficio) × (1 + %CostoFinanciero) × (1 + %IVA)
+   K = (1 + %GastosGenerales + %Beneficio) × (1 + %CostoFinanciero) × (1 + Σ%Impuestos)
    %GastosGenerales = (gastos fijos de la obra) / (costo total del Cómputo). */
 
 const $ = id => document.getElementById(id);
@@ -25,7 +25,7 @@ let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8
 let preciosObra = {};
 let dolarObra = null;   // dólar propio de esta obra (/obras/{obraKey}/dolar)
 let cargaFijaLineas = {};
-let cargaFijaConfig = { beneficioPct: null, costoFinancieroPct: null, ivaPct: 21 };
+let cargaFijaConfig = { beneficioPct: null, costoFinancieroPct: null };
 
 function versionDe(it) {
   const propia = it.versionesObra && it.versionesObra[obraKey];
@@ -53,16 +53,11 @@ function costoTotalComputo() {
   return Object.values(lineas).reduce((acc, l) => acc + costoTotalLinea(l), 0);
 }
 
+// La fórmula del K vive en calcCostos.js (calcCoeficienteK), compartida con
+// Carga Fija, Plan de Avance y el AP — acá sólo se usa el resultado.
 function calcularK(costoComputo) {
   const gastosFijos = window.totalGastosFijosCargaFija(cargaFijaLineas, costoComputo, obra ? obra.presupuestoOficial : null);
-  const ggFrac = costoComputo > 0 ? gastosFijos / costoComputo : null;
-  if (ggFrac == null) return null;
-  const benefFrac = (cargaFijaConfig.beneficioPct || 0) / 100;
-  const cfFrac = (cargaFijaConfig.costoFinancieroPct || 0) / 100;
-  const ivaFrac = (cargaFijaConfig.ivaPct || 0) / 100;
-  const subtotalCosto = 1 + ggFrac + benefFrac;
-  const subtotalConFinanciero = subtotalCosto * (1 + cfFrac);
-  return subtotalConFinanciero * (1 + ivaFrac);
+  return window.calcCoeficienteK(cargaFijaConfig, gastosFijos, costoComputo).k;
 }
 
 function lineasDeRubro(rubroId) {
@@ -149,7 +144,7 @@ function renderTodo() {
 
   resumen.innerHTML = `
     <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(costoComputo, 'presupuesto:costoComputo', 'Costo total del Cómputo')}>${fmtARS(costoComputo)}</span></div>
-    <div class="ap-resumen-row"><span>Coeficiente K</span><span${calcAttrs(k, 'presupuesto:k', 'Coeficiente K')}>${fmtCoef(k)}</span></div>
+    <div class="ap-resumen-row"><span>Coeficiente K</span><span${calcAttrs(k, 'presupuesto:k', 'Coeficiente K')}>${fmtK(k)}</span></div>
     <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span${calcAttrs(totalPresupuesto, 'presupuesto:total', 'Total del Presupuesto')}>${fmtARS(totalPresupuesto)}</span></div>
     <p class="form-hint" style="margin-top:.5rem;">K se recalcula en vivo a partir de Carga Fija — no se cachea.</p>`;
 }
