@@ -193,12 +193,16 @@ function renderLineas() {
     unidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') unidadInput.blur(); });
 
     const cantidadInput = row.querySelector('.linea-cantidad');
-    cantidadInput.value = linea.cantidad ?? '';
     cantidadInput.dataset.calcValor = linea.cantidad ?? 0;
     attachCalcInput(cantidadInput, linea.cantidadFormula);
+    attachValorInput(cantidadInput, linea.cantidad ?? null);
     cantidadInput.addEventListener('blur', () => {
-      const n = parseFloat(cantidadInput.value.replace(',', '.'));
-      updateLinea(lineaKey, { cantidad: isNaN(n) ? null : n, cantidadFormula: getCalcFormula(cantidadInput) });
+      const n = valorCampo(cantidadInput);
+      const formula = getCalcFormula(cantidadInput);
+      // Salir del campo sin haberlo tocado no tiene que escribir nada: sin
+      // esto, cada paso por una celda dispara un PATCH y un re-render.
+      if (n === (linea.cantidad ?? null) && formula === (linea.cantidadFormula || null)) return;
+      updateLinea(lineaKey, { cantidad: n, cantidadFormula: formula });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
 
@@ -497,3 +501,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await getDolarSnapshot().catch(() => {});
   if (obra) renderTodo();
 });
+
+// Cambiar los decimales del header no vuelve a pedir datos: repinta lo que ya
+// está cargado con el nuevo formato.
+window.onDecimalesVista(() => { if (obra) renderTodo(); });

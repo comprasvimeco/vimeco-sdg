@@ -97,10 +97,15 @@ function renderLineas() {
 
     tipoSelect.addEventListener('change', () => updateLinea(lineaKey, { tipo: tipoSelect.value }));
 
+    // Campo numérico de una línea: valor completo por dentro, redondeado en
+    // pantalla (attachValorInput), y sin escribir si no se tocó nada.
     const numField = (input, key) => {
+      attachValorInput(input, l[key] ?? null);
       input.addEventListener('blur', () => {
-        const n = parseFloat(input.value.replace(',', '.'));
-        updateLinea(lineaKey, { [key]: isNaN(n) ? null : n, [key + 'Formula']: getCalcFormula(input) });
+        const n = valorCampo(input);
+        const formula = getCalcFormula(input);
+        if (n === (l[key] ?? null) && formula === (l[key + 'Formula'] || null)) return;
+        updateLinea(lineaKey, { [key]: n, [key + 'Formula']: formula });
       });
       input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
     };
@@ -120,11 +125,7 @@ function renderLineas() {
 
       numField(cantidad, 'cantidad');
       numField(meses, 'meses');
-      precio.addEventListener('blur', () => {
-        const n = parseMoneyString(precio.value);
-        updateLinea(lineaKey, { precioUnitario: isNaN(n) ? null : n, precioUnitarioFormula: getCalcFormula(precio) });
-      });
-      precio.addEventListener('keydown', e => { if (e.key === 'Enter') precio.blur(); });
+      numField(precio, 'precioUnitario');
     }
 
     row.querySelector('.cf-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
@@ -145,13 +146,6 @@ function calcularK() {
   const subtotalConFinanciero = subtotalCosto * (1 + cfFrac);
   const k = subtotalConFinanciero * (1 + ivaFrac);
   return { ggFrac, subtotalCosto, subtotalConFinanciero, k };
-}
-
-function fmtPct(frac) {
-  return (frac * 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
-}
-function fmtCoef(n) {
-  return n.toLocaleString('es-AR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
 }
 
 function renderCoeficienteK() {
@@ -177,9 +171,12 @@ function renderCoeficienteK() {
   const pctField = (id, key) => {
     const input = $(id);
     attachCalcInput(input, config[key + 'Formula']);
+    attachValorInput(input, config[key] ?? null);
     input.addEventListener('blur', () => {
-      const n = parseFloat(input.value.replace(',', '.'));
-      updateConfig({ [key]: isNaN(n) ? null : n, [key + 'Formula']: getCalcFormula(input) });
+      const n = valorCampo(input);
+      const formula = getCalcFormula(input);
+      if (n === (config[key] ?? null) && formula === (config[key + 'Formula'] || null)) return;
+      updateConfig({ [key]: n, [key + 'Formula']: formula });
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
   };
@@ -401,3 +398,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderTodo();
   }
 });
+
+window.onDecimalesVista(() => { if (obra) renderTodo(); });

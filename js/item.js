@@ -48,10 +48,6 @@ let dolarObraActivo = null;   // dólar propio de la obra de la pestaña activa 
 // completo de la obra (sólo lo necesita para la numeración de esta línea).
 let kPorObra = {};   // { obraKey: number|null } — null = no se pudo calcular (obra sin costo de Cómputo todavía)
 
-function fmtCoef(n) {
-  return n.toLocaleString('es-AR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
-}
-
 function costoComputoDeObra(obraKeyX, computoDataX) {
   const obraFullX = obrasFull[obraKeyX] || {};
   const paramsEq = { ...DEFAULT_PARAMS_EQUIPOS, ...(obraFullX.paramsEquipos || {}) };
@@ -363,18 +359,19 @@ function renderVersionTabs() {
 function renderVersionRendimiento() {
   const wrap = $('version-rendimiento');
   wrap.classList.remove('hidden');
-  wrap.innerHTML = `<span>Rendimiento en esta obra: <strong>${escHtml(String(rendimientoActivo))}</strong> uds./jornada</span>
+  wrap.innerHTML = `<span>Rendimiento en esta obra: <strong>${escHtml(fmtNum(rendimientoActivo))}</strong> uds./jornada</span>
     <button class="version-rendimiento-edit" id="btn-editar-rend-obra" title="Editar rendimiento de esta obra">${icSvg('edit')}</button>`;
   $('btn-editar-rend-obra').addEventListener('click', () => {
     wrap.innerHTML = `<input type="text" class="form-control" id="rend-obra-input" style="max-width:140px;" value="${escHtml(String(rendimientoActivo))}">`;
     const input = $('rend-obra-input');
     attachCalcInput(input, rendimientoFormulaActiva);
+    attachValorInput(input, rendimientoActivo);
     input.focus();
     input.select();
     const guardar = () => {
       if (input.value.trim().startsWith('=')) input.blur();
-      const n = parseFloat(input.value.replace(',', '.'));
-      if (!isNaN(n) && n > 0) {
+      const n = valorCampo(input);
+      if (n != null && !isNaN(n) && n > 0) {
         rendimientoActivo = n;
         rendimientoFormulaActiva = getCalcFormula(input);
         persistRendimiento({ rendimiento: n, rendimientoFormula: rendimientoFormulaActiva });
@@ -514,7 +511,6 @@ function renderLineasSeccion(tipo, r) {
     const linea = lineas[lineaKey];
     const cantidadInput = row.querySelector('.linea-cantidad');
 
-    cantidadInput.value = linea.cantidad ?? '';
     cantidadInput.dataset.calcValor = linea.cantidad ?? 0;
 
     const options = cat.map(c => ({
@@ -556,9 +552,12 @@ function renderLineasSeccion(tipo, r) {
     }
 
     attachCalcInput(cantidadInput, linea.cantidadFormula);
+    attachValorInput(cantidadInput, linea.cantidad ?? null);
     cantidadInput.addEventListener('blur', () => {
-      const n = parseFloat(cantidadInput.value.replace(',', '.'));
-      updateLinea(lineaKey, { cantidad: isNaN(n) ? null : n, cantidadFormula: getCalcFormula(cantidadInput) });
+      const n = valorCampo(cantidadInput);
+      const formula = getCalcFormula(cantidadInput);
+      if (n === (linea.cantidad ?? null) && formula === (linea.cantidadFormula || null)) return;
+      updateLinea(lineaKey, { cantidad: n, cantidadFormula: formula });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
     row.querySelector('.ap-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
@@ -627,15 +626,18 @@ function renderManoDeObraSeccion(r) {
     const linea = entry ? entry[1] : null;
 
     attachCalcInput(cantidadInput, linea ? linea.cantidadFormula : null);
+    attachValorInput(cantidadInput, linea ? (linea.cantidad ?? null) : null);
     cantidadInput.addEventListener('blur', () => {
       if (cantidadInput.value.trim() === '') {
         if (entry) deleteLinea(entry[0]);
         return;
       }
-      const n = parseFloat(cantidadInput.value.replace(',', '.'));
-      if (isNaN(n)) { cantidadInput.value = linea && linea.cantidad != null ? linea.cantidad : ''; return; }
+      const n = valorCampo(cantidadInput);
+      if (n == null || isNaN(n)) { setValorCampo(cantidadInput, linea ? (linea.cantidad ?? null) : null); return; }
+      const formula = getCalcFormula(cantidadInput);
+      if (linea && n === (linea.cantidad ?? null) && formula === (linea.cantidadFormula || null)) return;
       const lineaKey = entry ? entry[0] : `mo_${rolKey}`;
-      updateLinea(lineaKey, { tipo: 'manoDeObra', refKey: rolKey, cantidad: n, cantidadFormula: getCalcFormula(cantidadInput) });
+      updateLinea(lineaKey, { tipo: 'manoDeObra', refKey: rolKey, cantidad: n, cantidadFormula: formula });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
   });
@@ -1017,4 +1019,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   attachDualPrecioInputs({ usdInput: $('mep-precio-usd'), arsInput: $('mep-precio-ars'), notaEl: $('mep-precio-nota') });
 
   await loadAll();
+});
+
+window.onDecimalesVista(() => {
+  if (!item) return;
+  renderVersionRendimiento();
+  renderTodasLasLineas();
 });

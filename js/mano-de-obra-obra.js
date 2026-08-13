@@ -9,7 +9,6 @@
 
 const $ = id => document.getElementById(id);
 
-const fmtARSLocal = n => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
 const fmtFecha = iso => {
   if (!iso) return '';
   const [y, m, d] = iso.split('-');
@@ -84,10 +83,10 @@ function renderRoles(list) {
     if (r.basico) {
       const c = calcCosto(r.basico, r.noRemunerativoMensual, r.extraPct);
       meta = [
-        `Básico ${fmtARSLocal(r.basico)}/hs`,
+        `Básico ${fmtARS(r.basico)}/hs`,
         r.extraPct ? `+${r.extraPct}% extra` : '',
-        `Costo horario ${fmtARSLocal(c.costoHorario)}/hs`,
-        `Jornal (${paramsMO.jornadaHoras}hs) ${fmtARSLocal(c.costoJornal)}`,
+        `Costo horario ${fmtARS(c.costoHorario)}/hs`,
+        `Jornal (${paramsMO.jornadaHoras}hs) ${fmtARS(c.costoJornal)}`,
         r.fecha ? fmtFecha(r.fecha) : ''
       ].filter(Boolean).join(' · ');
     } else {
@@ -194,7 +193,7 @@ function updatePreview() {
   }
   const c = calcCosto(basico, noRem, extra);
   preview.textContent =
-    `Costo horario: ${fmtARSLocal(c.costoHorario)}/hs · Jornal (${paramsMO.jornadaHoras}hs): ${fmtARSLocal(c.costoJornal)}`;
+    `Costo horario: ${fmtARS(c.costoHorario)}/hs · Jornal (${paramsMO.jornadaHoras}hs): ${fmtARS(c.costoJornal)}`;
 }
 
 async function saveRolModal() {
@@ -340,3 +339,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   await loadAll();
 });
+
+window.onDecimalesVista(() => applyFilter());

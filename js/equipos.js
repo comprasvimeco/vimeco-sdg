@@ -339,3 +339,5 @@ document.addEventListener('DOMContentLoaded', () => {
   // el equivalente en pesos aunque no hubiera nada cacheado al entrar).
   getDolarSnapshot().then(() => applyFilter()).catch(() => {});
 });
+
+window.onDecimalesVista(() => applyFilter());

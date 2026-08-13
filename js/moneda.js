@@ -1,7 +1,99 @@
-/* VIMECO S.A. — Formateo de moneda y conversión USD→ARS en vivo (dólar oficial) */
+/* VIMECO S.A. — Formateo de números y moneda, y conversión USD→ARS en vivo
+   (dólar oficial).
 
-window.fmtUSD = n => n.toLocaleString('es-AR', { style: 'currency', currency: 'USD' });
-window.fmtARS = n => n.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' });
+   Criterio general, igual que Excel: el valor guardado tiene toda su
+   precisión y lo único que se elige acá es CUÁNTOS DECIMALES SE VEN. Ningún
+   formateador redondea el dato: redondean la pantalla. */
+
+/* ===== Decimales de la vista ===== */
+(function () {
+  const KEY = 'vimeco-decimales';
+  const MIN = 0, MAX = 8, DEFAULT = 2;
+  let cache = null;
+
+  // Preferencia del navegador, no del dato: no viaja a Firebase, cada uno
+  // mira los números con el detalle que le sirve.
+  window.decimalesVista = function () {
+    if (cache == null) {
+      let guardado = NaN;
+      try { guardado = parseInt(localStorage.getItem(KEY), 10); } catch (_) {}
+      cache = isNaN(guardado) ? DEFAULT : Math.max(MIN, Math.min(MAX, guardado));
+    }
+    return cache;
+  };
+
+  window.setDecimalesVista = function (n) {
+    const v = Math.max(MIN, Math.min(MAX, Math.round(n)));
+    if (v === window.decimalesVista()) return;
+    cache = v;
+    try { localStorage.setItem(KEY, String(v)); } catch (_) {}
+    renderControlDecimales();
+    window.dispatchEvent(new CustomEvent('vimeco:decimales', { detail: v }));
+  };
+
+  // Cada pantalla pasa acá su render principal para redibujarse cuando
+  // cambian los decimales, sin tener que volver a pedir datos.
+  window.onDecimalesVista = function (render) {
+    window.addEventListener('vimeco:decimales', () => render());
+  };
+
+  // Un valor que redondeado a los decimales que se muestran da cero, se
+  // muestra como cero pelado — si no, un -0,000001 aparece como "-$ 0,00",
+  // con un signo menos que no quiere decir nada.
+  function snapCero(n, dec) {
+    return Math.abs(n) < 0.5 * Math.pow(10, -dec) ? 0 : n;
+  }
+
+  function fmt(n, extra) {
+    const dec = window.decimalesVista();
+    return snapCero(Number(n), dec).toLocaleString('es-AR',
+      Object.assign({ minimumFractionDigits: dec, maximumFractionDigits: dec }, extra));
+  }
+
+  const vacio = n => n == null || n === '' || isNaN(n);
+
+  // Número pelado (cantidades, coeficientes). '' si no hay valor: en una
+  // grilla de carga, una celda vacía se lee mejor que un "0,00" inventado.
+  window.fmtNum  = n => vacio(n) ? '' : fmt(n);
+  window.fmtCoef = n => vacio(n) ? '' : fmt(n);
+  window.fmtARS  = n => vacio(n) ? '' : fmt(n, { style: 'currency', currency: 'ARS' });
+  window.fmtUSD  = n => vacio(n) ? '' : fmt(n, { style: 'currency', currency: 'USD' });
+
+  // Recibe la FRACCIÓN (0.25), muestra el porcentaje (25%).
+  window.fmtPct = frac => vacio(frac) ? '—' : fmt(frac * 100) + '%';
+
+  /* ===== Control del header ===== */
+  // Se inyecta al lado del dólar, así vale para todas las pantallas sin
+  // tocar los 15 HTML. Muestra un ejemplo del formato ("0,00") en vez del
+  // número de decimales: se entiende de un vistazo qué se va a ver.
+  function ejemploFormato(dec) {
+    return dec === 0 ? '0' : '0,' + '0'.repeat(dec);
+  }
+
+  function renderControlDecimales() {
+    const el = document.querySelector('.hdr-decimales-valor');
+    if (el) el.textContent = ejemploFormato(window.decimalesVista());
+  }
+
+  window.montarControlDecimales = function () {
+    const dolarEl = document.getElementById('header-dolar');
+    if (!dolarEl || document.querySelector('.hdr-decimales')) return;
+
+    const cont = document.createElement('div');
+    cont.className = 'hdr-decimales';
+    cont.title = 'Decimales que se muestran. No cambia los valores guardados, que mantienen toda su precisión.';
+    cont.innerHTML = `
+      <button type="button" class="hdr-decimales-btn" data-paso="-1" title="Menos decimales">−</button>
+      <span class="hdr-decimales-valor">${ejemploFormato(window.decimalesVista())}</span>
+      <button type="button" class="hdr-decimales-btn" data-paso="1" title="Más decimales">+</button>`;
+    dolarEl.insertAdjacentElement('afterend', cont);
+
+    cont.querySelectorAll('.hdr-decimales-btn').forEach(btn => {
+      btn.addEventListener('click', () =>
+        window.setDecimalesVista(window.decimalesVista() + parseInt(btn.dataset.paso, 10)));
+    });
+  };
+})();
 
 // Cotización oficial (venta) cacheada, sincrónica. null si todavía no se cargó ninguna vez.
 window.dolarOficialVenta = function () {
@@ -70,6 +162,11 @@ window.parseMoneyString = function (str) {
 // (mismo motivo que attachDualPrecioInputs: la fórmula tiene que estar
 // resuelta antes de que esto la formatee).
 window.attachMoneyInput = function (input) {
+  // Marca el campo como "de plata" para valorCampo() en calc.js: su texto
+  // agrupa miles con ".", así que se lee con parseMoneyString y no con
+  // parseFloat.
+  input.dataset.money = '1';
+
   // Tope de decimales que se pueden TIPEAR a mano. Antes era 2 (centavos),
   // pero los precios de la planilla vienen con más precisión (ej. $/kg con 4
   // decimales) y truncarlos al cargarlos arrastraba el error a todo el
@@ -243,5 +340,7 @@ window.renderHeaderDolar = async function () {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (document.getElementById('header-dolar')) window.renderHeaderDolar();
+  if (!document.getElementById('header-dolar')) return;
+  window.montarControlDecimales();
+  window.renderHeaderDolar();
 });

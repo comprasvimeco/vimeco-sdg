@@ -184,3 +184,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   await getDolarSnapshot().catch(() => {});
   if (obra) renderDolarVivo();
 });
+
+window.onDecimalesVista(() => { if (obra) renderDolarVivo(); });

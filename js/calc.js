@@ -173,4 +173,102 @@ window.roundLimpio = function (n) {
     input.addEventListener('blur', () => resolveIfFormula(input));
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
   };
+
+  /* ===== Valor completo vs. valor mostrado (celda tipo Excel) ===== */
+
+  // El valor de verdad de un campo no es el texto que se ve: vive en
+  // dataset.valorReal con toda su precisión, y el texto es apenas su
+  // presentación redondeada a los decimales elegidos en el header. Así,
+  // pasar por un campo sin tocarlo no puede pisar el valor guardado con la
+  // versión recortada que estaba en pantalla.
+
+  function esMoney(input) { return input.dataset.money === '1'; }
+
+  function parseTexto(input, texto) {
+    const t = String(texto || '').trim();
+    if (!t) return null;
+    // Los campos de plata agrupan miles con "." (parseMoneyString los
+    // descarta); el resto acepta los dos separadores decimales.
+    const n = esMoney(input) ? window.parseMoneyString(t) : parseFloat(t.replace(',', '.'));
+    return isNaN(n) ? null : n;
+  }
+
+  function textoCompleto(input, valor) {
+    if (valor == null) return '';
+    return esMoney(input) ? window.formatMoneyString(valor) : textoResultado(valor);
+  }
+
+  function textoMostrado(valor) {
+    return valor == null ? '' : window.fmtNum(valor);
+  }
+
+  // ¿El usuario editó el texto desde que entró al campo? Si no lo tocó, el
+  // valor bueno sigue siendo el guardado, no lo que se lee en pantalla.
+  function fueEditado(input) {
+    return input.dataset.textoAlEnfocar !== undefined && input.value !== input.dataset.textoAlEnfocar;
+  }
+
+  // Valor numérico verdadero del campo. Es lo que tienen que leer las
+  // pantallas al guardar, en vez de parsear input.value a mano.
+  window.valorCampo = function (input) {
+    if (fueEditado(input)) return parseTexto(input, input.value);
+    if (input.dataset.valorReal !== undefined && input.dataset.valorReal !== '') {
+      return parseFloat(input.dataset.valorReal);
+    }
+    return parseTexto(input, input.value);
+  };
+
+  // Reescribe el valor del campo desde afuera (ej. después de recalcular),
+  // respetando si está enfocado o no.
+  window.setValorCampo = function (input, valor) {
+    if (valor == null || isNaN(valor)) delete input.dataset.valorReal;
+    else input.dataset.valorReal = String(valor);
+    if (document.activeElement === input) {
+      if (!input.dataset.formula) input.value = textoCompleto(input, valor);
+    } else {
+      input.value = textoMostrado(valor);
+    }
+    // El texto que acaba de pintarse no es una edición del usuario: si no se
+    // actualiza la referencia, la próxima lectura tomaría este texto (que
+    // puede estar redondeado) como si fuera lo que se tipeó, y perdería la
+    // precisión del valor que se está guardando.
+    input.dataset.textoAlEnfocar = input.value;
+  };
+
+  // Engancha el comportamiento de celda: sin foco, valor redondeado; con
+  // foco, valor completo (o su fórmula, que la maneja attachCalcInput).
+  // Llamar DESPUÉS de attachCalcInput y attachMoneyInput.
+  window.attachValorInput = function (input, valor) {
+    window.setValorCampo(input, valor);
+
+    input.addEventListener('focus', () => {
+      if (!input.dataset.formula) input.value = textoCompleto(input, window.valorCampo(input));
+      input.dataset.textoAlEnfocar = input.value;
+    });
+
+    // Corre después de los blur de attachCalcInput (resuelve la fórmula) y
+    // attachMoneyInput (reagrupa los miles), así lee el texto ya resuelto.
+    input.addEventListener('blur', () => {
+      const v = window.valorCampo(input);
+      if (v == null || isNaN(v)) delete input.dataset.valorReal;
+      else input.dataset.valorReal = String(v);
+      input.value = textoMostrado(v);
+      // El texto de referencia pasa a ser el que quedó en pantalla: si nadie
+      // vuelve a tocar el campo, la próxima lectura devuelve el valor
+      // guardado y no este texto redondeado.
+      input.dataset.textoAlEnfocar = input.value;
+    });
+  };
+
+  // Repinta los campos ya enganchados cuando cambian los decimales del
+  // header — el valor no se toca, sólo cuántos decimales se ven. Se escucha
+  // el evento directo (y no onDecimalesVista) porque calc.js se carga antes
+  // que moneda.js, que es donde vive ese helper.
+  window.addEventListener('vimeco:decimales', () => {
+    document.querySelectorAll('input[data-valor-real]').forEach(input => {
+      if (document.activeElement === input) return;
+      input.value = textoMostrado(parseFloat(input.dataset.valorReal));
+      input.dataset.textoAlEnfocar = input.value;
+    });
+  });
 })();

@@ -65,14 +65,6 @@ function calcularK(costoComputo) {
   return subtotalConFinanciero * (1 + ivaFrac);
 }
 
-function fmtCoef(n) {
-  return n.toLocaleString('es-AR', { minimumFractionDigits: 4, maximumFractionDigits: 4 });
-}
-
-function fmtPct(frac) {
-  return (frac * 100).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
-}
-
 function lineasDeRubro(rubroId) {
   return Object.entries(lineas)
     .filter(([, l]) => l.rubroId === rubroId)
@@ -93,7 +85,7 @@ function renderLineaRow(linea, numero, k, totalPresupuesto) {
       <span class="presupuesto-linea-numero">${numero}</span>
       <span>${escHtml(linea.nombre || '')}</span>
       <span>${escHtml(linea.unidad || '')}</span>
-      <span${linea.cantidad != null && !isNaN(linea.cantidad) ? ` data-calc-valor="${linea.cantidad}"` : ''}>${linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : '—'}</span>
+      <span${linea.cantidad != null && !isNaN(linea.cantidad) ? ` data-calc-valor="${linea.cantidad}"` : ''}>${linea.cantidad != null && !isNaN(linea.cantidad) ? fmtNum(linea.cantidad) : '—'}</span>
       <span class="presupuesto-linea-precio" data-calc-valor="${precioUnitario}">${fmtARS(precioUnitario)}</span>
       <span class="presupuesto-linea-total" data-calc-valor="${total}">${fmtARS(total)}</span>
       <span class="presupuesto-linea-incidencia" data-calc-valor="${incidencia * 100}">${fmtPct(incidencia)}</span>
@@ -206,3 +198,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   await getDolarSnapshot().catch(() => {});
   if (obra) renderTodo();
 });
+
+window.onDecimalesVista(() => { if (obra) renderTodo(); });

@@ -269,6 +269,12 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 /* ===== HEADER: cotización del dólar (siempre visible, no se repite por pantalla) ===== */
 .header-dolar { font-size: .78rem; font-weight: 600; color: rgba(255,255,255,.9); background: rgba(255,255,255,.14); padding: .3rem .65rem; border-radius: 999px; white-space: nowrap; }
 
+/* Decimales que se muestran — mismo lenguaje visual que la pastilla del dólar */
+.hdr-decimales { display: inline-flex; align-items: center; gap: .1rem; background: rgba(255,255,255,.14); border-radius: 999px; padding: .12rem .2rem; }
+.hdr-decimales-valor { font-size: .78rem; font-weight: 700; color: rgba(255,255,255,.92); min-width: 3.6ch; text-align: center; font-variant-numeric: tabular-nums; }
+.hdr-decimales-btn { border: none; background: none; color: rgba(255,255,255,.8); font-size: .95rem; font-weight: 700; line-height: 1; cursor: pointer; padding: .18rem .38rem; border-radius: 999px; }
+.hdr-decimales-btn:hover { background: rgba(255,255,255,.2); color: var(--white); }
+
 /* ===== KEYFRAMES ===== */
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
@@ -299,7 +305,10 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
   .subtabs { padding: .4rem .75rem; }
   .subtab { font-size: .78rem; padding: .3rem .6rem; }
   .header-dolar { font-size: .72rem; padding: .25rem .5rem; }
+  .hdr-decimales-valor { font-size: .72rem; }
 }
 @media (max-width: 380px) {
+  /* El dólar se puede mirar en Datos de la obra; los decimales, en cambio,
+     se cambian mientras se lee la tabla, así que el control se queda. */
   .header-dolar { display: none; }
 }

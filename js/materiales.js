@@ -239,3 +239,5 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (material) openEditModal(material);
   }
 });
+
+window.onDecimalesVista(() => applyFilter());

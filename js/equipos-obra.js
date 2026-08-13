@@ -115,3 +115,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadAll();
   await getDolarSnapshot().catch(() => {});
 });
+
+window.onDecimalesVista(() => applyFilter());

@@ -222,15 +222,12 @@ function limpiarCero(n) {
   return Math.abs(n) < 0.005 ? 0 : n;
 }
 
-function fmtPct(frac, dec = 2) {
-  if (frac == null || isNaN(frac)) return '—';
-  const v = Math.abs(frac) < 5e-7 ? 0 : frac;
-  return (v * 100).toLocaleString('es-AR', { minimumFractionDigits: dec, maximumFractionDigits: dec }) + '%';
-}
-
-function fmtNum(n) {
-  if (n == null || isNaN(n) || n === 0) return '';
-  return n.toLocaleString('es-AR', { maximumFractionDigits: 2 });
+// Cantidad dentro de la grilla: el 0 se muestra vacío — una celda en blanco
+// se lee mejor que un "0,00" en una tabla de 30 columnas. Los porcentajes y
+// los montos usan los formateadores compartidos (fmtPct / fmtARS), que
+// siguen los decimales elegidos en el header.
+function fmtCantGrilla(n) {
+  return n == null || isNaN(n) || n === 0 ? '' : fmtNum(n);
 }
 
 // Valor de una celda editable: fracción → número de porcentaje sin ceros de más.
@@ -292,7 +289,7 @@ function renderTabla(d) {
     for (let i = 0; i < n; i++) {
       celdasRubro.push(modoRubros
         ? celdaEditable('rubro', g.rubro.key, i, g.pctItem[i])
-        : celdaDerivada(g.pctObra[i] ? fmtPct(g.pctObra[i], 2) : '', 'pa-derivada', g.pctObra[i] * 100));
+        : celdaDerivada(g.pctObra[i] ? fmtPct(g.pctObra[i]) : '', 'pa-derivada', g.pctObra[i] * 100));
     }
     const claseSuma = filaSumaClase(g.sumaRubro);
 
@@ -306,8 +303,8 @@ function renderTabla(d) {
         <td class="pa-col-un"></td>
         <td class="pa-col-num"></td>
         <td class="pa-col-monto"${attrCalc(g.precioTotal)}>${fmtARS(g.precioTotal)}</td>
-        <td class="pa-col-num"${attrCalc(g.incidencia * 100)}>${fmtPct(g.incidencia, 2)}</td>
-        <td class="pa-col-num ${claseSuma}"${attrCalc(g.sumaRubro * 100)}>${fmtPct(g.sumaRubro, 1)}</td>
+        <td class="pa-col-num"${attrCalc(g.incidencia * 100)}>${fmtPct(g.incidencia)}</td>
+        <td class="pa-col-num ${claseSuma}"${attrCalc(g.sumaRubro * 100)}>${fmtPct(g.sumaRubro)}</td>
         ${celdasRubro.join('')}
       </tr>`;
 
@@ -315,7 +312,7 @@ function renderTabla(d) {
       const celdas = [];
       for (let i = 0; i < n; i++) {
         celdas.push(modoRubros
-          ? celdaDerivada(x.pctItem[i] ? fmtPct(x.pctItem[i], 1) : '', 'pa-derivada', x.pctItem[i] * 100)
+          ? celdaDerivada(x.pctItem[i] ? fmtPct(x.pctItem[i]) : '', 'pa-derivada', x.pctItem[i] * 100)
           : celdaEditable('item', x.key, i, x.pctItem[i]));
       }
       const principal = `
@@ -326,22 +323,22 @@ function renderTabla(d) {
             ${modoRubros ? '' : `<button class="pa-btn-distribuir" data-scope="item" data-row="${escHtml(x.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>`}
           </td>
           <td class="pa-col-un">${escHtml(x.linea.unidad || '')}</td>
-          <td class="pa-col-num"${attrCalc(x.cantidad)}>${fmtNum(x.cantidad)}</td>
+          <td class="pa-col-num"${attrCalc(x.cantidad)}>${fmtCantGrilla(x.cantidad)}</td>
           <td class="pa-col-monto"${attrCalc(x.precioTotal)}>${fmtARS(x.precioTotal)}</td>
-          <td class="pa-col-num"${attrCalc(x.incidencia * 100)}>${fmtPct(x.incidencia, 3)}</td>
-          <td class="pa-col-num ${modoRubros ? 'pa-derivada' : filaSumaClase(x.suma)}"${attrCalc(x.suma * 100)}>${fmtPct(x.suma, 1)}</td>
+          <td class="pa-col-num"${attrCalc(x.incidencia * 100)}>${fmtPct(x.incidencia)}</td>
+          <td class="pa-col-num ${modoRubros ? 'pa-derivada' : filaSumaClase(x.suma)}"${attrCalc(x.suma * 100)}>${fmtPct(x.suma)}</td>
           ${celdas.join('')}
         </tr>`;
 
       const extra = [];
       if (verObra) {
         const c = [];
-        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.pctObra[i] ? fmtPct(x.pctObra[i], 3) : '', 'pa-derivada', x.pctObra[i] * 100));
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.pctObra[i] ? fmtPct(x.pctObra[i]) : '', 'pa-derivada', x.pctObra[i] * 100));
         extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% en Obra</td><td colspan="5"></td>${c.join('')}</tr>`);
       }
       if (verCant) {
         const c = [];
-        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtNum(x.pctCant[i]), 'pa-derivada', x.pctCant[i]));
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtCantGrilla(x.pctCant[i]), 'pa-derivada', x.pctCant[i]));
         extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% en Cant.</td><td colspan="5"></td>${c.join('')}</tr>`);
       }
       return principal + extra.join('');
@@ -361,12 +358,12 @@ function renderTabla(d) {
 
   const pie = `
     <tfoot>
-      ${filaTotal('Certificación parcial %', d.parcialPct, '', v => fmtPct(v, 2), comoPct)}
-      ${filaTotal('Certificación acumulada %', d.acumPct, 'pa-acum', v => fmtPct(v, 2), comoPct)}
+      ${filaTotal('Certificación parcial %', d.parcialPct, '', v => fmtPct(v), comoPct)}
+      ${filaTotal('Certificación acumulada %', d.acumPct, 'pa-acum', v => fmtPct(v), comoPct)}
       ${filaTotal('Certificación parcial $', d.parcialMonto, '', v => fmtARS(limpiarCero(v)), comoMonto)}
       ${filaTotal('Certificación acumulada $', d.acumMonto, 'pa-acum', v => fmtARS(limpiarCero(v)), comoMonto)}
       ${filaTotal('Remanente $', d.remanenteMonto, '', v => fmtARS(limpiarCero(v)), comoMonto)}
-      ${filaTotal('Remanente %', d.remanentePct, '', v => fmtPct(v, 2), comoPct)}
+      ${filaTotal('Remanente %', d.remanentePct, '', v => fmtPct(v), comoPct)}
     </tfoot>`;
 
   $('pa-tabla-wrap').innerHTML = `<table class="pa-tabla">${head}<tbody>${cuerpo}</tbody>${pie}</table>`;
@@ -382,9 +379,9 @@ function renderResumen(d) {
       <div class="pa-stat"><span class="pa-stat-label">Total del Presupuesto</span><span class="pa-stat-valor" data-calc-valor="${d.total}">${fmtARS(d.total)}</span></div>
       <div class="pa-stat"><span class="pa-stat-label">Anticipo financiero</span><span class="pa-stat-valor" data-calc-valor="${d.anticipoMonto}">${fmtARS(d.anticipoMonto)}</span></div>
       <div class="pa-stat"><span class="pa-stat-label">A certificar</span><span class="pa-stat-valor" data-calc-valor="${d.total - d.anticipoMonto}">${fmtARS(d.total - d.anticipoMonto)}</span></div>
-      <div class="pa-stat"><span class="pa-stat-label">Avance planificado</span><span class="pa-stat-valor ${faltaCargar ? 'pa-stat-alerta' : ''}"${attrCalc(window.roundLimpio(ultimoAcum * 100))}>${fmtPct(ultimoAcum, 2)}</span></div>
+      <div class="pa-stat"><span class="pa-stat-label">Avance planificado</span><span class="pa-stat-valor ${faltaCargar ? 'pa-stat-alerta' : ''}"${attrCalc(window.roundLimpio(ultimoAcum * 100))}>${fmtPct(ultimoAcum)}</span></div>
     </div>
-    ${faltaCargar ? `<p class="form-hint pa-hint-alerta">El plan cubre ${fmtPct(ultimoAcum, 2)} de la obra — cada fila tiene que sumar 100% para que el plan esté completo.</p>` : ''}`;
+    ${faltaCargar ? `<p class="form-hint pa-hint-alerta">El plan cubre ${fmtPct(ultimoAcum)} de la obra — cada fila tiene que sumar 100% para que el plan esté completo.</p>` : ''}`;
 }
 
 /* ===== Gráficos =====
@@ -554,8 +551,8 @@ function engancharHoverCurva(d, acum, rem) {
       const montoRem = limpiarCero(i === 0 ? d.total : d.remanenteMonto[i - 1]);
       mostrarTooltip(e, `
         <div class="pa-tt-titulo">${escHtml(titulo)}</div>
-        <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_ACUM}"></span>Acumulado <b>${fmtPct(acum[i], 2)}</b> · ${fmtARS(montoAcum)}</div>
-        <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_REMANENTE}"></span>Remanente <b>${fmtPct(rem[i], 2)}</b> · ${fmtARS(montoRem)}</div>`);
+        <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_ACUM}"></span>Acumulado <b>${fmtPct(acum[i])}</b> · ${fmtARS(montoAcum)}</div>
+        <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_REMANENTE}"></span>Remanente <b>${fmtPct(rem[i])}</b> · ${fmtARS(montoRem)}</div>`);
     });
     zone.addEventListener('mouseleave', () => { cross.style.display = 'none'; ocultarTooltip(); });
   });
@@ -568,7 +565,7 @@ function engancharHoverBarras(d) {
       mostrarTooltip(e, `
         <div class="pa-tt-titulo">${i + 1}° ${nombreUnidad()}</div>
         <div class="pa-tt-fila">Certificación <b>${fmtARS(d.parcialMonto[i])}</b></div>
-        <div class="pa-tt-fila">Avance del período <b>${fmtPct(d.parcialPct[i], 2)}</b></div>`);
+        <div class="pa-tt-fila">Avance del período <b>${fmtPct(d.parcialPct[i])}</b></div>`);
     });
     barra.addEventListener('mouseleave', ocultarTooltip);
   });
@@ -836,3 +833,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   await getDolarSnapshot().catch(() => {});
   if (obra) renderTodo();
 });
+
+window.onDecimalesVista(() => { if (obra) renderTodo(); });

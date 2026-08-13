@@ -27,10 +27,6 @@ function versionDe(it) {
   return propia || it;
 }
 
-function fmtCantidad(n) {
-  return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function precioUnitarioMaterial(mat) {
   const precio = preciosObra[mat.key];
   if (!precio) return null;
@@ -96,13 +92,13 @@ function renderTodo() {
     }
     const usadosTexto = g.usados.map(u => u.nombre).join(', ');
     const usadosTitle = g.usados
-      .map(u => `${u.nombre}: ${fmtCantidad(u.cantidad)} ${g.material.unidad || ''}`)
+      .map(u => `${u.nombre}: ${fmtNum(u.cantidad)} ${g.material.unidad || ''}`)
       .join('\n');
     return `
       <div class="materiales-linea">
         <span>${escHtml(g.material.nombre)}</span>
         <span>${escHtml(g.material.unidad || '')}</span>
-        <span class="materiales-cantidad" data-calc-valor="${g.cantidadTotal}">${fmtCantidad(g.cantidadTotal)}</span>
+        <span class="materiales-cantidad" data-calc-valor="${g.cantidadTotal}">${fmtNum(g.cantidadTotal)}</span>
         <span class="materiales-usados" title="${escHtml(usadosTitle)}">${escHtml(usadosTexto)}</span>
         <span class="materiales-costo"${precioUnitario != null ? ` data-calc-valor="${precioUnitario * g.cantidadTotal}"` : ''}>${costoStr}</span>
       </div>`;
@@ -150,3 +146,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   await getDolarSnapshot().catch(() => {});
   if (obra) renderTodo();
 });
+
+window.onDecimalesVista(() => { if (obra) renderTodo(); });
