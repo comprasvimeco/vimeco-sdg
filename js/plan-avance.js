@@ -242,12 +242,21 @@ function pctInputValue(frac) {
 
 /* ===== Render de la grilla ===== */
 
-function celdaEditable(scope, rowKey, i, frac) {
-  return `<td class="pa-celda"><input type="text" class="pa-input" data-scope="${scope}" data-row="${escHtml(rowKey)}" data-p="${i}" value="${pctInputValue(frac)}" inputmode="decimal"></td>`;
+// Atributo que engancha la calculadora flotante (js/calculadora-flotante.js):
+// clickear el número lo inserta en la fórmula. Se pone SÓLO cuando hay un
+// valor real — si no, la grilla entera quedaría llena de celdas vacías
+// resaltadas al abrir la calculadora. Los porcentajes se exponen como el
+// número que se ve en pantalla (25, no 0.25), igual que en presupuesto.js.
+function attrCalc(n) {
+  return n == null || isNaN(n) || n === 0 ? '' : ` data-calc-valor="${n}"`;
 }
 
-function celdaDerivada(valor, clase) {
-  return `<td class="pa-celda ${clase || ''}">${escHtml(valor)}</td>`;
+function celdaEditable(scope, rowKey, i, frac) {
+  return `<td class="pa-celda"><input type="text" class="pa-input" data-scope="${scope}" data-row="${escHtml(rowKey)}" data-p="${i}" value="${pctInputValue(frac)}"${attrCalc(frac ? window.roundLimpio(frac * 100) : null)} inputmode="decimal"></td>`;
+}
+
+function celdaDerivada(valor, clase, num) {
+  return `<td class="pa-celda ${clase || ''}"${attrCalc(num)}>${escHtml(valor)}</td>`;
 }
 
 function filaSumaClase(suma) {
@@ -283,7 +292,7 @@ function renderTabla(d) {
     for (let i = 0; i < n; i++) {
       celdasRubro.push(modoRubros
         ? celdaEditable('rubro', g.rubro.key, i, g.pctItem[i])
-        : celdaDerivada(g.pctObra[i] ? fmtPct(g.pctObra[i], 2) : '', 'pa-derivada'));
+        : celdaDerivada(g.pctObra[i] ? fmtPct(g.pctObra[i], 2) : '', 'pa-derivada', g.pctObra[i] * 100));
     }
     const claseSuma = filaSumaClase(g.sumaRubro);
 
@@ -296,9 +305,9 @@ function renderTabla(d) {
         </td>
         <td class="pa-col-un"></td>
         <td class="pa-col-num"></td>
-        <td class="pa-col-monto">${fmtARS(g.precioTotal)}</td>
-        <td class="pa-col-num">${fmtPct(g.incidencia, 2)}</td>
-        <td class="pa-col-num ${claseSuma}">${fmtPct(g.sumaRubro, 1)}</td>
+        <td class="pa-col-monto"${attrCalc(g.precioTotal)}>${fmtARS(g.precioTotal)}</td>
+        <td class="pa-col-num"${attrCalc(g.incidencia * 100)}>${fmtPct(g.incidencia, 2)}</td>
+        <td class="pa-col-num ${claseSuma}"${attrCalc(g.sumaRubro * 100)}>${fmtPct(g.sumaRubro, 1)}</td>
         ${celdasRubro.join('')}
       </tr>`;
 
@@ -306,7 +315,7 @@ function renderTabla(d) {
       const celdas = [];
       for (let i = 0; i < n; i++) {
         celdas.push(modoRubros
-          ? celdaDerivada(x.pctItem[i] ? fmtPct(x.pctItem[i], 1) : '', 'pa-derivada')
+          ? celdaDerivada(x.pctItem[i] ? fmtPct(x.pctItem[i], 1) : '', 'pa-derivada', x.pctItem[i] * 100)
           : celdaEditable('item', x.key, i, x.pctItem[i]));
       }
       const principal = `
@@ -317,22 +326,22 @@ function renderTabla(d) {
             ${modoRubros ? '' : `<button class="pa-btn-distribuir" data-scope="item" data-row="${escHtml(x.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>`}
           </td>
           <td class="pa-col-un">${escHtml(x.linea.unidad || '')}</td>
-          <td class="pa-col-num">${fmtNum(x.cantidad)}</td>
-          <td class="pa-col-monto" data-calc-valor="${x.precioTotal}">${fmtARS(x.precioTotal)}</td>
-          <td class="pa-col-num">${fmtPct(x.incidencia, 3)}</td>
-          <td class="pa-col-num ${modoRubros ? 'pa-derivada' : filaSumaClase(x.suma)}">${fmtPct(x.suma, 1)}</td>
+          <td class="pa-col-num"${attrCalc(x.cantidad)}>${fmtNum(x.cantidad)}</td>
+          <td class="pa-col-monto"${attrCalc(x.precioTotal)}>${fmtARS(x.precioTotal)}</td>
+          <td class="pa-col-num"${attrCalc(x.incidencia * 100)}>${fmtPct(x.incidencia, 3)}</td>
+          <td class="pa-col-num ${modoRubros ? 'pa-derivada' : filaSumaClase(x.suma)}"${attrCalc(x.suma * 100)}>${fmtPct(x.suma, 1)}</td>
           ${celdas.join('')}
         </tr>`;
 
       const extra = [];
       if (verObra) {
         const c = [];
-        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.pctObra[i] ? fmtPct(x.pctObra[i], 3) : '', 'pa-derivada'));
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.pctObra[i] ? fmtPct(x.pctObra[i], 3) : '', 'pa-derivada', x.pctObra[i] * 100));
         extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% en Obra</td><td colspan="5"></td>${c.join('')}</tr>`);
       }
       if (verCant) {
         const c = [];
-        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtNum(x.pctCant[i]), 'pa-derivada'));
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtNum(x.pctCant[i]), 'pa-derivada', x.pctCant[i]));
         extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% en Cant.</td><td colspan="5"></td>${c.join('')}</tr>`);
       }
       return principal + extra.join('');
@@ -341,19 +350,23 @@ function renderTabla(d) {
     return filaRubro + filasItems;
   }).join('');
 
-  const filaTotal = (label, valores, clase, formato) => {
-    const celdas = valores.map(v => `<td class="pa-celda ${clase}">${formato(v)}</td>`).join('');
+  // `aNumero` es lo que se le entrega a la calculadora flotante al clickear la
+  // celda: en las filas de % es el número que se ve (25, no 0,25).
+  const filaTotal = (label, valores, clase, formato, aNumero) => {
+    const celdas = valores.map(v => `<td class="pa-celda ${clase}"${attrCalc(aNumero(v))}>${formato(v)}</td>`).join('');
     return `<tr class="pa-fila-total"><td class="pa-col-nombre pa-total-label">${escHtml(label)}</td><td colspan="5"></td>${celdas}</tr>`;
   };
+  const comoPct = v => window.roundLimpio(v * 100);
+  const comoMonto = v => limpiarCero(v);
 
   const pie = `
     <tfoot>
-      ${filaTotal('Certificación parcial %', d.parcialPct, '', v => fmtPct(v, 2))}
-      ${filaTotal('Certificación acumulada %', d.acumPct, 'pa-acum', v => fmtPct(v, 2))}
-      ${filaTotal('Certificación parcial $', d.parcialMonto, '', v => fmtARS(limpiarCero(v)))}
-      ${filaTotal('Certificación acumulada $', d.acumMonto, 'pa-acum', v => fmtARS(limpiarCero(v)))}
-      ${filaTotal('Remanente $', d.remanenteMonto, '', v => fmtARS(limpiarCero(v)))}
-      ${filaTotal('Remanente %', d.remanentePct, '', v => fmtPct(v, 2))}
+      ${filaTotal('Certificación parcial %', d.parcialPct, '', v => fmtPct(v, 2), comoPct)}
+      ${filaTotal('Certificación acumulada %', d.acumPct, 'pa-acum', v => fmtPct(v, 2), comoPct)}
+      ${filaTotal('Certificación parcial $', d.parcialMonto, '', v => fmtARS(limpiarCero(v)), comoMonto)}
+      ${filaTotal('Certificación acumulada $', d.acumMonto, 'pa-acum', v => fmtARS(limpiarCero(v)), comoMonto)}
+      ${filaTotal('Remanente $', d.remanenteMonto, '', v => fmtARS(limpiarCero(v)), comoMonto)}
+      ${filaTotal('Remanente %', d.remanentePct, '', v => fmtPct(v, 2), comoPct)}
     </tfoot>`;
 
   $('pa-tabla-wrap').innerHTML = `<table class="pa-tabla">${head}<tbody>${cuerpo}</tbody>${pie}</table>`;
@@ -369,7 +382,7 @@ function renderResumen(d) {
       <div class="pa-stat"><span class="pa-stat-label">Total del Presupuesto</span><span class="pa-stat-valor" data-calc-valor="${d.total}">${fmtARS(d.total)}</span></div>
       <div class="pa-stat"><span class="pa-stat-label">Anticipo financiero</span><span class="pa-stat-valor" data-calc-valor="${d.anticipoMonto}">${fmtARS(d.anticipoMonto)}</span></div>
       <div class="pa-stat"><span class="pa-stat-label">A certificar</span><span class="pa-stat-valor" data-calc-valor="${d.total - d.anticipoMonto}">${fmtARS(d.total - d.anticipoMonto)}</span></div>
-      <div class="pa-stat"><span class="pa-stat-label">Avance planificado</span><span class="pa-stat-valor ${faltaCargar ? 'pa-stat-alerta' : ''}">${fmtPct(ultimoAcum, 2)}</span></div>
+      <div class="pa-stat"><span class="pa-stat-label">Avance planificado</span><span class="pa-stat-valor ${faltaCargar ? 'pa-stat-alerta' : ''}"${attrCalc(window.roundLimpio(ultimoAcum * 100))}>${fmtPct(ultimoAcum, 2)}</span></div>
     </div>
     ${faltaCargar ? `<p class="form-hint pa-hint-alerta">El plan cubre ${fmtPct(ultimoAcum, 2)} de la obra — cada fila tiene que sumar 100% para que el plan esté completo.</p>` : ''}`;
 }
