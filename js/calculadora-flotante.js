@@ -42,7 +42,8 @@
   // decimal, sin separador de miles — el mismo formato que evalFormula()
   // sabe leer. No redondea a centavos: mantiene la precisión real del valor.
   function fmtFormula(n) {
-    return roundLimpio(n).toString();
+    const limpio = roundLimpio(n);
+    return window.decimalString ? window.decimalString(limpio) : limpio.toString();
   }
 
   function calcularResultado() {
@@ -68,7 +69,7 @@
     if (idx === -1) return false;
     const antes = expr[idx - 1];
     const despues = expr[idx + atomo.length];
-    return (!antes || !/[0-9.]/.test(antes)) && (!despues || !/[0-9.]/.test(despues));
+    return (!antes || !/[0-9.,]/.test(antes)) && (!despues || !/[0-9.,]/.test(despues));
   }
 
   function marcarSeleccionado(el, texto) {

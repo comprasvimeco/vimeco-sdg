@@ -7,7 +7,18 @@
 // valor, que puede seguir teniendo tantos decimales como haga falta. Usado
 // en todo punto de la app donde se guarda un valor calculado (no tipeado a
 // mano), para no arrastrar redondeo prematuro a los cálculos siguientes.
-window.roundLimpio = n => Math.round(n * 1e8) / 1e8;
+//
+// El recorte es a 15 CIFRAS SIGNIFICATIVAS, no a una cantidad fija de
+// decimales — mismo criterio que Excel, que también guarda 15 significativas
+// sobre un double. La versión anterior redondeaba a 8 decimales con
+// Math.round(n * 1e8) / 1e8, que además de poner un techo arbitrario a la
+// precisión, con importes grandes hacía lo contrario de lo que promete: a
+// partir de ~9e7 el producto n * 1e8 se pasa del entero seguro de JS y el
+// redondeo INTRODUCE ruido en vez de sacarlo.
+window.roundLimpio = function (n) {
+  if (typeof n !== 'number' || !isFinite(n) || n === 0) return n;
+  return parseFloat(n.toPrecision(15));
+};
 
 (function () {
   function evalFormula(expr) {
@@ -15,12 +26,19 @@ window.roundLimpio = n => Math.round(n * 1e8) / 1e8;
 
     function skipWs() { while (expr[i] === ' ') i++; }
 
+    // Acepta los dos separadores decimales: "47.5" (el que inserta la
+    // calculadora flotante) y "47,5" (el que se tipea acá). Si el número
+    // trae coma, los "." que tenga son agrupación de miles y se descartan
+    // ("1.234,56"), mismo criterio que parseMoneyString.
     function parseNumber() {
       skipWs();
       const start = i;
-      while (i < expr.length && /[0-9.]/.test(expr[i])) i++;
+      while (i < expr.length && /[0-9.,]/.test(expr[i])) i++;
       if (start === i) throw new Error('Número inválido');
-      return parseFloat(expr.slice(start, i));
+      const crudo = expr.slice(start, i);
+      const n = parseFloat(crudo.includes(',') ? crudo.replace(/\./g, '').replace(',', '.') : crudo);
+      if (isNaN(n)) throw new Error('Número inválido');
+      return n;
     }
 
     // Número, constante "pi", función "raiz(...)" o subexpresión entre paréntesis.
@@ -104,13 +122,22 @@ window.roundLimpio = n => Math.round(n * 1e8) / 1e8;
     return result;
   }
 
+  // El resultado se escribe con la coma decimal de la app, no con el punto de
+  // String(n): los campos de plata leen su contenido con parseMoneyString,
+  // que trata al "." como separador de miles — un "47.5" se guardaba como 475
+  // (el resto de los campos numéricos ya aceptan los dos separadores).
+  function textoResultado(n) {
+    const s = window.decimalString ? window.decimalString(n) : String(n);
+    return s.replace('.', ',');
+  }
+
   function resolveIfFormula(input) {
     const raw = input.value.trim();
     if (!raw.startsWith('=')) { delete input.dataset.formula; return; }
     try {
       const result = evalFormula(raw.slice(1));
       input.dataset.formula = raw;
-      input.value = String(roundLimpio(result));
+      input.value = textoResultado(roundLimpio(result));
     } catch (_) {
       // Fórmula inválida: se deja el texto tal cual para que el usuario la corrija.
     }

@@ -31,6 +31,16 @@ window.resolveDualPrecio = function (modo, valor) {
   return { precioARS: roundLimpio(valor * venta), precioUSD: valor };
 };
 
+// Un número chico (0.0000001) tiene toString() en notación científica
+// ("1e-7"), que no se puede formatear con separadores de miles. Devuelve
+// siempre la escritura decimal (con signo), sin ceros de relleno al final.
+window.decimalString = function (n) {
+  const s = n.toString();
+  if (!s.includes('e')) return s;
+  const expandido = n.toFixed(20).replace(/0+$/, '').replace(/\.$/, '');
+  return expandido.includes('e') ? s : expandido;   // >= 1e21: no hay forma decimal, se deja como está
+};
+
 // Formatea un número (o string numérico) para mostrar en un input de plata:
 // "." cada 3 dígitos de la parte entera, "," antes de los decimales que
 // tenga (sin redondear — muestra la precisión real del valor). '' si no hay
@@ -39,9 +49,11 @@ window.formatMoneyString = function (value) {
   if (value === null || value === undefined || value === '') return '';
   const n = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
   if (isNaN(n)) return '';
-  const [intPart, decPart] = Math.abs(n).toString().split('.');
+  const s = window.decimalString(n);
+  const negativo = s.startsWith('-');
+  const [intPart, decPart] = (negativo ? s.slice(1) : s).split('.');
   const grouped = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return (n < 0 ? '-' : '') + grouped + (decPart ? ',' + decPart : '');
+  return (negativo ? '-' : '') + grouped + (decPart ? ',' + decPart : '');
 };
 
 // Inversa de formatMoneyString: saca los "." (son sólo agrupación) y
@@ -53,13 +65,18 @@ window.parseMoneyString = function (str) {
 
 // Engancha el formateo de miles/decimales EN VIVO a un <input> de plata:
 // "." tipeado se interpreta como separador decimal (se convierte a ",");
-// como mucho 2 decimales nuevos (no crece más allá, pero no trunca un valor
-// ya cargado con más precisión); mientras el campo tiene una fórmula "=..."
-// en curso (ver attachCalcInput en calc.js) no se toca nada. Llamar
-// attachCalcInput(input) ANTES de esto (mismo motivo que
-// attachDualPrecioInputs: la fórmula tiene que estar resuelta antes de que
-// esto la formatee).
+// mientras el campo tiene una fórmula "=..." en curso (ver attachCalcInput en
+// calc.js) no se toca nada. Llamar attachCalcInput(input) ANTES de esto
+// (mismo motivo que attachDualPrecioInputs: la fórmula tiene que estar
+// resuelta antes de que esto la formatee).
 window.attachMoneyInput = function (input) {
+  // Tope de decimales que se pueden TIPEAR a mano. Antes era 2 (centavos),
+  // pero los precios de la planilla vienen con más precisión (ej. $/kg con 4
+  // decimales) y truncarlos al cargarlos arrastraba el error a todo el
+  // cálculo. No es un tope de precisión del valor: un número calculado o
+  // pegado puede tener todos los decimales que haga falta.
+  const MAX_DECIMALES_TIPEO = 10;
+
   function isFormulaMode() { return input.value.trim().startsWith('='); }
 
   // Cuenta dígitos/coma (no los "." de agrupación, esos son sólo visuales)
@@ -78,14 +95,16 @@ window.attachMoneyInput = function (input) {
     return str.length;
   }
 
-  // String (con o sin "." de agrupación) -> dígitos enteros + como mucho 2
-  // decimales (null = todavía sin separador decimal).
+  // String (con o sin "." de agrupación) -> dígitos enteros + decimales
+  // (null = todavía sin separador decimal). No recorta decimales: el tope de
+  // MAX_DECIMALES_TIPEO se aplica sólo al ACEPTAR caracteres nuevos (más
+  // abajo), así un valor ya cargado con más precisión se muestra entero.
   function toModel(str) {
     const commaIdx = str.indexOf(',');
     if (commaIdx === -1) return { intDigits: str.replace(/[^0-9]/g, ''), decDigits: null };
     return {
       intDigits: str.slice(0, commaIdx).replace(/[^0-9]/g, ''),
-      decDigits: str.slice(commaIdx + 1).replace(/[^0-9]/g, '').slice(0, 2),
+      decDigits: str.slice(commaIdx + 1).replace(/[^0-9]/g, ''),
     };
   }
   function fromModel({ intDigits, decDigits }) {
@@ -139,7 +158,7 @@ window.attachMoneyInput = function (input) {
           intDigits = intDigits.slice(0, introPos) + ch + intDigits.slice(introPos);
           introPos++;
           accepted++;
-        } else if (decDigits.length < 2) {
+        } else if (decDigits.length < MAX_DECIMALES_TIPEO) {
           decDigits += ch;
           accepted++;
         }
