@@ -44,8 +44,8 @@
     return Math.abs(n) < 0.5 * Math.pow(10, -dec) ? 0 : n;
   }
 
-  function fmt(n, extra) {
-    const dec = window.decimalesVista();
+  function fmt(n, extra, dec) {
+    if (dec == null) dec = window.decimalesVista();
     return snapCero(Number(n), dec).toLocaleString('es-AR',
       Object.assign({ minimumFractionDigits: dec, maximumFractionDigits: dec }, extra));
   }
@@ -61,6 +61,16 @@
 
   // Recibe la FRACCIÓN (0.25), muestra el porcentaje (25%).
   window.fmtPct = frac => vacio(frac) ? '—' : fmt(frac * 100) + '%';
+
+  /* ===== Campos de carga ===== */
+  // Lo que se CARGA a mano se muestra siempre con 4 decimales como mínimo,
+  // aunque el header esté en menos: el selector es para leer los números
+  // calculados, pero un valor que se tipeó no se puede mostrar recortado —
+  // ahí es donde se controla lo que se cargó. Si el header pide más de 4,
+  // manda el header.
+  const MIN_DECIMALES_CARGA = 4;
+  window.decimalesCarga = () => Math.max(MIN_DECIMALES_CARGA, window.decimalesVista());
+  window.fmtNumCarga = n => vacio(n) ? '' : fmt(n, null, window.decimalesCarga());
 
   /* ===== Control del header ===== */
   // Se inyecta al lado del dólar, así vale para todas las pantallas sin

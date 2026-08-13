@@ -231,8 +231,10 @@ window.roundLimpio = function (n) {
     return esMoney(input) ? window.formatMoneyString(valor) : textoResultado(valor);
   }
 
+  // Los campos de carga se muestran con 4 decimales como mínimo, aunque el
+  // header pida menos (ver fmtNumCarga en moneda.js).
   function textoMostrado(valor) {
-    return valor == null ? '' : window.fmtNum(valor);
+    return valor == null ? '' : window.fmtNumCarga(valor);
   }
 
   // ¿El usuario editó el texto desde que entró al campo? Si no lo tocó, el
