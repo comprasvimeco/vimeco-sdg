@@ -52,17 +52,22 @@ function tipoSelectHtml(tipo) {
     `<option value="${v}" ${v === tipo ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
 }
 
-function camposLineaHtml(l, tipo) {
+// Los campos también llevan dirección: una fórmula de otra línea puede
+// apuntar a ellos (ver js/refs.js).
+function camposLineaHtml(lineaKey, l, tipo) {
+  const et = l.concepto || 'Concepto';
+  const ref = (campo, label) =>
+    ` data-calc-id="cargafija:linea:${escHtml(lineaKey)}:${campo}" data-calc-label="${escHtml(et + ' · ' + label)}"`;
   if (tipo === 'pctComputo' || tipo === 'pctOficial') {
     return `
-      <input type="text" class="form-control cf-porcentaje" value="${l.porcentaje ?? ''}" placeholder="0">
+      <input type="text" class="form-control cf-porcentaje" value="${l.porcentaje ?? ''}" placeholder="0"${ref('porcentaje', '%')}>
       <span class="cf-base-label">${TIPO_BASE_LABEL[tipo]}</span>
       <span></span>`;
   }
   return `
-    <input type="text" class="form-control cf-cantidad" value="${l.cantidad ?? ''}" placeholder="0">
-    <input type="text" class="form-control cf-precio" value="${escHtml(formatMoneyString(l.precioUnitario))}" placeholder="0">
-    <input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0">`;
+    <input type="text" class="form-control cf-cantidad" value="${l.cantidad ?? ''}" placeholder="0"${ref('cantidad', 'Cantidad')}>
+    <input type="text" class="form-control cf-precio" value="${escHtml(formatMoneyString(l.precioUnitario))}" placeholder="0"${ref('precioUnitario', 'Precio unit.')}>
+    <input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0"${ref('meses', 'Meses')}>`;
 }
 
 function renderLineas() {
@@ -78,8 +83,8 @@ function renderLineas() {
         <div class="cf-linea" data-key="${escHtml(lineaKey)}">
           <input type="text" class="form-control cf-concepto" value="${escHtml(l.concepto || '')}" placeholder="Ej: Jefe de obra">
           ${tipoSelectHtml(tipo)}
-          ${camposLineaHtml(l, tipo)}
-          <span class="cf-linea-total">${total != null ? fmtARS(total) : '—'}</span>
+          ${camposLineaHtml(lineaKey, l, tipo)}
+          <span class="cf-linea-total"${calcAttrs(total, `cargafija:linea:${lineaKey}:total`, `${l.concepto || 'Concepto'} · Total`)}>${total != null ? fmtARS(total) : '—'}</span>
           <button class="cf-linea-del" title="Eliminar concepto">${icSvg('x')}</button>
         </div>`;
     }).join('');
@@ -131,7 +136,12 @@ function renderLineas() {
     row.querySelector('.cf-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
   });
 
-  $('total-gastos-fijos').textContent = fmtARS(totalGastosFijos());
+  const totalFijos = totalGastosFijos();
+  const totalEl = $('total-gastos-fijos');
+  totalEl.textContent = fmtARS(totalFijos);
+  totalEl.dataset.calcValor = totalFijos;
+  totalEl.dataset.calcId = 'cargafija:totalGastosFijos';
+  totalEl.dataset.calcLabel = 'Total de gastos fijos';
 }
 
 function calcularK() {
@@ -158,14 +168,14 @@ function renderCoeficienteK() {
   }
 
   el.innerHTML = `
-    <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span>${fmtARS(costoComputo)}</span></div>
-    <div class="ap-resumen-row"><span>% Gastos Generales (calculado)</span><span>${fmtPct(r.ggFrac)}</span></div>
-    <div class="ap-resumen-row"><span>% Beneficio</span><span><input type="text" class="form-control" id="cf-beneficio" value="${config.beneficioPct ?? ''}" placeholder="0"></span></div>
-    <div class="ap-resumen-row"><span>Subtotal Costo</span><span>${fmtCoef(r.subtotalCosto)}</span></div>
-    <div class="ap-resumen-row"><span>% Costo Financiero</span><span><input type="text" class="form-control" id="cf-financiero" value="${config.costoFinancieroPct ?? ''}" placeholder="0"></span></div>
-    <div class="ap-resumen-row"><span>Subtotal con gasto financiero</span><span>${fmtCoef(r.subtotalConFinanciero)}</span></div>
-    <div class="ap-resumen-row"><span>% IVA</span><span><input type="text" class="form-control" id="cf-iva" value="${config.ivaPct ?? ''}" placeholder="21"></span></div>
-    <div class="ap-resumen-row total"><span>TOTAL (K)</span><span>${fmtCoef(r.k)}</span></div>
+    <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(costoComputo, 'cargafija:costoComputo', 'Costo total del Cómputo')}>${fmtARS(costoComputo)}</span></div>
+    <div class="ap-resumen-row"><span>% Gastos Generales (calculado)</span><span${calcAttrs(r.ggFrac * 100, 'cargafija:ggPct', '% Gastos Generales')}>${fmtPct(r.ggFrac)}</span></div>
+    <div class="ap-resumen-row"><span>% Beneficio</span><span><input type="text" class="form-control" id="cf-beneficio" value="${config.beneficioPct ?? ''}" placeholder="0" data-calc-id="cargafija:beneficioPct" data-calc-label="% Beneficio"></span></div>
+    <div class="ap-resumen-row"><span>Subtotal Costo</span><span${calcAttrs(r.subtotalCosto, 'cargafija:subtotalCosto', 'Subtotal Costo')}>${fmtCoef(r.subtotalCosto)}</span></div>
+    <div class="ap-resumen-row"><span>% Costo Financiero</span><span><input type="text" class="form-control" id="cf-financiero" value="${config.costoFinancieroPct ?? ''}" placeholder="0" data-calc-id="cargafija:costoFinancieroPct" data-calc-label="% Costo Financiero"></span></div>
+    <div class="ap-resumen-row"><span>Subtotal con gasto financiero</span><span${calcAttrs(r.subtotalConFinanciero, 'cargafija:subtotalConFinanciero', 'Subtotal con gasto financiero')}>${fmtCoef(r.subtotalConFinanciero)}</span></div>
+    <div class="ap-resumen-row"><span>% IVA</span><span><input type="text" class="form-control" id="cf-iva" value="${config.ivaPct ?? ''}" placeholder="21" data-calc-id="cargafija:ivaPct" data-calc-label="% IVA"></span></div>
+    <div class="ap-resumen-row total"><span>TOTAL (K)</span><span${calcAttrs(r.k, 'cargafija:k', 'Coeficiente K')}>${fmtCoef(r.k)}</span></div>
     <p class="form-hint" style="margin-top:.5rem;">K se aplica al costo unitario de cada ítem en el Presupuesto de la obra para sacar el precio unitario.</p>`;
 
   const pctField = (id, key) => {
@@ -185,9 +195,51 @@ function renderCoeficienteK() {
   pctField('cf-iva', 'ivaPct');
 }
 
+// Igual que en el Cómputo: recién renderizado, cada celda del DOM tiene su
+// valor de hoy, así que es el momento de recalcular los campos cuya fórmula
+// apunta a otras celdas (ver js/refs.js). Tope de pasadas para cortar una
+// referencia circular.
+const CAMPOS_LINEA = ['cantidad', 'precioUnitario', 'meses', 'porcentaje'];
+const CAMPOS_CONFIG = ['beneficioPct', 'costoFinancieroPct', 'ivaPct'];
+let pasadasVivas = 0;
+
+function refrescarFormulasVivas() {
+  if (!window.recalcularCeldasVivas) return;
+  const campos = [];
+  Object.entries(lineas).forEach(([lineaKey, l]) => {
+    CAMPOS_LINEA.forEach(campo => {
+      if (!window.formulaTieneRefs(l[campo + 'Formula'])) return;
+      campos.push({
+        formula: l[campo + 'Formula'],
+        valor: l[campo] ?? null,
+        aplicar: valor => {
+          lineas[lineaKey][campo] = valor;
+          persistLineaCambios(lineaKey, { [campo]: valor });
+        },
+      });
+    });
+  });
+  CAMPOS_CONFIG.forEach(campo => {
+    if (!window.formulaTieneRefs(config[campo + 'Formula'])) return;
+    campos.push({
+      formula: config[campo + 'Formula'],
+      valor: config[campo] ?? null,
+      aplicar: valor => { config[campo] = valor; persistConfigCambios({ [campo]: valor }); },
+    });
+  });
+  if (!campos.length || !window.recalcularCeldasVivas(campos)) { pasadasVivas = 0; return; }
+  if (++pasadasVivas > 10) {
+    pasadasVivas = 0;
+    showToast('Hay referencias circulares entre celdas — se detuvo el recálculo.', 'error');
+    return;
+  }
+  renderTodo();
+}
+
 function renderTodo() {
   renderLineas();
   renderCoeficienteK();
+  refrescarFormulasVivas();
 }
 
 // Cada línea/campo se guarda en su propio path con PATCH (merge), no

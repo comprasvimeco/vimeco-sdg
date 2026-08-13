@@ -234,6 +234,36 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .calc-flotante-flash { background: rgba(200,168,82,.35) !important; }
 .calc-flotante-seleccionado { background: rgba(37,87,167,.16) !important; outline: 1.5px solid var(--primary-light) !important; }
 
+/* Referencias vivas entre celdas (js/refs.js): mientras se escribe una
+   fórmula "=", las celdas referenciables se ofrecen para clickear. */
+.formula-modo [data-calc-id] { cursor: pointer; border-radius: 4px; transition: background .12s, outline-color .12s; outline: 1px dashed transparent; outline-offset: 2px; }
+.formula-modo [data-calc-id]:hover { background: rgba(37,87,167,.12); outline-color: var(--primary-light); }
+.celda-ref-flash { background: rgba(200,168,82,.35) !important; }
+.celda-ref-usada { background: rgba(37,87,167,.16) !important; outline: 1.5px solid var(--primary-light) !important; }
+
+/* Fija en una esquina, no pegada al campo: pegada tapaba las celdas de al
+   lado, que son justo las que hay que poder clickear. Y salvo los botones no
+   recibe clicks, así lo que quede abajo se sigue pudiendo usar. */
+.barra-formula {
+  position: fixed; z-index: 1200; bottom: 16px; right: 16px; pointer-events: none;
+  background: var(--white); border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius); box-shadow: 0 10px 30px -8px rgba(26,58,92,.45); padding: .5rem .6rem;
+  min-width: 250px; max-width: calc(100vw - 32px);
+}
+.barra-formula.hidden { display: none; }
+.barra-formula-ops button { pointer-events: auto; }
+.barra-formula-texto { font-family: ui-monospace, 'Consolas', monospace; font-size: .76rem; color: var(--gray-700); background: var(--gray-100); border-radius: var(--radius); padding: .3rem .4rem; margin-bottom: .35rem; word-break: break-word; max-height: 4.5em; overflow-y: auto; }
+.barra-formula-resultado { font-size: 1rem; font-weight: 700; color: var(--primary); margin-bottom: .4rem; }
+.barra-formula-resultado.barra-formula-error { color: var(--gray-400); }
+.barra-formula-ops { display: grid; grid-template-columns: repeat(9, 1fr); gap: .25rem; }
+.barra-formula-ops button { padding: .3rem 0; border: 1.5px solid var(--gray-300); background: var(--white); border-radius: var(--radius); cursor: pointer; font-weight: 700; color: var(--gray-600); font-size: .85rem; }
+.barra-formula-ops button:hover { border-color: var(--primary-light); color: var(--primary); }
+.barra-formula-hint { font-size: .7rem; color: var(--gray-400); margin-top: .4rem; }
+@media (max-width: 700px) {
+  .barra-formula { left: 6px; right: 6px; bottom: 6px; min-width: 0; max-width: none; }
+  .barra-formula-ops button { padding: .5rem 0; }
+}
+
 .calc-flotante-panel {
   position: fixed; top: 76px; left: 1.25rem; z-index: 1300; width: 260px;
   background: var(--white); border-radius: var(--radius-lg); box-shadow: var(--shadow-glow);

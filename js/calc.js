@@ -35,6 +35,14 @@ window.roundLimpio = function (n) {
       const start = i;
       while (i < expr.length && /[0-9.,]/.test(expr[i])) i++;
       if (start === i) throw new Error('Número inválido');
+      // Notación científica ("4.6e+21"): la produce JS solo al escribir un
+      // número muy grande o muy chico, así que hay que saber leerla — si no,
+      // una fórmula que da un número enorme deja de evaluar de golpe.
+      if (/[eE]/.test(expr[i] || '')) {
+        const resto = expr.slice(i + 1);
+        const m = resto.match(/^[+-]?\d+/);
+        if (m) i += 1 + m[0].length;
+      }
       const crudo = expr.slice(start, i);
       const n = parseFloat(crudo.includes(',') ? crudo.replace(/\./g, '').replace(',', '.') : crudo);
       if (isNaN(n)) throw new Error('Número inválido');
@@ -131,17 +139,41 @@ window.roundLimpio = function (n) {
     return s.replace('.', ',');
   }
 
+  // Ganchos que instala js/refs.js si está cargado, para que una fórmula
+  // pueda apuntar a otras celdas. Sin refs.js, todo esto es la identidad y el
+  // comportamiento es el de siempre (aritmética pelada).
+  //   refsAVisible : "=@{id}+10"  ->  "=[Desmonte · Total]+10"  (lo que se ve)
+  //   refsACanonica: el camino inverso (lo que se guarda)
+  //   refsResolver : reemplaza cada @{id} por su valor de hoy, antes de evaluar
+  const aVisible  = f => (window.refsAVisible  ? window.refsAVisible(f)  : f);
+  const aCanonica = t => (window.refsACanonica ? window.refsACanonica(t) : t);
+  const resolver  = e => (window.refsResolver  ? window.refsResolver(e)  : e);
+
   function resolveIfFormula(input) {
+    // Esc mientras se editaba: se descarta lo tipeado sin tocar ni el valor ni
+    // la fórmula guardada (ver cancelarEdicionCampo).
+    if (input.dataset.cancelando) { delete input.dataset.cancelando; return; }
     const raw = input.value.trim();
     if (!raw.startsWith('=')) { delete input.dataset.formula; return; }
     try {
-      const result = evalFormula(raw.slice(1));
-      input.dataset.formula = raw;
+      const canonica = aCanonica(raw);
+      const result = evalFormula(resolver(canonica.slice(1)));
+      input.dataset.formula = canonica;
       input.value = textoResultado(roundLimpio(result));
     } catch (_) {
       // Fórmula inválida: se deja el texto tal cual para que el usuario la corrija.
     }
   }
+
+  // Sale del campo descartando la edición en curso: vuelve a mostrar el valor
+  // que había y conserva la fórmula guardada (Esc, igual que en Excel).
+  window.cancelarEdicionCampo = function (input) {
+    input.dataset.cancelando = '1';
+    const v = input.dataset.valorReal !== undefined ? parseFloat(input.dataset.valorReal) : null;
+    input.value = textoMostrado(v);
+    input.dataset.textoAlEnfocar = input.value;
+    input.blur();
+  };
 
   window.evalFormula = evalFormula;
 
@@ -166,9 +198,10 @@ window.roundLimpio = function (n) {
   // campo de nuevo muestra "=15*3+2" en vez del resultado, igual que Excel.
   window.attachCalcInput = function (input, initialFormula) {
     if (initialFormula) input.dataset.formula = initialFormula;
+    input.dataset.calc = '1';   // marca de "campo con fórmula" para js/refs.js
 
     input.addEventListener('focus', () => {
-      if (input.dataset.formula) input.value = input.dataset.formula;
+      if (input.dataset.formula) input.value = aVisible(input.dataset.formula);
     });
     input.addEventListener('blur', () => resolveIfFormula(input));
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
@@ -244,6 +277,19 @@ window.roundLimpio = function (n) {
     input.addEventListener('focus', () => {
       if (!input.dataset.formula) input.value = textoCompleto(input, window.valorCampo(input));
       input.dataset.textoAlEnfocar = input.value;
+      // Entrar al campo selecciona todo, como una celda de Excel: lo que se
+      // tipee reemplaza el contenido (y así un "=" arranca una fórmula en vez
+      // de pegarse al número que ya estaba).
+      input.select();
+      input.dataset.recienEnfocado = '1';
+    });
+
+    // Con mouse, el mouseup posterior al focus colapsa la selección donde se
+    // clickeó — se cancela sólo el primero, para que el select() valga.
+    input.addEventListener('mouseup', e => {
+      if (!input.dataset.recienEnfocado) return;
+      delete input.dataset.recienEnfocado;
+      e.preventDefault();
     });
 
     // Corre después de los blur de attachCalcInput (resuelve la fórmula) y

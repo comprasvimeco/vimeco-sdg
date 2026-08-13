@@ -75,20 +75,24 @@ function ordenarRubros() {
   rubros.sort((a, b) => (a.orden || 0) - (b.orden || 0));
 }
 
-function renderLineaRow(linea, numero, k, totalPresupuesto) {
+function renderLineaRow(lineaKey, linea, numero, k, totalPresupuesto) {
   const precioUnitario = costoUnitarioDe(linea.itemKey) * k;
   const cantidad = linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : 0;
   const total = precioUnitario * cantidad;
   const incidencia = totalPresupuesto > 0 ? total / totalPresupuesto : 0;
+  // Etiqueta con la que se lee una referencia a esta línea desde una fórmula
+  // (ver js/refs.js); la numeración la hace única.
+  const et = `${numero} ${linea.nombre || 'Ítem'}`;
+  const id = `presupuesto:linea:${lineaKey}`;
   return `
     <div class="presupuesto-linea">
       <span class="presupuesto-linea-numero">${numero}</span>
       <span>${escHtml(linea.nombre || '')}</span>
       <span>${escHtml(linea.unidad || '')}</span>
-      <span${linea.cantidad != null && !isNaN(linea.cantidad) ? ` data-calc-valor="${linea.cantidad}"` : ''}>${linea.cantidad != null && !isNaN(linea.cantidad) ? fmtNum(linea.cantidad) : '—'}</span>
-      <span class="presupuesto-linea-precio" data-calc-valor="${precioUnitario}">${fmtARS(precioUnitario)}</span>
-      <span class="presupuesto-linea-total" data-calc-valor="${total}">${fmtARS(total)}</span>
-      <span class="presupuesto-linea-incidencia" data-calc-valor="${incidencia * 100}">${fmtPct(incidencia)}</span>
+      <span${calcAttrs(linea.cantidad, `${id}:cantidad`, `${et} · Cantidad`)}>${linea.cantidad != null && !isNaN(linea.cantidad) ? fmtNum(linea.cantidad) : '—'}</span>
+      <span class="presupuesto-linea-precio"${calcAttrs(precioUnitario, `${id}:precioUnit`, `${et} · Precio unit.`)}>${fmtARS(precioUnitario)}</span>
+      <span class="presupuesto-linea-total"${calcAttrs(total, `${id}:total`, `${et} · Total`)}>${fmtARS(total)}</span>
+      <span class="presupuesto-linea-incidencia"${calcAttrs(incidencia * 100, `${id}:incidencia`, `${et} · Incidencia %`)}>${fmtPct(incidencia)}</span>
     </div>`;
 }
 
@@ -133,20 +137,20 @@ function renderTodo() {
         <div class="presupuesto-rubro-header">
           <span class="presupuesto-rubro-numero">${rubroIdx + 1}.</span>
           <span class="presupuesto-rubro-nombre">${escHtml(rubro.nombre || '(sin nombre)')}</span>
-          <span class="presupuesto-rubro-subtotal" data-calc-valor="${subtotalRubro}">${fmtARS(subtotalRubro)}</span>
-          <span class="presupuesto-rubro-incidencia" data-calc-valor="${incidenciaRubro * 100}">${fmtPct(incidenciaRubro)}</span>
+          <span class="presupuesto-rubro-subtotal"${calcAttrs(subtotalRubro, `presupuesto:rubro:${rubro.key}:subtotal`, `${rubroIdx + 1}. ${rubro.nombre || 'Rubro'} · Subtotal`)}>${fmtARS(subtotalRubro)}</span>
+          <span class="presupuesto-rubro-incidencia"${calcAttrs(incidenciaRubro * 100, `presupuesto:rubro:${rubro.key}:incidencia`, `${rubroIdx + 1}. ${rubro.nombre || 'Rubro'} · Incidencia %`)}>${fmtPct(incidenciaRubro)}</span>
         </div>`;
       const lineasHtml = grupoLineas.length
-        ? grupoLineas.map(([, l], i) => renderLineaRow(l, `${rubroIdx + 1}.${i + 1}`, k, totalPresupuesto)).join('')
+        ? grupoLineas.map(([lk, l], i) => renderLineaRow(lk, l, `${rubroIdx + 1}.${i + 1}`, k, totalPresupuesto)).join('')
         : '<p class="text-muted" style="font-size:.8rem;padding:.4rem 0;">Sin líneas en este rubro.</p>';
       return rubroHtml + lineasHtml;
     }).join('');
   }
 
   resumen.innerHTML = `
-    <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span data-calc-valor="${costoComputo}">${fmtARS(costoComputo)}</span></div>
-    <div class="ap-resumen-row"><span>Coeficiente K</span><span data-calc-valor="${k}">${fmtCoef(k)}</span></div>
-    <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span data-calc-valor="${totalPresupuesto}">${fmtARS(totalPresupuesto)}</span></div>
+    <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(costoComputo, 'presupuesto:costoComputo', 'Costo total del Cómputo')}>${fmtARS(costoComputo)}</span></div>
+    <div class="ap-resumen-row"><span>Coeficiente K</span><span${calcAttrs(k, 'presupuesto:k', 'Coeficiente K')}>${fmtCoef(k)}</span></div>
+    <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span${calcAttrs(totalPresupuesto, 'presupuesto:total', 'Total del Presupuesto')}>${fmtARS(totalPresupuesto)}</span></div>
     <p class="form-hint" style="margin-top:.5rem;">K se recalcula en vivo a partir de Carga Fija — no se cachea.</p>`;
 }
 

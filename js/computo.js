@@ -90,7 +90,7 @@ function renderRubroHeader(rubro, numero, esPrimero, esUltimo) {
         <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="1" title="Bajar rubro" ${esUltimo ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
         <button class="computo-rubro-del" data-rubro-id="${escHtml(rubro.key)}" title="${vacio ? 'Eliminar rubro' : 'Vaciá el rubro antes de eliminarlo'}" ${vacio ? '' : 'disabled'}>${icSvg('x')}</button>
       </span>
-      <span class="computo-rubro-subtotal" data-calc-valor="${subtotalGrupo(grupoLineas)}">${fmtARS(subtotalGrupo(grupoLineas))}</span>
+      <span class="computo-rubro-subtotal"${calcAttrs(subtotalGrupo(grupoLineas), `computo:rubro:${rubro.key}:subtotal`, `${numero}. ${rubro.nombre || 'Rubro'} · Subtotal`)}>${fmtARS(subtotalGrupo(grupoLineas))}</span>
     </div>
     <div class="computo-rubro-lineas" data-rubro-id="${escHtml(rubro.key)}"></div>`;
 }
@@ -101,14 +101,17 @@ function renderLineaRow(lineaKey, linea, numero, esPrimero, esUltimo) {
   const hrefAP = linea.itemKey
     ? `item.html?key=${encodeURIComponent(linea.itemKey)}&obra=${encodeURIComponent(obraKey)}`
     : `item.html?linea=${encodeURIComponent(lineaKey)}&obra=${encodeURIComponent(obraKey)}`;
+  // Etiqueta con la que se va a leer una referencia a esta línea dentro de
+  // una fórmula ("=[1.2 Desmonte · Total]"): la numeración la hace única.
+  const etiqueta = `${numero} ${linea.nombre || 'Ítem'}`;
   return `
     <div class="computo-linea" data-key="${escHtml(lineaKey)}" draggable="true">
       <span class="computo-linea-numero">${numero}</span>
       <input type="text" class="form-control linea-nombre" placeholder="Ítem" value="${escHtml(linea.nombre || '')}">
       <input type="text" class="form-control linea-unidad" placeholder="Unidad" value="${escHtml(linea.unidad || '')}">
-      <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
-      <span class="computo-linea-costo" data-calc-valor="${costo}">${fmtARS(costo)}</span>
-      <span class="computo-linea-total" data-calc-valor="${total}">${fmtARS(total)}</span>
+      <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="computo:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiqueta + ' · Cantidad')}">
+      <span class="computo-linea-costo"${calcAttrs(costo, `computo:linea:${lineaKey}:costoUnit`, etiqueta + ' · Costo unit.')}>${fmtARS(costo)}</span>
+      <span class="computo-linea-total"${calcAttrs(total, `computo:linea:${lineaKey}:total`, etiqueta + ' · Total')}>${fmtARS(total)}</span>
       <span class="computo-linea-acciones">
         <button class="computo-linea-mover" data-dir="-1" title="Subir" ${esPrimero ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
         <button class="computo-linea-mover" data-dir="1" title="Bajar" ${esUltimo ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
@@ -217,7 +220,7 @@ function renderLineas() {
 function renderResumen() {
   const total = Object.values(lineas).reduce((acc, l) => acc + totalLinea(l), 0);
   $('resumen').innerHTML = `
-    <div class="ap-resumen-row total"><span>Costo total del cómputo</span><span data-calc-valor="${total}">${fmtARS(total)}</span></div>
+    <div class="ap-resumen-row total"><span>Costo total del cómputo</span><span${calcAttrs(total, 'computo:total', 'Costo total del cómputo')}>${fmtARS(total)}</span></div>
     <p class="form-hint" style="margin-top:.5rem;">Costo sin Gastos Generales, beneficio ni IVA — eso se aplica en el Presupuesto de la obra.</p>`;
 }
 
@@ -231,10 +234,39 @@ function actualizarBotonComputoIA() {
   btn.title = rubros.length > 0 ? 'Sólo disponible con el cómputo vacío' : '';
 }
 
+// Recién renderizado, el DOM tiene los valores de hoy en cada celda: es el
+// momento de recalcular las cantidades cuya fórmula apunta a otras celdas
+// (ver js/refs.js). Si alguna cambió, se guarda y se vuelve a renderizar —
+// con tope de pasadas, para cortar una referencia circular en vez de colgar
+// la pantalla.
+let pasadasVivas = 0;
+
+function refrescarFormulasVivas() {
+  if (!window.recalcularCeldasVivas) return;
+  const campos = Object.entries(lineas)
+    .filter(([, l]) => window.formulaTieneRefs(l.cantidadFormula))
+    .map(([lineaKey, l]) => ({
+      formula: l.cantidadFormula,
+      valor: l.cantidad ?? null,
+      aplicar: valor => {
+        lineas[lineaKey].cantidad = valor;
+        persistLineaCambios(lineaKey, { cantidad: valor });
+      },
+    }));
+  if (!campos.length || !window.recalcularCeldasVivas(campos)) { pasadasVivas = 0; return; }
+  if (++pasadasVivas > 10) {
+    pasadasVivas = 0;
+    showToast('Hay referencias circulares entre celdas — se detuvo el recálculo.', 'error');
+    return;
+  }
+  renderTodo();
+}
+
 function renderTodo() {
   renderLineas();
   renderResumen();
   actualizarBotonComputoIA();
+  refrescarFormulasVivas();
 }
 
 // Cada línea/rubro se guarda en su propio path (PUT al crear, PATCH al

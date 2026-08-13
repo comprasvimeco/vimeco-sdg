@@ -108,6 +108,15 @@ function catalogoFor(tipo) {
   return roles;
 }
 
+// Cómo se lee una referencia a esta línea dentro de una fórmula (js/refs.js):
+// el nombre de lo que tiene elegido, que es como la reconoce el usuario.
+function etiquetaLinea(lineaKey) {
+  const l = lineas[lineaKey];
+  if (!l) return 'Línea';
+  const entidad = catalogoFor(l.tipo).find(c => c.key === l.refKey);
+  return entidad ? labelFor(l.tipo, entidad) : 'Línea sin elegir';
+}
+
 // -- Auto-alta de ítem (línea de Cómputo sin itemKey todavía) --------------
 // Ya no se busca/crea a mano: el AP de una línea se crea solo, con el
 // nombre/unidad que tenga la línea en ese momento (pueden estar vacíos
@@ -403,16 +412,16 @@ function renderResumenCosto(r) {
   card.classList.remove('hidden');
   const k = kPorObra[activeVersion];
   const precioUnitarioHtml = k
-    ? `<div class="ap-resumen-row total"><span>Precio Unitario</span><span data-calc-valor="${r.costoUnitario * k}">${fmtARS(r.costoUnitario * k)}</span></div>
+    ? `<div class="ap-resumen-row total"><span>Precio Unitario</span><span${calcAttrs(r.costoUnitario * k, 'ap:precioUnitario', 'Precio Unitario')}>${fmtARS(r.costoUnitario * k)}</span></div>
        <p class="form-hint" style="margin-top:.4rem;">Precio Unitario = Subtotal × Coeficiente K (${fmtCoef(k)}) de <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> de esta obra.</p>`
     : k === null
       ? `<p class="form-hint" style="margin-top:.4rem;">No se pudo calcular el Precio Unitario — a esta obra le falta Cómputo o <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> cargada.</p>`
       : '';
   $('resumen').innerHTML = `
-    <div class="ap-resumen-row"><span>Costo unitario de Equipos (A)</span><span data-calc-valor="${r.costoUnitarioEquipos}">${fmtARS(r.costoUnitarioEquipos)}</span></div>
-    <div class="ap-resumen-row"><span>Costo unitario Mano de Obra (B)</span><span data-calc-valor="${r.costoUnitarioMO}">${fmtARS(r.costoUnitarioMO)}</span></div>
-    <div class="ap-resumen-row"><span>Costo unitario de Materiales (C)</span><span data-calc-valor="${r.costoMateriales}">${fmtARS(r.costoMateriales)}</span></div>
-    <div class="ap-resumen-row total"><span>SUBTOTAL (A+B+C)</span><span data-calc-valor="${r.costoUnitario}">${fmtARS(r.costoUnitario)}</span></div>
+    <div class="ap-resumen-row"><span>Costo unitario de Equipos (A)</span><span${calcAttrs(r.costoUnitarioEquipos, 'ap:resumen:equipos', 'Costo unitario de Equipos (A)')}>${fmtARS(r.costoUnitarioEquipos)}</span></div>
+    <div class="ap-resumen-row"><span>Costo unitario Mano de Obra (B)</span><span${calcAttrs(r.costoUnitarioMO, 'ap:resumen:manoDeObra', 'Costo unitario Mano de Obra (B)')}>${fmtARS(r.costoUnitarioMO)}</span></div>
+    <div class="ap-resumen-row"><span>Costo unitario de Materiales (C)</span><span${calcAttrs(r.costoMateriales, 'ap:resumen:materiales', 'Costo unitario de Materiales (C)')}>${fmtARS(r.costoMateriales)}</span></div>
+    <div class="ap-resumen-row total"><span>SUBTOTAL (A+B+C)</span><span${calcAttrs(r.costoUnitario, 'ap:resumen:subtotal', 'SUBTOTAL (A+B+C)')}>${fmtARS(r.costoUnitario)}</span></div>
     <p class="form-hint" style="margin-top:.4rem;">Costo de referencia con precios generales — no incluye Gastos Generales ni beneficio.</p>
     ${precioUnitarioHtml}`;
 }
@@ -492,17 +501,17 @@ function renderLineasSeccion(tipo, r) {
             <div class="linea-select-container"></div>
             ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
-          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad">
-          <button type="button" class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d ? ` data-calc-valor="${d.costoTotal}"` : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}">
+          <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
         </div>`;
     }).join('');
   }
   if (r) {
     html += tipo === 'material'
-      ? `<div class="ap-subtotal-linea total"><span>Costo unitario de Materiales (C)</span><span data-calc-valor="${r.costoMateriales}">${fmtARS(r.costoMateriales)}</span></div>`
-      : `<div class="ap-subtotal-linea"><span>Costo diario Equipos</span><span data-calc-valor="${r.costoDiarioEquipos}">${fmtARS(r.costoDiarioEquipos)}</span></div>
-         <div class="ap-subtotal-linea total"><span>Costo unitario de Equipos (A)</span><span data-calc-valor="${r.costoUnitarioEquipos}">${fmtARS(r.costoUnitarioEquipos)}</span></div>`;
+      ? `<div class="ap-subtotal-linea total"><span>Costo unitario de Materiales (C)</span><span${calcAttrs(r.costoMateriales, 'ap:costoMateriales', 'Costo unitario de Materiales (C)')}>${fmtARS(r.costoMateriales)}</span></div>`
+      : `<div class="ap-subtotal-linea"><span>Costo diario Equipos</span><span${calcAttrs(r.costoDiarioEquipos, 'ap:costoDiarioEquipos', 'Costo diario Equipos')}>${fmtARS(r.costoDiarioEquipos)}</span></div>
+         <div class="ap-subtotal-linea total"><span>Costo unitario de Equipos (A)</span><span${calcAttrs(r.costoUnitarioEquipos, 'ap:costoUnitarioEquipos', 'Costo unitario de Equipos (A)')}>${fmtARS(r.costoUnitarioEquipos)}</span></div>`;
   }
   container.innerHTML = html;
 
@@ -582,8 +591,8 @@ function renderManoDeObraSeccion(r) {
       return `
         <div class="ap-linea-mo con-costo" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
-          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}" data-calc-valor="${cantidad ?? 0}">
-          <span class="ap-linea-costo-unit"${d ? ` data-calc-valor="${d.costoUnitario}"` : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total"${d ? ` data-calc-valor="${d.costoTotal}"` : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}" data-calc-valor="${cantidad ?? 0}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}">
+          <span class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total"${d ? calcAttrs(d.costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
         </div>`;
     }).join('');
   }
@@ -609,8 +618,8 @@ function renderManoDeObraSeccion(r) {
     }
   }
   if (r) {
-    html += `<div class="ap-subtotal-linea"><span>Costo diario Mano de Obra</span><span data-calc-valor="${r.costoDiarioMO}">${fmtARS(r.costoDiarioMO)}</span></div>
-      <div class="ap-subtotal-linea total"><span>Costo unitario Mano de Obra (B)</span><span data-calc-valor="${r.costoUnitarioMO}">${fmtARS(r.costoUnitarioMO)}</span></div>`;
+    html += `<div class="ap-subtotal-linea"><span>Costo diario Mano de Obra</span><span${calcAttrs(r.costoDiarioMO, 'ap:costoDiarioMO', 'Costo diario Mano de Obra')}>${fmtARS(r.costoDiarioMO)}</span></div>
+      <div class="ap-subtotal-linea total"><span>Costo unitario Mano de Obra (B)</span><span${calcAttrs(r.costoUnitarioMO, 'ap:costoUnitarioMO', 'Costo unitario Mano de Obra (B)')}>${fmtARS(r.costoUnitarioMO)}</span></div>`;
   }
   container.innerHTML = html;
 
@@ -648,12 +657,37 @@ function setEquiposExpandido(abierto) {
   $('equipos-toggle').classList.toggle('expandido', abierto);
 }
 
+// Recién renderizado, cada celda del DOM tiene su valor de hoy: es el momento
+// de recalcular las cantidades cuya fórmula apunta a otras celdas (js/refs.js).
+// Tope de pasadas para cortar una referencia circular.
+let pasadasVivas = 0;
+
+function refrescarFormulasVivas() {
+  if (!window.recalcularCeldasVivas) return;
+  const campos = Object.entries(lineas)
+    .filter(([, l]) => window.formulaTieneRefs(l.cantidadFormula))
+    .map(([lineaKey, l]) => ({
+      formula: l.cantidadFormula,
+      valor: l.cantidad ?? null,
+      aplicar: valor => { lineas[lineaKey].cantidad = valor; },
+    }));
+  if (!campos.length || !window.recalcularCeldasVivas(campos)) { pasadasVivas = 0; return; }
+  if (++pasadasVivas > 10) {
+    pasadasVivas = 0;
+    showToast('Hay referencias circulares entre celdas — se detuvo el recálculo.', 'error');
+    return;
+  }
+  persistLineas();
+  renderTodasLasLineas();
+}
+
 function renderTodasLasLineas() {
   const r = calcularDetalleActivo();
   renderLineasSeccion('material', r);
   renderLineasSeccion('equipo', r);
   renderManoDeObraSeccion(r);
   renderResumenCosto(r);
+  refrescarFormulasVivas();
 }
 
 async function persistLineas() {

@@ -98,16 +98,16 @@ function renderTodo() {
       <div class="materiales-linea">
         <span>${escHtml(g.material.nombre)}</span>
         <span>${escHtml(g.material.unidad || '')}</span>
-        <span class="materiales-cantidad" data-calc-valor="${g.cantidadTotal}">${fmtNum(g.cantidadTotal)}</span>
+        <span class="materiales-cantidad"${calcAttrs(g.cantidadTotal, `materiales:${g.material.key}:cantidad`, `${g.material.nombre} · Cantidad`)}>${fmtNum(g.cantidadTotal)}</span>
         <span class="materiales-usados" title="${escHtml(usadosTitle)}">${escHtml(usadosTexto)}</span>
-        <span class="materiales-costo"${precioUnitario != null ? ` data-calc-valor="${precioUnitario * g.cantidadTotal}"` : ''}>${costoStr}</span>
+        <span class="materiales-costo"${precioUnitario != null ? calcAttrs(precioUnitario * g.cantidadTotal, `materiales:${g.material.key}:costo`, `${g.material.nombre} · Costo`) : ''}>${costoStr}</span>
       </div>`;
   }).join('');
 
   container.innerHTML = header + filas;
 
   resumen.innerHTML = `
-    <div class="ap-resumen-row total"><span>Costo total estimado de materiales</span><span data-calc-valor="${costoTotalObra}">${fmtARS(costoTotalObra)}</span></div>
+    <div class="ap-resumen-row total"><span>Costo total estimado de materiales</span><span${calcAttrs(costoTotalObra, 'materiales:total', 'Costo total estimado de materiales')}>${fmtARS(costoTotalObra)}</span></div>
     ${faltaPrecio ? '<p class="form-hint" style="margin-top:.5rem;">Algunos materiales no tienen precio cargado para esta obra — no se incluyen en el costo total.</p>' : ''}`;
 }
 
