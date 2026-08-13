@@ -1,14 +1,12 @@
-/* VIMECO S.A. — Sistema de Gestión — Cotizaciones (alta con IA)
-   Subir un presupuesto de proveedor (PDF/foto), revisar/corregir materiales
-   y precios detectados (o cargados a mano), y aplicarlos a
-   /materiales/{key}/precios/{obraKey}. El archivo se guarda en Cloudinary
-   (js/storage.js). El listado y el borrado viven en cotizaciones-obra.js,
-   que además declara el `$` que este archivo NO redeclara — ambos corren en
-   el mismo scope global. */
+/* VIMECO S.A. — Sistema de Gestión — Cotizaciones (extracción con IA)
+   Sobre un presupuesto de proveedor YA guardado en la carpeta de la obra:
+   leerlo con IA, revisar/corregir materiales y precios detectados (o
+   cargarlos a mano), y aplicarlos a /materiales/{key}/precios/{obraKey}.
+   La subida del archivo y el listado viven en cotizaciones-obra.js, que
+   además declara el `$` que este archivo NO redeclara — ambos corren en el
+   mismo scope global. */
 
 (function () {
-  const MAX_FILE_BYTES = 10 * 1024 * 1024; // límite de subida del plan free de Cloudinary
-  const TIPOS_OK = ['application/pdf', 'image/jpeg', 'image/png'];
   // La latencia real de Gemini varía bastante (se vieron casos legítimos de
   // 5s a 40s en pruebas) — 90s da margen sin dejarlo colgado indefinidamente.
   const GEMINI_TIMEOUT_MS = 90000;
@@ -56,10 +54,22 @@
     required: ['lineas'],
   };
 
-  let state = null; // { obraKey, onDone, allMateriales, file, lineas, nextRowId }
+  let state = null; // { obraKey, cotizacionKey, cotizacion, onDone, allMateriales, file, lineas, nextRowId }
 
   function todayIso() {
     return new Date().toISOString().slice(0, 10);
+  }
+
+  // Cloudinary guarda los PDF como "raw" y los devuelve con un tipo genérico,
+  // así que el mime que Gemini necesita se deduce de lo que se registró al
+  // subir (o de la extensión), nunca del blob descargado.
+  function mimeDeCotizacion(c) {
+    const tipo = c.archivoTipo || '';
+    if (tipo === 'application/pdf' || tipo === 'image/jpeg' || tipo === 'image/png') return tipo;
+    const nombre = c.archivoNombre || '';
+    if (/\.pdf$/i.test(nombre)) return 'application/pdf';
+    if (/\.png$/i.test(nombre)) return 'image/png';
+    return 'image/jpeg';
   }
 
   function slugKey(nombre) {
@@ -69,27 +79,27 @@
       + '_' + Date.now();
   }
 
-  async function openCotizacionModal(obraKey, onDone) {
-    state = { obraKey, onDone, allMateriales: [], file: null, lineas: [], nextRowId: 1 };
+  let sessionCounter = 0;
 
-    document.getElementById('cotiz-modal-title').textContent = 'Subir cotización';
-    document.getElementById('cotiz-archivo-input').value = '';
-    document.getElementById('cotiz-file-nombre').textContent = 'Ningún archivo elegido';
-    document.getElementById('cotiz-file-nombre').classList.remove('tiene-archivo');
-    document.getElementById('cotiz-archivo-error').classList.add('hidden');
+  async function openCotizacionModal(obraKey, cotizacionKey, cotizacion, onDone) {
+    state = {
+      obraKey, cotizacionKey, cotizacion, onDone,
+      sessionId: ++sessionCounter,
+      allMateriales: [], lineas: [], nextRowId: 1,
+    };
+
+    document.getElementById('cotiz-file-nombre').textContent = cotizacion.archivoNombre || 'Archivo';
     document.getElementById('cotiz-revision-error').classList.add('hidden');
     document.getElementById('cotiz-extraccion-hint').classList.add('hidden');
     document.getElementById('cotiz-ia-loading').classList.add('hidden');
-    document.getElementById('cotiz-paso-archivo').classList.remove('hidden');
-    document.getElementById('cotiz-paso-revision').classList.add('hidden');
     document.getElementById('cotiz-modal-confirmar').classList.add('hidden');
-    document.getElementById('cotiz-proveedor').value = '';
-    document.getElementById('cotiz-fecha').value = todayIso();
+    document.getElementById('cotiz-proveedor').value = cotizacion.proveedor || '';
+    document.getElementById('cotiz-fecha').value = cotizacion.fecha || todayIso();
     document.getElementById('modal-cotizacion').classList.remove('hidden');
 
-    // Se guarda la promesa (no se espera acá) para no bloquear la elección de
-    // archivo — pero extraerYMostrarRevision() la espera antes de armar la
-    // tabla, así el buscador de materiales de cada línea nunca se crea con
+    // Se guarda la promesa (no se espera acá) para no bloquear el arranque de
+    // la extracción — pero extraerYMostrarRevision() la espera antes de armar
+    // la tabla, así el buscador de materiales de cada línea nunca se crea con
     // la lista todavía vacía por una carrera con este fetch.
     state.materialesPromise = _fbGet('/materiales.json')
       .then(data => {
@@ -97,6 +107,8 @@
           .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
       })
       .catch(() => { state.allMateriales = []; });
+
+    await extraerYMostrarRevision();
   }
 
   function closeCotizacionModal() {
@@ -104,28 +116,16 @@
     state = null;
   }
 
-  async function handleArchivoSeleccionado(file) {
-    const errEl = document.getElementById('cotiz-archivo-error');
-    const nombreEl = document.getElementById('cotiz-file-nombre');
-    errEl.classList.add('hidden');
-    if (!file) return;
-
-    const tipoOk = TIPOS_OK.includes(file.type) || /\.(pdf|jpe?g|png)$/i.test(file.name);
-    if (!tipoOk) {
-      errEl.textContent = 'El archivo tiene que ser un PDF o una foto (JPG/PNG).';
-      errEl.classList.remove('hidden');
-      return;
-    }
-    if (file.size > MAX_FILE_BYTES) {
-      errEl.textContent = 'El archivo es demasiado grande (máx. 10MB).';
-      errEl.classList.remove('hidden');
-      return;
-    }
-
-    nombreEl.textContent = file.name;
-    nombreEl.classList.add('tiene-archivo');
-    state.file = file;
-    await extraerYMostrarRevision();
+  // El archivo puede estar todavía en memoria (recién subido en esta sesión);
+  // si no, se baja de Cloudinary para poder mandárselo a Gemini.
+  async function obtenerArchivo() {
+    const enSesion = window.cotizFilesEnSesion && window.cotizFilesEnSesion[state.cotizacionKey];
+    if (enSesion) return enSesion;
+    const url = state.cotizacion.archivoUrl;
+    if (!url) throw new Error('La cotización no tiene archivo guardado.');
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.blob();
   }
 
   function fileToBase64(file) {
@@ -137,7 +137,7 @@
     });
   }
 
-  async function callGeminiExtract(file) {
+  async function callGeminiExtract(file, mimeType) {
     if (!GEMINI_API_KEY) throw new Error('Gemini no configurado');
     const base64 = await fileToBase64(file);
     const controller = new AbortController();
@@ -153,7 +153,7 @@
           body: JSON.stringify({
             contents: [{ parts: [
               { text: GEMINI_PROMPT },
-              { inlineData: { mimeType: file.type, data: base64 } },
+              { inlineData: { mimeType, data: base64 } },
             ] }],
             generationConfig: {
               responseMimeType: 'application/json',
@@ -247,8 +247,6 @@
   }
 
   async function extraerYMostrarRevision() {
-    document.getElementById('cotiz-paso-archivo').classList.add('hidden');
-    document.getElementById('cotiz-paso-revision').classList.remove('hidden');
     // El botón de confirmar queda oculto hasta que termine de extraer: si el
     // usuario lo clickeara mientras Gemini todavía está respondiendo,
     // encontraría la tabla vacía (state.lineas todavía sin poblar).
@@ -259,10 +257,15 @@
     document.getElementById('btn-cotiz-add-linea').classList.add('hidden');
     loadingEl.classList.remove('hidden');
 
+    const sessionId = state.sessionId; // para descartar la respuesta de un modal ya cerrado
+    const mimeType = mimeDeCotizacion(state.cotizacion);
     const [extraido] = await Promise.all([
-      callGeminiExtract(state.file).catch(() => null),
+      obtenerArchivo()
+        .then(file => callGeminiExtract(file, mimeType))
+        .catch(() => null),
       state.materialesPromise,
     ]);
+    if (!state || state.sessionId !== sessionId) return;
 
     loadingEl.classList.add('hidden');
     document.getElementById('cotiz-lineas-lista').classList.remove('hidden');
@@ -278,7 +281,7 @@
         ? `Se detectaron ${detectadas.length} línea(s) con IA — revisá y corregí antes de confirmar.`
         : 'No se detectó ninguna línea automáticamente — cargalas a mano.';
     } else {
-      hintEl.textContent = 'No se pudo leer el presupuesto con IA — cargá los materiales a mano.';
+      hintEl.textContent = 'No se pudo leer el presupuesto con IA (sin conexión, sin cuota o formato ilegible) — el archivo sigue guardado; podés cargar los materiales a mano o cerrar y reintentar más tarde.';
     }
 
     if (!state.lineas.length) agregarLineaManual();
@@ -455,7 +458,7 @@
     }
   }
 
-  // --- Confirmar: subir archivo, aplicar precios, guardar registro ---
+  // --- Confirmar: aplicar precios sobre un archivo ya guardado ---
   async function confirmarCotizacion() {
     const errEl = document.getElementById('cotiz-revision-error');
     errEl.classList.add('hidden');
@@ -487,9 +490,24 @@
       });
     }
 
+    const cotizacionKey = state.cotizacionKey;
+    const btn = document.getElementById('cotiz-modal-confirmar');
+
+    // Sin líneas válidas no hay nada que aplicar, pero el archivo ya está
+    // guardado: se conservan proveedor y fecha y se cierra sin trabar al
+    // usuario (antes esto era un callejón sin salida que perdía el archivo).
     if (!aLineas.length) {
-      errEl.textContent = 'Marcá al menos una línea con material y precio válidos para aplicar.';
-      errEl.classList.remove('hidden');
+      btn.disabled = true;
+      btn.textContent = 'Guardando…';
+      try {
+        await _fbPatch(`/obras/${state.obraKey}/cotizaciones/${cotizacionKey}.json`, { proveedor, fecha });
+      } catch (_) { /* el archivo ya está guardado; los datos son secundarios */ }
+      btn.disabled = false;
+      btn.textContent = 'Aplicar precios';
+      showToast('No se aplicó ningún precio (ninguna línea tenía material y precio). El archivo sigue guardado.', 'warning');
+      const onDoneSinLineas = state.onDone;
+      closeCotizacionModal();
+      if (typeof onDoneSinLineas === 'function') onDoneSinLineas();
       return;
     }
 
@@ -500,22 +518,8 @@
       return;
     }
 
-    const btn = document.getElementById('cotiz-modal-confirmar');
     btn.disabled = true;
     btn.textContent = 'Guardando…';
-
-    const cotizacionKey = 'cotiz_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-    let archivoUrl;
-
-    try {
-      archivoUrl = await _stUpload(state.file, `cotizaciones/${state.obraKey}`);
-    } catch (err) {
-      errEl.textContent = 'No se pudo subir el archivo. Revisá la configuración de Cloudinary (Cloud name / upload preset en js/config.js) o probá de nuevo.';
-      errEl.classList.remove('hidden');
-      btn.disabled = false;
-      btn.textContent = 'Confirmar y guardar';
-      return;
-    }
 
     const fallos = [];
     for (const l of aLineas) {
@@ -529,51 +533,34 @@
       }
     }
 
+    // PATCH y no PUT: el registro ya existe (lo creó la subida) y tiene los
+    // datos del archivo, que no hay que pisar.
     try {
-      await _fbPut(`/obras/${state.obraKey}/cotizaciones/${cotizacionKey}.json`, {
+      await _fbPatch(`/obras/${state.obraKey}/cotizaciones/${cotizacionKey}.json`, {
         proveedor, fecha,
-        archivoNombre: state.file.name,
-        archivoTipo: state.file.type || '',
-        archivoUrl,
         lineasAplicadas: aLineas.map(l => ({ materialKey: l.materialKey, materialNombre: l.materialNombre, precioUSD: l.precioUSD, precioARS: l.precioARS })),
         estado: fallos.length ? 'aplicada_parcial' : 'aplicada',
-        creadoEn: Date.now(),
+        procesadoEn: Date.now(),
       });
     } catch (_) {
-      // El archivo y los precios ya se guardaron; el registro de la cotización
+      // El archivo y los precios ya se guardaron; el detalle de la cotización
       // es evidencia, no crítico para el cálculo — no reintentar acá.
     }
 
     showToast(fallos.length
-      ? `Cotización guardada. No se pudo aplicar el precio de: ${fallos.join(', ')}.`
-      : 'Cotización guardada y precios aplicados.', fallos.length ? 'warning' : 'success');
+      ? `Precios aplicados. No se pudo aplicar el precio de: ${fallos.join(', ')}.`
+      : 'Precios aplicados.', fallos.length ? 'warning' : 'success');
 
     btn.disabled = false;
-    btn.textContent = 'Confirmar y guardar';
+    btn.textContent = 'Aplicar precios';
     const onDone = state.onDone;
     closeCotizacionModal();
     if (typeof onDone === 'function') onDone();
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('cotiz-elegir-icon').innerHTML = icSvg('file');
     document.getElementById('cotiz-modal-close').addEventListener('click', closeCotizacionModal);
     document.getElementById('cotiz-modal-cancel').addEventListener('click', closeCotizacionModal);
-    document.getElementById('btn-cotiz-elegir-archivo').addEventListener('click', () => document.getElementById('cotiz-archivo-input').click());
-    document.getElementById('cotiz-archivo-input').addEventListener('change', e => handleArchivoSeleccionado(e.target.files[0]));
-
-    const dropzone = document.getElementById('cotiz-dropzone');
-    ['dragover', 'dragenter'].forEach(evt => dropzone.addEventListener(evt, e => {
-      e.preventDefault();
-      dropzone.classList.add('dragover');
-    }));
-    ['dragleave', 'dragend'].forEach(evt => dropzone.addEventListener(evt, () => dropzone.classList.remove('dragover')));
-    dropzone.addEventListener('drop', e => {
-      e.preventDefault();
-      dropzone.classList.remove('dragover');
-      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      if (file) handleArchivoSeleccionado(file);
-    });
     document.getElementById('btn-cotiz-add-linea').addEventListener('click', () => {
       capturarValoresDom();
       agregarLineaManual();

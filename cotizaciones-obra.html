@@ -24,6 +24,12 @@
     .cotiz-dropzone { border: 2px dashed var(--gray-300); border-radius: var(--radius-lg); padding: 1.25rem 1rem; text-align: center; transition: border-color .15s, background-color .15s; }
     .cotiz-dropzone.dragover { border-color: var(--primary); background: rgba(26,58,92,.05); }
     .cotiz-precio-label { display: block; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-400); margin-bottom: .2rem; }
+    .cotiz-estado { font-weight: 600; }
+    .cotiz-estado--pendiente { color: var(--gray-500); }
+    .cotiz-estado--aplicada { color: var(--success, #2e7d32); }
+    .cotiz-estado--parcial { color: var(--warning, #b26a00); }
+    .cotiz-card-subiendo { opacity: .7; }
+    .cotiz-lista-sep { margin: 1rem 0 .75rem; }
     .cotiz-envase-hint { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; font-size: .78rem; color: var(--gray-600); margin-top: .5rem; }
     .cotiz-envase-input { width: 55px; padding: .25rem .4rem; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: .78rem; }
   </style>
@@ -46,41 +52,35 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Cotizaciones</span>
-        <button class="btn btn-sm btn-primary" id="btn-add-cotizacion">+ Subir cotización</button>
+        <button class="btn btn-sm btn-primary" id="btn-add-cotizacion">+ Subir archivos</button>
       </div>
       <div class="card-body">
-        <span class="form-hint" style="display:block;margin-bottom:.75rem;">Presupuestos de proveedores subidos como fuente de precios de materiales para esta obra.</span>
+        <span class="form-hint" style="display:block;margin-bottom:.75rem;">Carpeta de presupuestos de proveedores de esta obra. Los archivos se guardan apenas los subís; después, desde cada ficha, podés extraer los precios con IA y aplicarlos a los materiales.</span>
+        <div class="cotiz-dropzone" id="cotiz-dropzone">
+          <div class="cotiz-file-row">
+            <button type="button" class="btn btn-sm btn-outline" id="btn-cotiz-elegir-archivo"><span id="cotiz-elegir-icon"></span> Elegir archivos</button>
+          </div>
+          <span class="form-hint" style="display:block;margin-top:.5rem;">o arrastrá los archivos acá (podés soltar varios de una)</span>
+        </div>
+        <input type="file" id="cotiz-archivo-input" class="hidden" multiple>
+        <div id="cotiz-archivo-error" class="alert alert-error hidden" style="margin-top:.75rem;"></div>
+        <div class="cotiz-lista-sep"></div>
         <div id="cotizaciones-lista"></div>
       </div>
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando cotizaciones…</div></div>
 
-  <!-- Modal: Subir / revisar cotización -->
+  <!-- Modal: Extraer precios con IA sobre un archivo ya guardado -->
   <div class="modal-overlay hidden" id="modal-cotizacion">
     <div class="modal modal--lg">
       <div class="modal-header">
-        <span class="modal-title" id="cotiz-modal-title">Subir cotización</span>
+        <span class="modal-title" id="cotiz-modal-title">Extraer precios con IA</span>
         <button class="modal-close" id="cotiz-modal-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
-        <div id="cotiz-paso-archivo">
-          <div class="form-group u-mb-0">
-            <label>Presupuesto del proveedor (PDF o foto)</label>
-            <div class="cotiz-dropzone" id="cotiz-dropzone">
-              <div class="cotiz-file-row">
-                <button type="button" class="btn btn-sm btn-outline" id="btn-cotiz-elegir-archivo"><span id="cotiz-elegir-icon"></span> Elegir archivo</button>
-                <span class="cotiz-file-nombre" id="cotiz-file-nombre">Ningún archivo elegido</span>
-              </div>
-              <span class="form-hint" style="display:block;margin-top:.5rem;">o arrastrá el archivo acá</span>
-            </div>
-            <input type="file" id="cotiz-archivo-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
-            <span class="form-hint">Se guarda el archivo para poder verlo después. Si hay conexión, se intenta leer el presupuesto con IA para precargar los materiales y precios.</span>
-          </div>
-          <div id="cotiz-archivo-error" class="alert alert-error hidden"></div>
-        </div>
-
-        <div id="cotiz-paso-revision" class="hidden">
+        <div id="cotiz-paso-revision">
+          <span class="cotiz-file-nombre tiene-archivo" id="cotiz-file-nombre" style="display:block;margin-bottom:.75rem;"></span>
           <div class="form-row">
             <div class="form-group">
               <label for="cotiz-proveedor">Proveedor</label>
@@ -103,7 +103,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="cotiz-modal-cancel">Cancelar</button>
-        <button class="btn btn-primary hidden" id="cotiz-modal-confirmar">Confirmar y guardar</button>
+        <button class="btn btn-primary hidden" id="cotiz-modal-confirmar">Aplicar precios</button>
       </div>
     </div>
   </div>
