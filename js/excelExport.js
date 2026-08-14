@@ -497,13 +497,12 @@
     ws.getColumn(12).width = 20;
 
     let r = 2;
-    ref.ap = { filaDe: {} };   // { numeroDeLinea: fila del código }
+    ref.ap = {};
 
     const lineas = m.rubros.flatMap(ru => ru.lineas);
     lineas.forEach(linea => {
       const ap = window.analisisDePrecioDe(m, linea.itemKey);
       const filaCodigo = r;
-      ref.ap.filaDe[linea.numero] = filaCodigo;
 
       ws.getCell(r, 2).value = 'Ítem:';
       negrita(ws, r, 2, 2);
@@ -1231,7 +1230,7 @@
     };
 
     const fParcialPct = filaPie('Certificación parcial %', L => `=${sumaRubros(L)}`, FMT_PCT);
-    const fAcumPct = filaPie('Certificación acumulada %',
+    filaPie('Certificación acumulada %',
       (L, i) => (i === 0 ? `=${L}${fParcialPct}` : `=${col(i - 1)}${r}+${L}${fParcialPct}`), FMT_PCT);
     const fParcialM = filaPie('Certificación parcial ($)',
       L => `=${L}${fParcialPct}*$F$${filaTotal}*(1-$F$${filaAnticipoPct})`, FMT_ARS);
