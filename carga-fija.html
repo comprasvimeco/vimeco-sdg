@@ -8,12 +8,24 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .cf-linea-header, .cf-linea { display: grid; grid-template-columns: 1.1fr 150px 90px 130px 80px 130px 40px; gap: .5rem; align-items: center; }
+    .cf-linea-header, .cf-linea { display: grid; grid-template-columns: 1.1fr 150px 90px 130px 80px 130px 90px; gap: .5rem; align-items: center; }
     .cf-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: 1px solid var(--gray-200); }
     .cf-linea { padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .cf-linea:last-child { border-bottom: none; }
     .cf-linea-total { text-align: right; font-weight: 600; color: var(--gray-700); white-space: nowrap; }
+    .cf-linea-acciones { display: flex; align-items: center; justify-content: flex-end; gap: .1rem; }
+    .cf-linea-mover { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .3rem; }
+    .cf-linea-mover:hover:not(:disabled) { color: var(--primary); }
+    .cf-linea-mover:disabled { opacity: .25; cursor: default; }
+    .cf-linea-mover .icon { width: 15px; height: 15px; }
     .cf-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
+
+    /* Duración de la obra: una sola celda que completa la columna Meses de
+       todos los conceptos, que después se ajustan uno por uno. */
+    .cf-duracion { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding-bottom: .75rem; margin-bottom: .5rem; border-bottom: 1px solid var(--gray-200); }
+    .cf-duracion label { font-size: .85rem; color: var(--gray-600); font-weight: 600; }
+    .cf-duracion input { max-width: 90px; text-align: right; }
+    .cf-duracion .form-hint { margin: 0; }
     .cf-base-label { color: var(--gray-500); font-size: .8rem; }
     .cf-total-fijos { display: flex; justify-content: space-between; padding-top: .75rem; margin-top: .4rem; border-top: 1px solid var(--gray-200); font-weight: 700; color: var(--gray-700); }
     .ap-resumen-row { display: flex; justify-content: space-between; align-items: center; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); gap: 1rem; }
@@ -63,6 +75,12 @@
         </div>
       </div>
       <div class="card-body">
+        <div class="cf-duracion">
+          <label for="cf-duracion">Duración de la obra</label>
+          <input type="text" class="form-control" id="cf-duracion" placeholder="0" data-calc-id="cargafija:duracionMeses" data-calc-label="Duración de la obra (meses)">
+          <span style="font-size:.85rem;color:var(--gray-500);">meses</span>
+          <span class="form-hint">Completa la columna Meses de todos los conceptos de monto fijo; después cada línea se puede ajustar a mano.</span>
+        </div>
         <div class="cf-linea-header">
           <span>Concepto</span><span>Tipo</span><span>Cantidad / %</span><span>Precio unitario / Base</span><span>Meses</span><span style="text-align:right;">Total</span><span></span>
         </div>

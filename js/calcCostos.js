@@ -194,6 +194,22 @@ window.totalGastosFijosCargaFija = function (lineas, costoComputo, presupuestoOf
   }, 0);
 };
 
+// Líneas de gasto fijo como [[key, linea], …] en el orden en que se ven en
+// pantalla: por el campo `orden` (flechas ↑/↓ de Carga Fija). Las líneas que
+// todavía no lo tienen van al final ordenadas por su key, que empieza con el
+// timestamp de creación — el mismo orden que RTDB devolvía antes de que
+// existiera `orden`. Lo usan Carga Fija y la exportación, para que el
+// documento salga en el orden que el usuario armó.
+window.lineasCargaFijaOrdenadas = function (lineas) {
+  return Object.entries(lineas || {}).sort(([ka, a], [kb, b]) => {
+    const oa = a.orden, ob = b.orden;
+    if (oa != null && ob != null && oa !== ob) return oa - ob;
+    if (oa != null && ob == null) return -1;
+    if (oa == null && ob != null) return 1;
+    return ka < kb ? -1 : ka > kb ? 1 : 0;
+  });
+};
+
 // IVA por defecto de una obra que nunca tocó sus impuestos. Estaba repetido
 // como `ivaPct: 21` en las cuatro pantallas que calculaban el K; vive acá
 // porque sacarlo cambiaría de golpe el K de las obras que hoy no tienen

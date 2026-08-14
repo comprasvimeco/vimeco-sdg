@@ -550,7 +550,8 @@ function seccionCargaFija() {
   const r = modelo.kDesglose;
   const gastosFijos = cf.gastosFijos;
 
-  const conceptos = Object.entries(cf.lineas || {});
+  // Mismo orden que en la pantalla de Carga Fija (campo `orden`).
+  const conceptos = window.lineasCargaFijaOrdenadas(cf.lineas);
   const filas = conceptos.map(([, l]) => {
     const d = detalleConceptoCargaFija(l);
     const total = window.totalLineaCargaFija(l, modelo.costoComputo, modelo.obra.presupuestoOficial);

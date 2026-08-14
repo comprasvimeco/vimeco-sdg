@@ -40,6 +40,83 @@ function totalGastosFijos() {
   return window.totalGastosFijosCargaFija(lineas, costoComputo, obra ? obra.presupuestoOficial : null);
 }
 
+/* ===== Orden de los conceptos =====
+   Las líneas se muestran por su campo `orden` (flechas ↑/↓). Antes se
+   mostraban en el orden en que RTDB devuelve las keys, que es alfabético: las
+   líneas importadas de otra obra se crean todas en el mismo milisegundo y sólo
+   se diferencian por el sufijo random de la key, así que entraban barajadas.
+   Las obras viejas no tienen `orden` guardado: se les asigna en memoria al
+   cargar (respetando el orden que se venía viendo) y recién se escribe cuando
+   se mueve algo, en un solo PATCH con todas las líneas. */
+function lineasOrdenadas() {
+  return window.lineasCargaFijaOrdenadas(lineas);
+}
+
+function normalizarOrdenLineas() {
+  lineasOrdenadas().forEach(([key], i) => { lineas[key].orden = i + 1; });
+}
+
+function moverLinea(lineaKey, dir) {
+  const ordenadas = lineasOrdenadas();
+  const idx = ordenadas.findIndex(([k]) => k === lineaKey);
+  const otroIdx = idx + dir;
+  if (idx < 0 || otroIdx < 0 || otroIdx >= ordenadas.length) return;
+  const tmp = ordenadas[idx];
+  ordenadas[idx] = ordenadas[otroIdx];
+  ordenadas[otroIdx] = tmp;
+
+  // Se renumeran todas y se persisten juntas: un PATCH multi-path sobre
+  // `lineas` que sólo toca el campo `orden` de cada una (no reescribe el
+  // árbol de líneas, ver el comentario de persistLineaCambios).
+  const cambios = {};
+  ordenadas.forEach(([k], i) => {
+    lineas[k].orden = i + 1;
+    cambios[`${k}/orden`] = i + 1;
+  });
+  renderTodo();
+  persistLineasMulti(cambios, 'Error al guardar el orden de los conceptos.');
+}
+
+/* ===== Duración de la obra =====
+   Celda única (config.duracionMeses) que completa la columna Meses de todas
+   las líneas de monto fijo. Pisa también las que ya tenían un valor propio —
+   es para lo que está —, y después cada línea se ajusta a mano. */
+function aplicarDuracionAMeses(meses) {
+  if (meses == null || isNaN(meses)) return;
+  const cambios = {};
+  let tocadas = 0;
+  Object.entries(lineas).forEach(([key, l]) => {
+    if ((l.tipo || 'monto') !== 'monto') return;
+    if (l.meses === meses && !l.mesesFormula) return;
+    l.meses = meses;
+    l.mesesFormula = null;
+    // null en un PATCH borra ese campo puntual, no el nodo de la línea.
+    cambios[`${key}/meses`] = meses;
+    cambios[`${key}/mesesFormula`] = null;
+    tocadas++;
+  });
+  renderTodo();
+  if (!tocadas) return;
+  persistLineasMulti(cambios, 'Error al aplicar la duración a los conceptos.');
+  showToast(`Meses actualizados en ${tocadas} concepto${tocadas === 1 ? '' : 's'}.`);
+}
+
+function engancharDuracion() {
+  const input = $('cf-duracion');
+  attachCalcInput(input, config.duracionMesesFormula);
+  attachValorInput(input, config.duracionMeses ?? null);
+  input.addEventListener('blur', () => {
+    const n = valorCampo(input);
+    const formula = getCalcFormula(input);
+    if (n === (config.duracionMeses ?? null) && formula === (config.duracionMesesFormula || null)) return;
+    config.duracionMeses = n;
+    config.duracionMesesFormula = formula;
+    persistConfigCambios({ duracionMeses: n, duracionMesesFormula: formula });
+    aplicarDuracionAMeses(n);
+  });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+}
+
 const TIPO_BASE_LABEL = { pctComputo: 'del Costo del Cómputo', pctOficial: 'del Presupuesto oficial' };
 
 function tipoSelectHtml(tipo) {
@@ -72,11 +149,11 @@ function camposLineaHtml(lineaKey, l, tipo) {
 
 function renderLineas() {
   const container = $('lineas-carga-fija');
-  const entradas = Object.entries(lineas);
+  const entradas = lineasOrdenadas();
   if (!entradas.length) {
     container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Sin conceptos todavía.</p>';
   } else {
-    container.innerHTML = entradas.map(([lineaKey, l]) => {
+    container.innerHTML = entradas.map(([lineaKey, l], idx) => {
       const tipo = l.tipo || 'monto';
       const total = totalLinea(l);
       return `
@@ -85,7 +162,11 @@ function renderLineas() {
           ${tipoSelectHtml(tipo)}
           ${camposLineaHtml(lineaKey, l, tipo)}
           <span class="cf-linea-total"${calcAttrs(total, `cargafija:linea:${lineaKey}:total`, `${l.concepto || 'Concepto'} · Total`)}>${total != null ? fmtARS(total) : '—'}</span>
-          <button class="cf-linea-del" title="Eliminar concepto">${icSvg('x')}</button>
+          <span class="cf-linea-acciones">
+            <button class="cf-linea-mover" data-dir="-1" title="Subir" ${idx === 0 ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+            <button class="cf-linea-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+            <button class="cf-linea-del" title="Eliminar concepto">${icSvg('x')}</button>
+          </span>
         </div>`;
     }).join('');
   }
@@ -133,6 +214,9 @@ function renderLineas() {
       numField(precio, 'precioUnitario');
     }
 
+    row.querySelectorAll('.cf-linea-mover').forEach(btn => {
+      btn.addEventListener('click', () => moverLinea(lineaKey, parseInt(btn.dataset.dir, 10)));
+    });
     row.querySelector('.cf-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
   });
 
@@ -369,6 +453,16 @@ async function persistLineaCambios(lineaKey, cambios) {
   }
 }
 
+// Varias líneas de una: PATCH sobre el nodo `lineas` con paths anidados
+// ("lineaKey/campo"), así toca sólo esos campos y ninguna línea entera.
+async function persistLineasMulti(cambios, mensajeError) {
+  try {
+    await _fbPatch(`/obras/${obraKey}/cargaFija/lineas.json`, cambios);
+  } catch (_) {
+    showToast(mensajeError, 'error');
+  }
+}
+
 async function persistLineaNueva(lineaKey) {
   try {
     await _fbPut(`/obras/${obraKey}/cargaFija/lineas/${lineaKey}.json`, lineas[lineaKey]);
@@ -493,9 +587,18 @@ async function eliminarImpuesto(key) {
   }
 }
 
+function ultimoOrden() {
+  return Object.values(lineas).reduce((max, l) => Math.max(max, l.orden || 0), 0);
+}
+
 function addLinea() {
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-  lineas[lineaKey] = { concepto: '', tipo: 'monto', cantidad: null, precioUnitario: null, meses: null };
+  // Arranca con la duración de la obra si está cargada: es lo que va a tener
+  // el 90% de los conceptos y si no corresponde se cambia en la línea.
+  lineas[lineaKey] = {
+    concepto: '', tipo: 'monto', cantidad: null, precioUnitario: null,
+    meses: config.duracionMeses ?? null, orden: ultimoOrden() + 1,
+  };
   renderTodo();
   persistLineaNueva(lineaKey);
 }
@@ -563,12 +666,17 @@ async function onElegirObraOrigenImportar(obraOrigenKey) {
 async function confirmarImportarCf() {
   if (!lineasOrigenImportar) return;
   const nuevas = {};
-  Object.values(lineasOrigenImportar).forEach(l => {
+  // En el mismo orden que tienen en la obra origen, y a continuación de los
+  // conceptos que ya haya acá: las keys se crean todas en el mismo
+  // milisegundo, así que sin `orden` propio entrarían barajadas.
+  let orden = ultimoOrden();
+  window.lineasCargaFijaOrdenadas(lineasOrigenImportar).forEach(([, l]) => {
     const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     nuevas[lineaKey] = {
       concepto: l.concepto, tipo: l.tipo || 'monto',
       cantidad: l.cantidad, precioUnitario: l.precioUnitario, meses: l.meses,
       porcentaje: l.porcentaje ?? null, porcentajeFormula: l.porcentajeFormula ?? null,
+      orden: ++orden,
     };
   });
 
@@ -624,6 +732,7 @@ async function loadAll() {
   }
   obra = obraData;
   lineas = lineasData || {};
+  normalizarOrdenLineas();
   if (configData) config = { ...config, ...configData };
   computoData = computoLineas;
   items = Object.entries(itemsData || {}).map(([key, it]) => ({ key, ...it }));
@@ -640,6 +749,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Carga Fija — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'carga-fija');
+  engancharDuracion();
   renderTodo();
 
   $('main-loading').style.display = 'none';
