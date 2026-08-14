@@ -104,6 +104,36 @@
 }
 .doc-tabla tr.doc-fila-subtotal td { font-weight: 700; background: #f5f6f8; }
 
+/* ===== Análisis de Precio ===== */
+
+/* Uno por hoja, como en la planilla: el primero comparte página con el
+   membrete de la sección y cada uno de los siguientes arranca en su hoja. */
+.doc-ap + .doc-ap { break-before: page; }
+.doc-ap { margin-bottom: 4mm; }
+
+/* Un AP con muchos insumos se parte y sigue en la hoja siguiente (la tabla
+   repite su encabezado). No se fuerza `break-inside: avoid`: empujar el AP
+   entero a la próxima hoja deja media página en blanco, que es peor. Lo que
+   nunca se separa de su tabla es el título del AP. */
+.doc-ap-obra, .doc-ap-titulo, .doc-ap-meta { break-after: avoid; }
+
+.doc-ap-obra {
+  font-size: 7pt; text-transform: uppercase; letter-spacing: .04em; color: #6b7280;
+  border-bottom: .2mm solid var(--doc-linea); padding-bottom: 1mm; margin-bottom: 2.5mm;
+}
+.doc-ap-titulo { font-size: 9.5pt; font-weight: 700; margin-bottom: .8mm; }
+.doc-ap-num { color: var(--primary); margin-right: 2mm; }
+.doc-ap-meta { font-size: 7.5pt; color: #4b5563; margin-bottom: 2.5mm; }
+
+.doc-tabla tr.doc-fila-seccion td {
+  background: #dfe3e8;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+  font-size: 7.5pt;
+  border-color: var(--doc-linea-fuerte);
+}
+
 /* ===== Cierre ===== */
 
 .doc-son-pesos {
@@ -165,6 +195,7 @@
      no decoración: se fuerzan aunque el diálogo tenga los gráficos apagados. */
   .doc-tabla thead th,
   .doc-tabla tr.doc-fila-rubro td,
+  .doc-tabla tr.doc-fila-seccion td,
   .doc-tabla tr.doc-fila-total td,
   .doc-tabla tr.doc-fila-subtotal td {
     -webkit-print-color-adjust: exact;

@@ -147,6 +147,72 @@
     };
   };
 
+  // Análisis de Precio de un ítem, con el detalle línea por línea listo para
+  // mostrar: los mismos números y el mismo orden (A Equipos → B Mano de Obra →
+  // C Materiales → Subtotal) que la pantalla del AP (js/item.js). Devuelve
+  // null si la línea del cómputo no tiene ningún ítem vinculado, y un AP con
+  // las tres listas vacías si el ítem existe pero no tiene receta cargada.
+  window.analisisDePrecioDe = function (modelo, itemKey) {
+    if (!itemKey) return null;
+    const item = modelo.catalogos.items.find(i => i.key === itemKey);
+    if (!item) return null;
+    const version = versionDe(item, modelo.obraKey);
+    const lineasItem = version.lineas || {};
+    const r = window.calcCostoUnitarioItem(
+      version, lineasItem, modelo.catalogos, modelo.paramsEquipos, modelo.paramsMO,
+      modelo.preciosObra, modelo.dolarObra);
+
+    // Nombre con el que se conoce cada insumo, igual que en la pantalla del AP.
+    const nombreDe = (tipo, e) => tipo === 'equipo'
+      ? `${e.tipo || ''} ${e.codigo || ''}`.trim()
+      : (e.nombre || '');
+
+    function filas(tipo) {
+      return Object.entries(lineasItem)
+        .filter(([, l]) => l.tipo === tipo)
+        .map(([lineaKey, l]) => {
+          const cat = tipo === 'material' ? modelo.catalogos.materiales
+            : tipo === 'equipo' ? modelo.catalogos.equipos
+            : modelo.catalogos.roles;
+          const entidad = cat.find(c => c.key === l.refKey);
+          const d = r.detallePorLinea[lineaKey];
+          return {
+            nombre: entidad ? nombreDe(tipo, entidad) : '(sin elegir)',
+            unidad: tipo === 'material' && entidad ? (entidad.unidad || '') : '',
+            cantidad: l.cantidad != null && !isNaN(l.cantidad) ? Number(l.cantidad) : null,
+            costoUnitario: d ? d.costoUnitario : null,
+            costoTotal: d ? d.costoTotal : null,
+          };
+        });
+    }
+
+    // Mano de Obra sale en el orden del catálogo de roles de la obra, que es
+    // como se carga y se lee en pantalla (oficial especializado → ayudante).
+    const ordenRol = {};
+    modelo.catalogos.roles.forEach((rol, i) => { ordenRol[rol.nombre] = i; });
+    const manoDeObra = filas('manoDeObra')
+      .sort((a, b) => (ordenRol[a.nombre] ?? 99) - (ordenRol[b.nombre] ?? 99));
+
+    return {
+      itemKey,
+      nombre: item.nombre || '',
+      unidad: item.unidad || '',
+      rendimiento: version.rendimiento || 1,
+      equipos: filas('equipo'),
+      manoDeObra,
+      materiales: filas('material'),
+      costoDiarioEquipos: r.costoDiarioEquipos,
+      costoUnitarioEquipos: r.costoUnitarioEquipos,
+      costoDiarioSeguridadCapataz: r.costoDiarioSeguridadCapataz,
+      seguridadCapatazPctAplicado: r.seguridadCapatazPctAplicado,
+      costoDiarioMO: r.costoDiarioMO,
+      costoUnitarioMO: r.costoUnitarioMO,
+      costoMateriales: r.costoMateriales,
+      costoUnitario: r.costoUnitario,
+      sinReceta: !Object.keys(lineasItem).length,
+    };
+  };
+
   // Datos de cabecera de la obra listos para un documento: nombre, comitente y
   // ubicación son campos propios, y todo lo demás (expediente, número de
   // licitación, etc.) son los "datos adicionales" libres que se cargan en

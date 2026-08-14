@@ -31,6 +31,7 @@ const NOTAS_DEFAULT =
 const SECCIONES = [
   { id: 'resumen',     label: 'Resumen por rubro', render: seccionResumen },
   { id: 'presupuesto', label: 'Presupuesto detallado', render: seccionPresupuesto },
+  { id: 'analisis',    label: 'Análisis de precios', render: seccionAnalisisPrecios },
 ];
 
 let modelo = null;
@@ -232,6 +233,107 @@ function seccionPresupuesto() {
       </tbody>
     </table>
     ${pie(false)}`;
+}
+
+/* ===== Análisis de Precios ===== */
+
+// Una fila de insumo. Equipos y Mano de Obra se cotizan por jornada, así que
+// su "unidad" es fija (día / jornal) y no sale del catálogo; los materiales
+// llevan la unidad con la que están cargados.
+function filaInsumo(f, unidadFija) {
+  return `
+    <tr>
+      <td>${escHtml(f.nombre)}</td>
+      <td class="doc-centro">${escHtml(unidadFija || f.unidad || '')}</td>
+      <td class="doc-num">${docCant(f.cantidad)}</td>
+      <td class="doc-num">${docARS(f.costoUnitario)}</td>
+      <td class="doc-num">${docARS(f.costoTotal)}</td>
+    </tr>`;
+}
+
+const filaSeccionAP = txt => `<tr class="doc-fila-seccion"><td colspan="5">${escHtml(txt)}</td></tr>`;
+const filaSubtotalAP = (txt, valor, fuerte) =>
+  `<tr class="${fuerte ? 'doc-fila-subtotal' : ''}"><td colspan="4">${escHtml(txt)}</td><td class="doc-num">${docARS(valor)}</td></tr>`;
+const filaVaciaAP = txt => `<tr><td colspan="5" class="doc-centro" style="color:#6b7280;">${escHtml(txt)}</td></tr>`;
+
+function analisisDeLinea(linea) {
+  const ap = window.analisisDePrecioDe(modelo, linea.itemKey);
+  const meta = [
+    linea.unidad ? `Unidad: ${linea.unidad}` : '',
+    ap ? `Rendimiento: ${docCant(ap.rendimiento)} uds./jornada` : '',
+    linea.cantidad != null ? `Cantidad de cómputo: ${docCant(linea.cantidad)} ${linea.unidad || ''}`.trim() : '',
+  ].filter(Boolean).join('  ·  ');
+
+  const encabezado = `
+    <div class="doc-ap-obra">${escHtml(modelo.obra.nombre || '')} — Análisis de precio</div>
+    <div class="doc-ap-titulo"><span class="doc-ap-num">${escHtml(linea.numero)}</span>${escHtml(linea.nombre)}</div>
+    <div class="doc-ap-meta">${escHtml(meta)}</div>`;
+
+  if (!ap) {
+    return `<article class="doc-ap">${encabezado}
+      <table class="doc-tabla">${filaVaciaAP('Este ítem todavía no tiene un análisis de precio cargado.')}</table></article>`;
+  }
+
+  const segCap = ap.costoDiarioSeguridadCapataz > 0 ? `
+    <tr>
+      <td>Seguridad y Capataz</td>
+      <td class="doc-centro">%</td>
+      <td class="doc-num">${docCant(ap.seguridadCapatazPctAplicado)}</td>
+      <td class="doc-num">—</td>
+      <td class="doc-num">${docARS(ap.costoDiarioSeguridadCapataz)}</td>
+    </tr>` : '';
+
+  const importe = linea.total != null
+    ? `<tr class="doc-fila-subtotal"><td colspan="4">Importe del ítem (${docCant(linea.cantidad)} ${escHtml(linea.unidad || '')} × precio unitario)</td><td class="doc-num">${docARS(linea.total)}</td></tr>`
+    : '';
+
+  return `
+    <article class="doc-ap">
+      ${encabezado}
+      <table class="doc-tabla">
+        <thead>
+          <tr>
+            <th>Denominación</th>
+            <th style="width:16mm;">Unidad</th>
+            <th style="width:20mm;">Cantidad</th>
+            <th style="width:30mm;">Costo unitario</th>
+            <th style="width:30mm;">Costo total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filaSeccionAP('A — Equipos')}
+          ${ap.equipos.length ? ap.equipos.map(f => filaInsumo(f, 'día')).join('') : filaVaciaAP('Sin equipos.')}
+          ${filaSubtotalAP('Costo diario Equipos', ap.costoDiarioEquipos)}
+          ${filaSubtotalAP('Costo unitario de Equipos (A)', ap.costoUnitarioEquipos, true)}
+
+          ${filaSeccionAP('B — Mano de obra')}
+          ${ap.manoDeObra.length ? ap.manoDeObra.map(f => filaInsumo(f, 'jornal')).join('') : filaVaciaAP('Sin mano de obra.')}
+          ${segCap}
+          ${filaSubtotalAP('Costo diario Mano de Obra', ap.costoDiarioMO)}
+          ${filaSubtotalAP('Costo unitario Mano de Obra (B)', ap.costoUnitarioMO, true)}
+
+          ${filaSeccionAP('C — Materiales')}
+          ${ap.materiales.length ? ap.materiales.map(f => filaInsumo(f)).join('') : filaVaciaAP('Sin materiales.')}
+          ${filaSubtotalAP('Costo unitario de Materiales (C)', ap.costoMateriales, true)}
+
+          <tr class="doc-fila-subtotal"><td colspan="4">Subtotal (A+B+C)</td><td class="doc-num">${docARS(ap.costoUnitario)}</td></tr>
+          <tr><td colspan="4">Coeficiente K</td><td class="doc-num">${fmtDoc(modelo.k, 4)}</td></tr>
+          <tr class="doc-fila-total"><td colspan="4">Precio unitario</td><td class="doc-num">${docARS(linea.precioUnitario)}</td></tr>
+          ${importe}
+        </tbody>
+      </table>
+    </article>`;
+}
+
+function seccionAnalisisPrecios() {
+  // Un AP por línea del presupuesto, en el mismo orden y con la misma
+  // numeración: si dos líneas comparten el ítem, cada una lleva su análisis,
+  // porque cada una es un renglón que hay que justificar.
+  const lineas = modelo.rubros.flatMap(r => r.lineas);
+  if (!lineas.length) {
+    return `${membrete('Análisis de precios')}<p class="doc-centro">Sin ítems en el Cómputo.</p>`;
+  }
+  return `${membrete('Análisis de precios')}${lineas.map(analisisDeLinea).join('')}`;
 }
 
 /* ===== Render ===== */
