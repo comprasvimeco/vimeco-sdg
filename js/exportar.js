@@ -34,13 +34,15 @@ const SECCIONES = [
   { id: 'analisis',    label: 'Análisis de precios', render: seccionAnalisisPrecios },
   { id: 'plan',        label: 'Plan de trabajos', render: seccionPlanTrabajos, apaisada: true },
   { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas },
+  { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
 ];
 
-// Períodos por hoja en el Plan de trabajos: con más columnas la tabla no
-// entra ni apaisada, así que el cronograma se corta en bloques y cada uno
-// repite las columnas fijas (ítem, cantidad, precio), igual que las tres
-// áreas de impresión de la planilla de referencia.
-const PERIODOS_POR_HOJA = 13;
+// Períodos por hoja en el Plan de trabajos: el cronograma se corta en bloques
+// y cada uno repite las columnas fijas (ítem, cantidad, precio), igual que las
+// tres áreas de impresión de la planilla de referencia. Once es lo que deja
+// ~13 mm por columna en una A4 apaisada, el ancho que necesita un importe
+// acumulado en miles sin pisarse con el de al lado.
+const PERIODOS_POR_HOJA = 11;
 
 let modelo = null;
 let config = { lugar: '', fecha: '', notas: null };
@@ -521,6 +523,114 @@ function seccionCurvas() {
       </thead>
       <tbody>${filas.join('')}</tbody>
     </table>
+    ${pie(false)}`;
+}
+
+/* ===== Carga Fija ===== */
+
+const BASE_PCT_LABEL = { pctComputo: 'del costo del Cómputo', pctOficial: 'del presupuesto oficial' };
+
+// Cómo se lee el cálculo de un concepto: los de monto fijo muestran
+// cantidad × precio × meses; los porcentuales, sobre qué base se aplican.
+function detalleConceptoCargaFija(l) {
+  const tipo = l.tipo || 'monto';
+  if (tipo === 'pctComputo' || tipo === 'pctOficial') {
+    return {
+      cantidad: '', precio: '', meses: '',
+      base: `${docCant(l.porcentaje)}% ${BASE_PCT_LABEL[tipo]}`,
+    };
+  }
+  return {
+    cantidad: docCant(l.cantidad), precio: docARS(l.precioUnitario), meses: docCant(l.meses), base: '',
+  };
+}
+
+function seccionCargaFija() {
+  const cf = modelo.cargaFija;
+  const r = modelo.kDesglose;
+  const gastosFijos = cf.gastosFijos;
+
+  const conceptos = Object.entries(cf.lineas || {});
+  const filas = conceptos.map(([, l]) => {
+    const d = detalleConceptoCargaFija(l);
+    const total = window.totalLineaCargaFija(l, modelo.costoComputo, modelo.obra.presupuestoOficial);
+    const incidencia = gastosFijos > 0 && total != null ? total / gastosFijos : null;
+    return `
+      <tr>
+        <td>${escHtml(l.concepto || '(sin nombre)')}</td>
+        <td class="doc-num">${d.cantidad}</td>
+        <td class="doc-num">${d.precio}</td>
+        <td class="doc-num">${d.meses}</td>
+        <td>${escHtml(d.base)}</td>
+        <td class="doc-num">${total != null ? docARS(total) : '—'}</td>
+        <td class="doc-num">${docPct(incidencia)}</td>
+      </tr>`;
+  }).join('');
+
+  // Bloque del Coeficiente K: cada fila con su % y cuánto aporta al
+  // coeficiente, la misma lectura que la hoja "Carga fija" de la planilla.
+  const filaK = (label, pct, aporte, clase) => `
+    <tr class="${clase || ''}">
+      <td>${escHtml(label)}</td>
+      <td class="doc-num">${pct == null ? '' : docCant(pct) + '%'}</td>
+      <td class="doc-num">${aporte == null ? '' : fmtDoc(aporte, 4)}</td>
+    </tr>`;
+
+  const bloqueK = r.ggFrac == null
+    ? '<p class="doc-centro">Sin ítems en el Cómputo: no hay costo sobre el cual prorratear los gastos fijos.</p>'
+    : `
+      <table class="doc-tabla">
+        <thead>
+          <tr><th>Concepto</th><th style="width:26mm;">%</th><th style="width:30mm;">Aporte al K</th></tr>
+        </thead>
+        <tbody>
+          ${filaK('Gastos Generales' + (r.ggEsManual ? ' (cargado a mano)' : ''), r.ggFrac * 100, r.ggFrac)}
+          ${filaK('Beneficio', r.beneficioFrac * 100, r.beneficioFrac)}
+          ${filaK('Subtotal costo', null, r.subtotalCosto, 'doc-fila-subtotal')}
+          ${filaK('Costo financiero', r.costoFinancieroFrac * 100, r.aporteFinanciero)}
+          ${filaK('Subtotal con gasto financiero', null, r.subtotalConFinanciero, 'doc-fila-subtotal')}
+          ${r.impuestos.map(i => filaK(i.nombre || 'Impuesto', i.porcentaje, r.aportePorImpuesto[i.key])).join('')}
+          ${filaK('Impuestos', null, r.impuestoFrac, 'doc-fila-subtotal')}
+          <tr class="doc-fila-total">
+            <td colspan="2">Coeficiente K</td>
+            <td class="doc-num">${fmtDoc(r.k, 4)}</td>
+          </tr>
+        </tbody>
+      </table>`;
+
+  return `
+    ${membrete('Carga fija — gastos generales y coeficiente K')}
+    <table class="doc-tabla">
+      <thead>
+        <tr>
+          <th>Concepto</th>
+          <th style="width:16mm;">Cant.</th>
+          <th style="width:28mm;">Precio unit.</th>
+          <th style="width:14mm;">Meses</th>
+          <th style="width:38mm;">Base</th>
+          <th style="width:30mm;">Total</th>
+          <th style="width:16mm;">Incid.</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filas || '<tr><td colspan="7" class="doc-centro">Esta obra todavía no tiene conceptos de carga fija cargados.</td></tr>'}
+        <tr class="doc-fila-total">
+          <td colspan="5">Total de gastos fijos</td>
+          <td class="doc-num">${docARS(gastosFijos)}</td>
+          <td class="doc-num">100,00%</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 class="doc-grafico-titulo">Coeficiente K</h3>
+    <table class="doc-tabla doc-tabla-datos">
+      <tbody>
+        <tr><td>Costo total del Cómputo</td><td class="doc-num">${docARS(modelo.costoComputo)}</td>
+            <td>Total de gastos fijos</td><td class="doc-num">${docARS(gastosFijos)}</td></tr>
+      </tbody>
+    </table>
+    ${bloqueK}
+    <p class="doc-notas">El Coeficiente K se aplica al costo unitario de cada ítem para obtener su precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>
     ${pie(false)}`;
 }
 

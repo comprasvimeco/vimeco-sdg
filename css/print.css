@@ -160,17 +160,19 @@
 
 .doc-plan-bloque + .doc-plan-bloque { break-before: page; margin-top: 6mm; }
 .doc-plan-rango { font-size: 8pt; font-weight: 700; color: var(--primary-dark); margin-bottom: 1.5mm; }
-/* Ancho fijo: las columnas de dato tienen su medida y todo lo que sobra va a
-   la designación. Con reparto automático las columnas de período se comen el
-   espacio libre y cada ítem termina ocupando cinco renglones. */
+/* Ancho fijo, con medida propia para cada columna de dato y para la
+   designación: lo que sobra se reparte entre las columnas de período, que son
+   las que tienen que dar de ancho para los importes acumulados. Al revés (el
+   sobrante a la designación) los montos se pisan entre sí. */
 .doc-tabla-plan { font-size: 7pt; table-layout: fixed; }
 .doc-tabla-plan th, .doc-tabla-plan td { padding: .8mm 1mm; }
+.doc-tabla-plan th:nth-child(2) { width: 55mm; }
 .doc-tabla-plan td:nth-child(2) { overflow-wrap: anywhere; }
-/* Las filas de importes acumulados (la de total viene a 9pt del estilo
-   general de tabla) no entrarían en una columna de período de 11 mm. */
+/* Las filas de importes (la de total viene a 9pt del estilo general de tabla)
+   son las más anchas de la grilla. */
 .doc-tabla-plan tr.doc-fila-total td,
 .doc-tabla-plan tr.doc-fila-subtotal:last-of-type td { font-size: 6.5pt; }
-.doc-plan-periodo { width: 11mm; font-size: 6.5pt; }
+.doc-plan-periodo { font-size: 6.5pt; }
 .doc-plan-fecha { display: block; font-weight: 400; font-size: 6pt; color: #6b7280; }
 
 /* ===== Curva de inversión ===== */
