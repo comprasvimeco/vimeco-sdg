@@ -50,6 +50,7 @@ const HEADER_GROUPS = [
       { id: 'presupuesto', label: 'Presupuesto', href: 'presupuesto.html' },
       { id: 'plan-avance', label: 'Plan de Avance', href: 'plan-avance.html' },
       { id: 'materiales',  label: 'Materiales',  href: 'materiales-obra.html' },
+      { id: 'exportar',    label: 'Exportar',    href: 'exportar.html' },
     ],
   },
 ];

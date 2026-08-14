@@ -1,0 +1,173 @@
+/* VIMECO S.A. — Documento imprimible (PDF).
+
+   La misma marcación sirve para la vista previa en pantalla y para el papel:
+   en pantalla se dibuja una hoja A4 con sombra sobre el fondo de la app, y al
+   imprimir se apaga todo lo que no es el documento. Nada de un HTML aparte
+   para imprimir — lo que se ve en la vista previa es literalmente lo que sale.
+
+   Medidas en mm para que el navegador no tenga que convertir nada al pasar a
+   A4, y colores planos (sin gradientes ni sombras) en el documento: las
+   impresoras y el "Guardar como PDF" descartan los fondos si el usuario no
+   activa "Gráficos de fondo". */
+
+:root {
+  --doc-ancho: 210mm;
+  --doc-margen: 12mm;
+  --doc-margen-top: 14mm;
+  --doc-linea: #b8bfc9;
+  --doc-linea-fuerte: #6b7280;
+  --doc-tinta: #111827;
+}
+
+/* ===== Hoja ===== */
+
+.doc-hoja {
+  width: var(--doc-ancho);
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: var(--doc-margen-top) var(--doc-margen);
+  background: #fff;
+  color: var(--doc-tinta);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 8.5pt;
+  line-height: 1.35;
+  box-shadow: var(--shadow-lg);
+}
+
+/* El A4 no entra en una pantalla angosta: se scrollea en horizontal en vez de
+   escalar, así la vista previa mantiene el tamaño real de la tipografía. */
+.doc-scroll { overflow-x: auto; padding-bottom: 1rem; }
+
+.doc-seccion { break-inside: auto; }
+.doc-seccion + .doc-seccion { break-before: page; }
+.doc-seccion.oculta { display: none; }
+
+/* ===== Membrete ===== */
+
+.doc-membrete {
+  display: flex;
+  align-items: flex-start;
+  gap: 8mm;
+  padding-bottom: 3mm;
+  border-bottom: .6mm solid var(--primary);
+  margin-bottom: 4mm;
+}
+.doc-membrete-logo { width: 42mm; flex: none; }
+.doc-membrete-logo img { width: 100%; display: block; }
+.doc-membrete-datos { flex: 1; display: grid; grid-template-columns: auto 1fr; gap: .4mm 3mm; font-size: 8pt; }
+.doc-membrete-datos dt { font-weight: 700; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
+.doc-membrete-datos dd { }
+
+.doc-titulo {
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--primary-dark);
+  margin: 0 0 3mm;
+}
+.doc-subtitulo { text-align: center; font-size: 8.5pt; color: #4b5563; margin: -2mm 0 4mm; }
+
+/* ===== Tablas ===== */
+
+.doc-tabla { width: 100%; border-collapse: collapse; font-size: 8pt; }
+.doc-tabla thead { display: table-header-group; }   /* se repite en cada página */
+.doc-tabla tr { break-inside: avoid; }
+.doc-tabla th,
+.doc-tabla td { border: .2mm solid var(--doc-linea); padding: 1.1mm 1.6mm; vertical-align: top; }
+.doc-tabla thead th {
+  background: #e8eaed;
+  font-weight: 700;
+  text-align: center;
+  font-size: 7.5pt;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  border-color: var(--doc-linea-fuerte);
+}
+.doc-num   { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.doc-centro { text-align: center; white-space: nowrap; }
+.doc-item  { white-space: nowrap; }
+
+/* Fila de rubro dentro del detalle */
+.doc-tabla tr.doc-fila-rubro td {
+  background: #e8eaed;
+  font-weight: 700;
+  border-color: var(--doc-linea-fuerte);
+}
+.doc-tabla tr.doc-fila-total td {
+  background: var(--primary-dark);
+  color: #fff;
+  font-weight: 700;
+  font-size: 9pt;
+  border-color: var(--primary-dark);
+}
+.doc-tabla tr.doc-fila-subtotal td { font-weight: 700; background: #f5f6f8; }
+
+/* ===== Cierre ===== */
+
+.doc-son-pesos {
+  margin-top: 4mm;
+  padding: 2mm 2.5mm;
+  border: .2mm solid var(--doc-linea-fuerte);
+  font-size: 8.5pt;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.doc-notas { margin-top: 4mm; font-size: 7.5pt; color: #374151; white-space: pre-wrap; }
+.doc-firma { margin-top: 10mm; font-size: 8.5pt; }
+.doc-firma-linea { margin-top: 16mm; border-top: .2mm solid var(--doc-tinta); width: 65mm; padding-top: 1mm; text-align: center; font-size: 7.5pt; }
+
+/* ===== Pantalla: controles de la exportación ===== */
+
+.exportar-secciones { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
+/* Los <label> de un .form-group van en versalitas; los de un checkbox se leen
+   como texto corriente. */
+.exportar-secciones .exportar-check {
+  display: flex; align-items: center; gap: .4rem; cursor: pointer;
+  margin-bottom: 0; font-size: .9rem; font-weight: 500;
+  text-transform: none; letter-spacing: normal; color: var(--gray-700);
+}
+.exportar-check input { width: 16px; height: 16px; cursor: pointer; }
+#export-notas { font-family: inherit; }
+.exportar-acciones { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+
+/* ===== Impresión ===== */
+
+@page {
+  size: A4 portrait;
+  margin: 12mm 10mm 14mm;
+}
+
+@media print {
+  html, body { background: #fff !important; }
+  body { margin: 0; }
+
+  /* Todo lo que es la app y no el documento */
+  .app-header, .subtabs-bar, .toast-container, .no-print,
+  .calc-flotante, .calc-flotante-launcher { display: none !important; }
+
+  .app-main { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+  .card { border: none !important; background: none !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important; backdrop-filter: none !important; }
+  .card-body { padding: 0 !important; }
+
+  .doc-scroll { overflow: visible; padding: 0; }
+  .doc-hoja {
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    font-size: 8.5pt;
+  }
+
+  /* Los fondos de encabezado y totales son parte de la lectura de la tabla,
+     no decoración: se fuerzan aunque el diálogo tenga los gráficos apagados. */
+  .doc-tabla thead th,
+  .doc-tabla tr.doc-fila-rubro td,
+  .doc-tabla tr.doc-fila-total td,
+  .doc-tabla tr.doc-fila-subtotal td {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Exportar</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/print.css">
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#1a3a5c">
+</head>
+<body>
+  <header class="app-header no-print">
+    <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." class="header-logo">
+      <span class="header-title" id="header-obra-nombre">Exportar</span>
+    </div>
+    <nav class="header-tabs" id="header-tabs"></nav>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    </div>
+  </header>
+  <nav class="subtabs-bar no-print" id="header-subtabs"></nav>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card no-print">
+      <div class="card-header"><span class="card-title">Documento</span></div>
+      <div class="card-body">
+        <div class="form-group">
+          <label>Secciones a incluir</label>
+          <div class="exportar-secciones" id="exportar-secciones"></div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="export-lugar">Lugar</label>
+            <input type="text" class="form-control" id="export-lugar" placeholder="Córdoba">
+          </div>
+          <div class="form-group">
+            <label for="export-fecha">Fecha del documento</label>
+            <input type="date" class="form-control" id="export-fecha">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="export-notas">Notas al pie</label>
+          <textarea class="form-control" id="export-notas" rows="3" placeholder="Aclaraciones que van al pie del resumen."></textarea>
+          <p class="form-hint">Se guardan en la obra y salen al pie del Resumen.</p>
+        </div>
+
+        <div class="exportar-acciones">
+          <button class="btn btn-primary" id="btn-imprimir">Imprimir / Guardar PDF</button>
+          <span class="form-hint" id="export-aviso"></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="form-hint no-print" style="margin:0 0 .5rem;">Vista previa — hoja A4</p>
+    <div class="doc-scroll">
+      <div class="doc-hoja" id="doc"></div>
+    </div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando datos de la obra…</div></div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/calcCostos.js"></script>
+  <script src="js/logoBase64.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/presupuestoDatos.js"></script>
+  <script src="js/exportar.js"></script>
+</body>
+</html>
