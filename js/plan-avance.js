@@ -1,18 +1,10 @@
 /* VIMECO S.A. — Sistema de Gestión — Plan de Avance, Curva de Inversión y Remanentes
    Réplica de la hoja "Plan de trabajos" de CyP Taller Río Cuarto.xlsx.
 
-   Se carga la distribución del avance por período (semanas o meses) y de ahí
-   salen las certificaciones y los remanentes:
-
-     % en Ítem    → lo que se carga a mano: qué fracción del ítem se ejecuta
-                    en ese período. La fila tiene que sumar 100%.
-     % en Cant.   = % en Ítem × cantidad de contrato del ítem
-     % en Obra    = % en Ítem × incidencia del ítem sobre el total
-     Certif. %    = suma de "% en Obra" de todas las filas, por período
-     Certif. $    = Certif. % × total × (1 − anticipo)   ← el anticipo ya se
-                    cobró al inicio, así que se amortiza sobre cada certificado
-     Acum. $      arranca en (anticipo × total) y va sumando los parciales
-     Remanente $  = total − acumulado $ ;  Remanente % = remanente $ / total
+   Esta pantalla edita la distribución del avance por período (semanas o meses);
+   el cálculo de certificaciones y remanentes y el dibujo de los dos gráficos
+   viven en js/planAvanceDatos.js, compartidos con la exportación a PDF — la
+   curva impresa es la misma función que dibuja ésta, no una copia parecida.
 
    Los precios salen del Presupuesto (costo unitario × Coeficiente K de Carga
    Fija), igual que la columna PRECIO ITEM de la planilla.
@@ -46,7 +38,7 @@ let distRubros = {};   // { rubroKey: { p0: fracción, … } }
 let verObra = false;   // mostrar la fila "% en Obra" de cada ítem
 let verCant = false;   // mostrar la fila "% en Cant." de cada ítem
 
-const MAX_PERIODOS = 60;
+const MAX_PERIODOS = window.PLAN_MAX_PERIODOS;
 
 /* ===== Precios (mismo cálculo que el Presupuesto) ===== */
 
@@ -82,22 +74,11 @@ function calcularK(costoComputo) {
 
 /* ===== Períodos ===== */
 
-function cantidadPeriodos() {
-  const n = parseInt(config.cantidad, 10);
-  if (isNaN(n) || n < 1) return 1;
-  return Math.min(n, MAX_PERIODOS);
-}
+function cantidadPeriodos() { return window.cantidadPeriodosPlan(config); }
 
-function pk(i) { return 'p' + i; }
+function pk(i) { return window.pkPeriodo(i); }
 
-function fechaPeriodo(i) {
-  if (!config.fechaInicio) return null;
-  const d = new Date(config.fechaInicio + 'T00:00:00');
-  if (isNaN(d.getTime())) return null;
-  if (config.unidad === 'mes') d.setMonth(d.getMonth() + i);
-  else d.setDate(d.getDate() + i * 7);
-  return d;
-}
+function fechaPeriodo(i) { return window.fechaPeriodoPlan(config, i); }
 
 function etiquetaPeriodo(i) {
   const nro = `${i + 1}°`;
@@ -106,9 +87,7 @@ function etiquetaPeriodo(i) {
   return { nro, fecha };
 }
 
-function nombreUnidad() {
-  return config.unidad === 'mes' ? 'Mes' : 'Semana';
-}
+function nombreUnidad() { return window.nombreUnidadPlan(config); }
 
 /* ===== Modelo de la grilla ===== */
 
@@ -121,7 +100,6 @@ function lineasDeRubro(rubroId) {
 // Devuelve toda la estructura ya calculada: rubros con sus líneas, precios,
 // incidencias, distribución por período y las filas de totales.
 function construirDatos() {
-  const n = cantidadPeriodos();
   const costoComputo = costoTotalComputo();
   const k = calcularK(costoComputo);
   if (k == null) return null;
@@ -139,76 +117,11 @@ function construirDatos() {
     return { rubro: r, lineas: grupo, precioTotal: grupo.reduce((a, x) => a + x.precioTotal, 0) };
   });
 
-  const total = gruposRubro.reduce((a, g) => a + g.precioTotal, 0);
-
-  gruposRubro.forEach(g => {
-    g.incidencia = total > 0 ? g.precioTotal / total : 0;
-    g.dist = distRubros[g.rubro.key] || {};
-    g.lineas.forEach(x => {
-      x.incidencia = total > 0 ? x.precioTotal / total : 0;
-      // En modo rubro el ítem avanza al ritmo de su rubro; en modo ítem tiene
-      // su propia fila cargada a mano.
-      x.dist = config.modo === 'rubros' ? g.dist : (distItems[x.key] || {});
-      x.pctItem = [];
-      x.pctObra = [];
-      x.pctCant = [];
-      for (let i = 0; i < n; i++) {
-        const f = x.dist[pk(i)] || 0;
-        x.pctItem.push(f);
-        x.pctObra.push(f * x.incidencia);
-        x.pctCant.push(f * x.cantidad);
-      }
-      x.suma = x.pctItem.reduce((a, v) => a + v, 0);
-    });
-    // El subtotal del rubro es siempre la suma de sus ítems: en modo rubro eso
-    // da exactamente distRubro × incidenciaRubro, y en modo ítem refleja lo
-    // que se cargó ítem por ítem.
-    g.pctObra = [];
-    for (let i = 0; i < n; i++) {
-      g.pctObra.push(g.lineas.reduce((a, x) => a + x.pctObra[i], 0));
-    }
-    g.pctItem = [];
-    for (let i = 0; i < n; i++) g.pctItem.push(g.dist[pk(i)] || 0);
-    // En modo ítem el rubro no tiene distribución propia: su Σ es cuánto de su
-    // propio precio quedó planificado (100% = todos sus ítems completos), no
-    // su incidencia sobre la obra — si no, un rubro del 35% completo mostraría
-    // "35%" y parecería a medio cargar.
-    const sumaObra = g.pctObra.reduce((a, v) => a + v, 0);
-    g.sumaRubro = config.modo === 'rubros'
-      ? g.pctItem.reduce((a, v) => a + v, 0)
-      : (g.incidencia > 0 ? sumaObra / g.incidencia : 0);
-  });
-
-  const anticipoFrac = (config.anticipoPct || 0) / 100;
-
-  const parcialPct = [];
-  for (let i = 0; i < n; i++) {
-    parcialPct.push(gruposRubro.reduce((a, g) => a + g.pctObra[i], 0));
-  }
-
-  const acumPct = [];
-  const parcialMonto = [];
-  const acumMonto = [];
-  const remanenteMonto = [];
-  const remanentePct = [];
-  let acc = 0;
-  let accMonto = anticipoFrac * total;
-  for (let i = 0; i < n; i++) {
-    acc += parcialPct[i];
-    acumPct.push(acc);
-    const monto = parcialPct[i] * total * (1 - anticipoFrac);
-    parcialMonto.push(monto);
-    accMonto += monto;
-    acumMonto.push(accMonto);
-    remanenteMonto.push(total - accMonto);
-    remanentePct.push(total > 0 ? (total - accMonto) / total : 0);
-  }
-
-  return {
-    n, k, costoComputo, total, anticipoFrac, gruposRubro,
-    parcialPct, acumPct, parcialMonto, acumMonto, remanenteMonto, remanentePct,
-    anticipoMonto: anticipoFrac * total,
-  };
+  // El reparto por período, las certificaciones y los remanentes salen de
+  // js/planAvanceDatos.js — la misma función que usa la exportación a PDF.
+  return Object.assign(
+    window.calcPlanAvance(gruposRubro, config, distItems, distRubros),
+    { k, costoComputo });
 }
 
 /* ===== Formato ===== */
@@ -382,129 +295,21 @@ function renderResumen(d) {
 }
 
 /* ===== Gráficos =====
-   Dos gráficos de un solo eje cada uno (nunca dos escalas en el mismo):
-   la curva de inversión (acumulado y remanente, ambos en %) y la
-   certificación por período (en $). */
+   El dibujo vive en js/planAvanceDatos.js (compartido con la exportación);
+   acá sólo se pide con las zonas de hover puestas y se engancha la
+   interacción, que es lo propio de la pantalla. */
 
-const COLOR_ACUM = '#2557a7';
-const COLOR_REMANENTE = '#9a7420';
-const COLOR_EJE = '#9ca3af';
-const COLOR_GRID = '#e8eaed';
-
-function ejeX(n, x0, ancho) {
-  // n+1 posiciones: el punto 0 es el inicio de obra (antes del 1° período).
-  return i => x0 + (ancho * i) / n;
-}
+const COLOR_ACUM = window.PLAN_COLOR_ACUM;
+const COLOR_REMANENTE = window.PLAN_COLOR_REMANENTE;
 
 function renderCurva(d) {
-  const W = 960, H = 340;
-  const m = { top: 18, right: 96, bottom: 40, left: 52 };
-  const pw = W - m.left - m.right;
-  const ph = H - m.top - m.bottom;
-  const n = d.n;
-  const px = ejeX(n, m.left, pw);
-  const py = v => m.top + ph - v * ph;
-
-  const grid = [0, 0.25, 0.5, 0.75, 1].map(v =>
-    `<line x1="${m.left}" y1="${py(v)}" x2="${m.left + pw}" y2="${py(v)}" stroke="${COLOR_GRID}" stroke-width="1"/>
-     <text x="${m.left - 8}" y="${py(v) + 4}" text-anchor="end" class="pa-svg-tick">${Math.round(v * 100)}%</text>`
-  ).join('');
-
-  const paso = n > 20 ? Math.ceil(n / 12) : 1;
-  const ticks = [];
-  for (let i = 1; i <= n; i++) {
-    if (i % paso !== 0 && i !== n) continue;
-    ticks.push(`<text x="${px(i)}" y="${m.top + ph + 20}" text-anchor="middle" class="pa-svg-tick">${i}</text>`);
-  }
-
-  // El punto 0 es el arranque: acumulado = anticipo, remanente = 100%.
-  const acum = [d.anticipoFrac, ...d.acumMonto.map(v => (d.total > 0 ? v / d.total : 0))];
-  const rem = [1, ...d.remanentePct];
-
-  const linea = (vals, color) =>
-    `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${vals.map((v, i) => `${px(i)},${py(v)}`).join(' ')}"/>`;
-
-  const puntos = (vals, color) =>
-    vals.map((v, i) => `<circle cx="${px(i)}" cy="${py(v)}" r="2.5" fill="${color}"/>`).join('');
-
-  // Etiquetas directas al final de cada línea. Cuando las dos series terminan
-  // en el mismo valor (plan completo: acumulado 100%, remanente 0%, o al revés
-  // si el plan está vacío) las etiquetas se pisarían — se separan 7px.
-  const finAcum = acum[acum.length - 1];
-  const finRem = rem[rem.length - 1];
-  const chocan = Math.abs(py(finAcum) - py(finRem)) < 14;
-  const etiquetaFin = (v, color, texto, dy) =>
-    `<text x="${m.left + pw + 8}" y="${py(v) + 4 + dy}" class="pa-svg-label" fill="${color}">${texto}</text>`;
-
-  const hover = [];
-  for (let i = 0; i <= n; i++) {
-    const ancho = pw / n;
-    hover.push(`<rect class="pa-hover-zone" data-i="${i}" x="${px(i) - ancho / 2}" y="${m.top}" width="${ancho}" height="${ph}" fill="transparent"/>`);
-  }
-
-  $('pa-curva').innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" class="pa-svg" role="img" aria-label="Curva de inversión: avance acumulado y remanente por ${nombreUnidad().toLowerCase()}">
-      ${grid}
-      <line x1="${m.left}" y1="${m.top + ph}" x2="${m.left + pw}" y2="${m.top + ph}" stroke="${COLOR_EJE}" stroke-width="1"/>
-      ${ticks.join('')}
-      <text x="${m.left + pw / 2}" y="${H - 6}" text-anchor="middle" class="pa-svg-tick">${nombreUnidad()}</text>
-      <line class="pa-crosshair" x1="0" y1="${m.top}" x2="0" y2="${m.top + ph}" stroke="${COLOR_EJE}" stroke-width="1" stroke-dasharray="3 3" style="display:none"/>
-      ${linea(rem, COLOR_REMANENTE)}
-      ${linea(acum, COLOR_ACUM)}
-      ${puntos(rem, COLOR_REMANENTE)}
-      ${puntos(acum, COLOR_ACUM)}
-      ${etiquetaFin(finAcum, COLOR_ACUM, 'Acumulado', chocan ? -7 : 0)}
-      ${etiquetaFin(finRem, COLOR_REMANENTE, 'Remanente', chocan ? 11 : 0)}
-      ${hover.join('')}
-    </svg>`;
-
+  $('pa-curva').innerHTML = window.svgCurvaInversion(d, { hover: true, unidad: nombreUnidad() });
+  const { acum, rem } = window.seriesCurvaInversion(d);
   engancharHoverCurva(d, acum, rem);
 }
 
 function renderBarras(d) {
-  const W = 960, H = 260;
-  const m = { top: 18, right: 20, bottom: 40, left: 92 };
-  const pw = W - m.left - m.right;
-  const ph = H - m.top - m.bottom;
-  const n = d.n;
-  const max = Math.max(...d.parcialMonto, 1);
-  const py = v => m.top + ph - (v / max) * ph;
-  const anchoSlot = pw / n;
-  const anchoBarra = Math.max(anchoSlot - 2, 1); // 2px de aire entre barras
-
-  const grid = [0, 0.5, 1].map(f => {
-    const v = max * f;
-    return `<line x1="${m.left}" y1="${py(v)}" x2="${m.left + pw}" y2="${py(v)}" stroke="${COLOR_GRID}" stroke-width="1"/>
-            <text x="${m.left - 8}" y="${py(v) + 4}" text-anchor="end" class="pa-svg-tick">${fmtARS(v)}</text>`;
-  }).join('');
-
-  const r = 4;
-  const barras = d.parcialMonto.map((v, i) => {
-    const x = m.left + i * anchoSlot + (anchoSlot - anchoBarra) / 2;
-    const y = py(v);
-    const h = m.top + ph - y;
-    if (h <= 0) return '';
-    const rr = Math.min(r, anchoBarra / 2, h);
-    const d2 = `M${x},${m.top + ph} L${x},${y + rr} Q${x},${y} ${x + rr},${y} L${x + anchoBarra - rr},${y} Q${x + anchoBarra},${y} ${x + anchoBarra},${y + rr} L${x + anchoBarra},${m.top + ph} Z`;
-    return `<path d="${d2}" fill="${COLOR_ACUM}" class="pa-barra" data-i="${i}"/>`;
-  }).join('');
-
-  const paso = n > 20 ? Math.ceil(n / 12) : 1;
-  const ticks = [];
-  for (let i = 0; i < n; i++) {
-    if ((i + 1) % paso !== 0 && i !== n - 1) continue;
-    ticks.push(`<text x="${m.left + i * anchoSlot + anchoSlot / 2}" y="${m.top + ph + 20}" text-anchor="middle" class="pa-svg-tick">${i + 1}</text>`);
-  }
-
-  $('pa-barras').innerHTML = `
-    <svg viewBox="0 0 ${W} ${H}" class="pa-svg" role="img" aria-label="Certificación por ${nombreUnidad().toLowerCase()}, en pesos">
-      ${grid}
-      <line x1="${m.left}" y1="${m.top + ph}" x2="${m.left + pw}" y2="${m.top + ph}" stroke="${COLOR_EJE}" stroke-width="1"/>
-      ${barras}
-      ${ticks.join('')}
-      <text x="${m.left + pw / 2}" y="${H - 6}" text-anchor="middle" class="pa-svg-tick">${nombreUnidad()}</text>
-    </svg>`;
-
+  $('pa-barras').innerHTML = window.svgCertificacionPorPeriodo(d, { hover: true, unidad: nombreUnidad() });
   engancharHoverBarras(d);
 }
 

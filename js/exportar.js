@@ -32,7 +32,15 @@ const SECCIONES = [
   { id: 'resumen',     label: 'Resumen por rubro', render: seccionResumen },
   { id: 'presupuesto', label: 'Presupuesto detallado', render: seccionPresupuesto },
   { id: 'analisis',    label: 'Análisis de precios', render: seccionAnalisisPrecios },
+  { id: 'plan',        label: 'Plan de trabajos', render: seccionPlanTrabajos, apaisada: true },
+  { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas },
 ];
+
+// Períodos por hoja en el Plan de trabajos: con más columnas la tabla no
+// entra ni apaisada, así que el cronograma se corta en bloques y cada uno
+// repite las columnas fijas (ítem, cantidad, precio), igual que las tres
+// áreas de impresión de la planilla de referencia.
+const PERIODOS_POR_HOJA = 13;
 
 let modelo = null;
 let config = { lugar: '', fecha: '', notas: null };
@@ -120,8 +128,13 @@ function importeEnLetras(n) {
 /* ===== Bloques del documento ===== */
 
 function membrete(titulo) {
-  const filas = window.membreteDeObra(modelo)
-    .concat([{ etiqueta: 'OFERENTE', valor: OFERENTE }, { etiqueta: 'DOMICILIO', valor: DOMICILIO }]);
+  const filas = window.membreteDeObra(modelo);
+  // Oferente y domicilio son fijos de VIMECO, pero en obras en consorcio se
+  // cargan a mano como dato adicional (con el nombre del consorcio): en ese
+  // caso manda lo cargado y no se agrega la fila fija, que quedaría duplicada.
+  const yaEsta = et => filas.some(f => (f.etiqueta || '').toUpperCase() === et);
+  if (!yaEsta('OFERENTE')) filas.push({ etiqueta: 'OFERENTE', valor: OFERENTE });
+  if (!yaEsta('DOMICILIO')) filas.push({ etiqueta: 'DOMICILIO', valor: DOMICILIO });
   return `
     <div class="doc-membrete">
       <div class="doc-membrete-logo"><img src="${LOGO_BASE64}" alt="VIMECO S.A."></div>
@@ -132,7 +145,10 @@ function membrete(titulo) {
     <h2 class="doc-titulo">${escHtml(titulo)}</h2>`;
 }
 
-function pie(conNotas) {
+// `compacto` deja sólo el lugar y la fecha, sin el espacio para la firma: en
+// la hoja apaisada del cronograma ese bloque se llevaba una página entera
+// para dos renglones.
+function pie(conNotas, compacto) {
   const notas = config.notas != null ? config.notas : NOTAS_DEFAULT;
   const lugar = (config.lugar || '').trim();
   const fecha = fechaLarga(config.fecha);
@@ -140,7 +156,7 @@ function pie(conNotas) {
     ${conNotas && notas.trim() ? `<div class="doc-notas">${escHtml(notas)}</div>` : ''}
     <div class="doc-firma">
       ${lugar || fecha ? `${escHtml(lugar)}${lugar && fecha ? ', ' : ''}${escHtml(fecha)}.` : ''}
-      <div class="doc-firma-linea">${escHtml(OFERENTE)}</div>
+      ${compacto ? '' : `<div class="doc-firma-linea">${escHtml(OFERENTE)}</div>`}
     </div>`;
 }
 
@@ -336,6 +352,178 @@ function seccionAnalisisPrecios() {
   return `${membrete('Análisis de precios')}${lineas.map(analisisDeLinea).join('')}`;
 }
 
+/* ===== Plan de trabajos y curva de inversión ===== */
+
+// El plan se calcula con la misma función que la pantalla Plan de Avance
+// (js/planAvanceDatos.js), sobre los precios que ya trae el modelo del
+// presupuesto. `plan` queda en null si la obra todavía no cargó nada.
+let plan = null;
+let planConfig = null;
+
+function etiquetaPeriodoDoc(i) {
+  const d = window.fechaPeriodoPlan(planConfig, i);
+  const fecha = d ? `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}` : '';
+  return { nro: `${i + 1}°`, fecha };
+}
+
+// Celda de la grilla del cronograma: el 0 va vacío (una tabla de 13 columnas
+// llena de "0,00%" no se lee) y los enteros van sin decimales — lo que se
+// carga son valores como 20% o 12,5%.
+const pctDoc = frac => (!frac ? '' : Number(frac * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%');
+
+const unidadPlural = () => (window.nombreUnidadPlan(planConfig) === 'Mes' ? 'meses' : 'semanas');
+
+// Los importes completos no entran en una columna de período de 11 mm: en el
+// cronograma van en miles, como es habitual en un plan de inversiones. El
+// detalle peso por peso está en la sección Curva de inversión.
+const milesDoc = v => (!v ? '' : Number(v / 1000).toLocaleString('es-AR', { maximumFractionDigits: 0 }));
+
+// Un bloque del cronograma: las columnas fijas + los períodos [desde, hasta).
+function bloquePlanTrabajos(desde, hasta) {
+  const ths = [];
+  for (let i = desde; i < hasta; i++) {
+    const { nro, fecha } = etiquetaPeriodoDoc(i);
+    ths.push(`<th class="doc-plan-periodo">${nro}${fecha ? `<span class="doc-plan-fecha">${fecha}</span>` : ''}</th>`);
+  }
+
+  const filas = plan.gruposRubro.map(g => {
+    const celdasRubro = [];
+    for (let i = desde; i < hasta; i++) celdasRubro.push(`<td class="doc-num">${pctDoc(g.pctObra[i])}</td>`);
+    const filaRubro = `
+      <tr class="doc-fila-rubro">
+        <td class="doc-centro">${escHtml(g.numero)}</td>
+        <td>${escHtml(g.rubro.nombre || '(sin nombre)')}</td>
+        <td colspan="2"></td>
+        <td class="doc-num">${docARS(g.precioTotal)}</td>
+        <td class="doc-num">${docPct(g.incidencia)}</td>
+        ${celdasRubro.join('')}
+      </tr>`;
+
+    const filasItems = g.lineas.map(x => {
+      const celdas = [];
+      for (let i = desde; i < hasta; i++) celdas.push(`<td class="doc-num">${pctDoc(x.pctItem[i])}</td>`);
+      return `
+        <tr>
+          <td class="doc-centro doc-item">${escHtml(x.numero)}</td>
+          <td>${escHtml(x.linea.nombre || '')}</td>
+          <td class="doc-centro">${escHtml(x.linea.unidad || '')}</td>
+          <td class="doc-num">${docCant(x.cantidad)}</td>
+          <td class="doc-num">${docARS(x.precioTotal)}</td>
+          <td class="doc-num">${docPct(x.incidencia)}</td>
+          ${celdas.join('')}
+        </tr>`;
+    }).join('');
+
+    return filaRubro + filasItems;
+  }).join('');
+
+  const filaPie = (label, valores, formato, clase) => {
+    const celdas = [];
+    for (let i = desde; i < hasta; i++) celdas.push(`<td class="doc-num">${formato(valores[i])}</td>`);
+    return `<tr class="${clase || ''}"><td colspan="6">${escHtml(label)}</td>${celdas.join('')}</tr>`;
+  };
+
+  return `
+    <table class="doc-tabla doc-tabla-plan">
+      <thead>
+        <tr>
+          <th style="width:11mm;">Ítem</th>
+          <th>Designación</th>
+          <th style="width:11mm;">Un.</th>
+          <th style="width:16mm;">Cant.</th>
+          <th style="width:28mm;">Precio</th>
+          <th style="width:14mm;">Incid.</th>
+          ${ths.join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${filas || '<tr><td colspan="6" class="doc-centro">Sin ítems en el Cómputo.</td></tr>'}
+        ${filaPie('Certificación parcial %', plan.parcialPct, v => docPct(v), 'doc-fila-subtotal')}
+        ${filaPie('Certificación acumulada %', plan.acumPct, v => docPct(v), 'doc-fila-subtotal')}
+        ${filaPie('Certificación parcial (en miles de $)', plan.parcialMonto, milesDoc, 'doc-fila-subtotal')}
+        ${filaPie('Certificación acumulada (en miles de $)', plan.acumMonto, milesDoc, 'doc-fila-total')}
+      </tbody>
+    </table>`;
+}
+
+// Una obra sin plan cargado igual arma un `plan` (12 semanas vacías, el
+// default): lo que dice que no hay nada que imprimir es que no se planificó
+// ni un punto de avance.
+const hayPlanCargado = () => !!plan && plan.acumPct.some(v => v > 0);
+
+function seccionPlanTrabajos() {
+  if (!hayPlanCargado()) return `${membrete('Plan de trabajos')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
+  const unidad = window.nombreUnidadPlan(planConfig).toLowerCase();
+  const bloques = [];
+  for (let desde = 0; desde < plan.n; desde += PERIODOS_POR_HOJA) {
+    const hasta = Math.min(desde + PERIODOS_POR_HOJA, plan.n);
+    const rotulo = plan.n > PERIODOS_POR_HOJA
+      ? `<p class="doc-plan-rango">${escHtml(unidadPlural().replace(/^./, c => c.toUpperCase()))} ${desde + 1} a ${hasta}</p>`
+      : '';
+    bloques.push(`<div class="doc-plan-bloque">${rotulo}${bloquePlanTrabajos(desde, hasta)}</div>`);
+  }
+  return `
+    ${membrete('Plan de trabajos — cronograma de avance e inversiones')}
+    <p class="doc-subtitulo">Avance planificado por ${unidad}, expresado como porcentaje de cada ítem.</p>
+    ${bloques.join('')}
+    ${pie(false, true)}`;
+}
+
+function seccionCurvas() {
+  if (!hayPlanCargado()) return `${membrete('Curva de inversión')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
+  const unidad = window.nombreUnidadPlan(planConfig);
+  const ultimoAcum = plan.acumPct.length ? plan.acumPct[plan.acumPct.length - 1] : 0;
+
+  const filas = [];
+  for (let i = 0; i < plan.n; i++) {
+    const { nro, fecha } = etiquetaPeriodoDoc(i);
+    filas.push(`
+      <tr>
+        <td class="doc-centro">${nro}${fecha ? ` (${fecha})` : ''}</td>
+        <td class="doc-num">${docPct(plan.parcialPct[i])}</td>
+        <td class="doc-num">${docPct(plan.acumPct[i])}</td>
+        <td class="doc-num">${docARS(plan.parcialMonto[i])}</td>
+        <td class="doc-num">${docARS(plan.acumMonto[i])}</td>
+        <td class="doc-num">${docARS(plan.remanenteMonto[i])}</td>
+      </tr>`);
+  }
+
+  return `
+    ${membrete('Curva de inversión')}
+    <table class="doc-tabla doc-tabla-datos">
+      <tbody>
+        <tr><td>Total del presupuesto</td><td class="doc-num">${docARS(plan.total)}</td>
+            <td>Anticipo financiero (${docPct(plan.anticipoFrac)})</td><td class="doc-num">${docARS(plan.anticipoMonto)}</td></tr>
+        <tr><td>A certificar</td><td class="doc-num">${docARS(plan.total - plan.anticipoMonto)}</td>
+            <td>Plazo de obra</td><td class="doc-num">${plan.n} ${escHtml(plan.n === 1 ? unidad.toLowerCase() : unidadPlural())}</td></tr>
+        <tr><td>Avance planificado</td><td class="doc-num">${docPct(ultimoAcum)}</td>
+            <td colspan="2"></td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="doc-grafico-titulo">Avance acumulado y remanente</h3>
+    <div class="doc-grafico">${window.svgCurvaInversion(plan, { unidad })}</div>
+
+    <h3 class="doc-grafico-titulo">Certificación por ${escHtml(unidad.toLowerCase())}</h3>
+    <div class="doc-grafico">${window.svgCertificacionPorPeriodo(plan, { unidad, fmtMonto: docARS })}</div>
+
+    <h3 class="doc-grafico-titulo">Certificaciones por período</h3>
+    <table class="doc-tabla">
+      <thead>
+        <tr>
+          <th>${escHtml(unidad)}</th>
+          <th style="width:22mm;">Parcial %</th>
+          <th style="width:22mm;">Acum. %</th>
+          <th style="width:32mm;">Parcial $</th>
+          <th style="width:32mm;">Acumulado $</th>
+          <th style="width:32mm;">Remanente $</th>
+        </tr>
+      </thead>
+      <tbody>${filas.join('')}</tbody>
+    </table>
+    ${pie(false)}`;
+}
+
 /* ===== Render ===== */
 
 function renderDocumento() {
@@ -349,7 +537,12 @@ function renderDocumento() {
   $('btn-imprimir').disabled = false;
   $('export-aviso').textContent = 'En el diálogo de impresión: A4, márgenes por defecto y "Gráficos de fondo" activado.';
   doc.innerHTML = SECCIONES
-    .map(s => `<section class="doc-seccion${incluidas[s.id] ? '' : ' oculta'}" data-seccion="${s.id}">${incluidas[s.id] ? s.render() : ''}</section>`)
+    .map(s => {
+      const clases = ['doc-seccion'];
+      if (s.apaisada) clases.push('doc-seccion-apaisada');
+      if (!incluidas[s.id]) clases.push('oculta');
+      return `<section class="${clases.join(' ')}" data-seccion="${s.id}">${incluidas[s.id] ? s.render() : ''}</section>`;
+    })
     .join('');
 }
 
@@ -410,15 +603,21 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [m, exportData] = await Promise.all([
+  const [m, exportData, planData] = await Promise.all([
     window.cargarPresupuestoObra(obraKey),
     _fbGet(`/obras/${obraKey}/export.json`),
+    window.cargarPlanAvanceObra(obraKey),
   ]);
   if (!m) {
     document.body.innerHTML = '<p style="padding:2rem;">No se encontró la obra.</p>';
     return;
   }
   modelo = m;
+  planConfig = planData.config;
+  if (modelo.k != null) {
+    plan = window.calcPlanAvance(
+      window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
+  }
   config = { lugar: 'Córdoba', fecha: hoyIso(), notas: null, ...(exportData || {}) };
   SECCIONES.forEach(s => { incluidas[s.id] = true; });
 

@@ -134,6 +134,60 @@
   border-color: var(--doc-linea-fuerte);
 }
 
+/* ===== Plan de trabajos ===== */
+
+/* El cronograma es la única sección que sale apaisada: aun cortado en bloques
+   de columnas necesita el lado largo de la hoja. Se hace con una página con
+   nombre (@page apaisada) para no voltear el resto del documento. */
+@page apaisada { size: A4 landscape; margin: 8mm 10mm 10mm; }
+.doc-seccion-apaisada { page: apaisada; }
+
+/* En la hoja apaisada el alto es el recurso escaso: el membrete va compacto
+   para que la tabla del cronograma no se lleve una fila sola a la hoja
+   siguiente. */
+.doc-seccion-apaisada .doc-membrete { padding-bottom: 2mm; margin-bottom: 2.5mm; }
+.doc-seccion-apaisada .doc-membrete-datos { font-size: 7pt; }
+.doc-seccion-apaisada .doc-membrete-logo { width: 34mm; }
+.doc-seccion-apaisada .doc-titulo { font-size: 10pt; margin-bottom: 1.5mm; }
+.doc-seccion-apaisada .doc-subtitulo { margin: 0 0 2.5mm; font-size: 7.5pt; }
+.doc-seccion-apaisada .doc-firma { margin-top: 6mm; }
+
+/* En pantalla la vista previa de esa sección se ensancha al útil de una A4
+   apaisada (297 − 2×10 de margen) y desborda la hoja vertical, que scrollea:
+   lleva su propio fondo blanco para que la parte desbordada no quede sobre el
+   fondo de la app. En papel toma el ancho de su propia página. */
+.doc-seccion-apaisada { width: 277mm; background: #fff; }
+
+.doc-plan-bloque + .doc-plan-bloque { break-before: page; margin-top: 6mm; }
+.doc-plan-rango { font-size: 8pt; font-weight: 700; color: var(--primary-dark); margin-bottom: 1.5mm; }
+/* Ancho fijo: las columnas de dato tienen su medida y todo lo que sobra va a
+   la designación. Con reparto automático las columnas de período se comen el
+   espacio libre y cada ítem termina ocupando cinco renglones. */
+.doc-tabla-plan { font-size: 7pt; table-layout: fixed; }
+.doc-tabla-plan th, .doc-tabla-plan td { padding: .8mm 1mm; }
+.doc-tabla-plan td:nth-child(2) { overflow-wrap: anywhere; }
+/* Las filas de importes acumulados (la de total viene a 9pt del estilo
+   general de tabla) no entrarían en una columna de período de 11 mm. */
+.doc-tabla-plan tr.doc-fila-total td,
+.doc-tabla-plan tr.doc-fila-subtotal:last-of-type td { font-size: 6.5pt; }
+.doc-plan-periodo { width: 11mm; font-size: 6.5pt; }
+.doc-plan-fecha { display: block; font-weight: 400; font-size: 6pt; color: #6b7280; }
+
+/* ===== Curva de inversión ===== */
+
+.doc-grafico-titulo {
+  font-size: 9pt; font-weight: 700; color: var(--primary-dark);
+  margin: 5mm 0 2mm; break-after: avoid;
+}
+.doc-grafico { break-inside: avoid; margin-bottom: 3mm; }
+.doc-grafico .pa-svg { width: 100%; height: auto; display: block; }
+.pa-svg-tick { font-size: 11px; fill: #6b7280; font-family: 'Segoe UI', system-ui, sans-serif; }
+.pa-svg-label { font-size: 11px; font-weight: 600; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+/* Cuadro de dos pares etiqueta/valor por fila (resumen de la curva). */
+.doc-tabla-datos { width: 100%; margin-bottom: 3mm; table-layout: fixed; }
+.doc-tabla-datos td:nth-child(odd) { font-weight: 600; width: 38mm; background: #f5f6f8; }
+
 /* ===== Cierre ===== */
 
 .doc-son-pesos {
@@ -182,6 +236,7 @@
   .card-body { padding: 0 !important; }
 
   .doc-scroll { overflow: visible; padding: 0; }
+  .doc-seccion-apaisada { width: auto; }
   .doc-hoja {
     width: auto;
     min-height: 0;
