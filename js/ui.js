@@ -49,7 +49,7 @@ const HEADER_GROUPS = [
       { id: 'carga-fija',  label: 'Carga Fija',  href: 'carga-fija.html' },
       { id: 'presupuesto', label: 'Presupuesto', href: 'presupuesto.html' },
       { id: 'plan-avance', label: 'Plan de Avance', href: 'plan-avance.html' },
-      { id: 'materiales',  label: 'Materiales',  href: 'materiales-obra.html' },
+      { id: 'insumos',     label: 'Insumos',     href: 'insumos-obra.html' },
       { id: 'exportar',    label: 'Exportar',    href: 'exportar.html' },
     ],
   },
