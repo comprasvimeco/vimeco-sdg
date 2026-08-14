@@ -98,6 +98,32 @@
     bordear(ws, r, c0, r, c0 + titulos.length - 1, fuerteBorde);
   }
 
+  /* Los VLOOKUP de la hoja A.P buscan materiales y equipos por su nombre, así
+     que dos insumos no pueden llamarse igual: al repetido se le agrega " (2)".
+     Excel compara sin distinguir mayúsculas, así que la comparación va en
+     minúsculas. Devuelve { entidadKey: nombreEnLaPlanilla }. */
+  function nombresUnicos(entidades, nombreDe) {
+    const usados = {};
+    const mapa = {};
+    entidades.forEach(e => {
+      const base = (nombreDe(e) || '').trim() || '(sin nombre)';
+      let nombre = base;
+      let n = 2;
+      while (usados[nombre.toLowerCase()]) nombre = `${base} (${n++})`;
+      usados[nombre.toLowerCase()] = true;
+      mapa[e.key] = nombre;
+    });
+    return mapa;
+  }
+
+  // Fecha ISO ("2026-04-29") → Date al mediodía, para que ningún huso la corra
+  // un día al pasarla a serial de Excel.
+  function fechaExcel(iso) {
+    if (!iso) return null;
+    const [a, m, d] = String(iso).split('-').map(Number);
+    return a && m && d ? new Date(a, m - 1, d, 12) : null;
+  }
+
   function titulo(ws, r, c0, c1, texto, tam) {
     const cell = ws.getCell(r, c0);
     cell.value = texto;
@@ -293,6 +319,147 @@
     ref.ggPct = `Datos!$C$${rGG}`;
     bordear(ws, filaK0, 2, r, 4);
     r++;
+  }
+
+  /* ===== Hoja Materiales =====
+     El catálogo entero con el precio que rige para esta obra: el propio de la
+     obra si lo tiene cargado, si no el más reciente de todas (lo mismo que
+     resuelve resolverPreciosObra para la pantalla). El precio en pesos es la
+     fuente de verdad; sólo cuando el material no lo tiene guardado se
+     reconstruye desde el dólar, y ahí sí queda como fórmula. */
+
+  function hojaMateriales(ws, ctx, ref) {
+    const m = ctx.modelo;
+
+    ws.getColumn(1).width = 4;
+    ws.getColumn(2).width = 52;
+    ws.getColumn(3).width = 11;
+    ws.getColumn(4).width = 16;
+    ws.getColumn(5).width = 18;
+    ws.getColumn(6).width = 24;
+    ws.getColumn(7).width = 13;
+
+    let r = 2;
+    r = titulo(ws, r, 2, 7, 'MATERIALES', 13) + 1;
+
+    const filaCab = r;
+    cabecera(ws, r, 2, ['Denominación', 'Unidad', 'Precio U$D\n(sin IVA)', 'Precio $\n(sin IVA)', 'Proveedor', 'Fecha']);
+    ws.getRow(r).height = 28;
+    r++;
+
+    const materiales = m.catalogos.materiales.slice()
+      .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+    const nombres = nombresUnicos(materiales, e => e.nombre);
+
+    const primera = r;
+    materiales.forEach(mat => {
+      const precio = m.preciosObra[mat.key] || null;
+      ws.getCell(r, 2).value = nombres[mat.key];
+      ws.getCell(r, 3).value = mat.unidad || '';
+      ws.getCell(r, 3).alignment = { horizontal: 'center' };
+      ws.getCell(r, 4).value = precio ? num(precio.precioUSD) : null;
+      ws.getCell(r, 4).numFmt = FMT_CANT;
+      // Sin precioARS guardado (datos anteriores al campo dual) el precio en
+      // pesos sale del dólar de la obra, igual que en calcCostoUnitarioItem.
+      ws.getCell(r, 5).value = precio && precio.precioARS != null
+        ? num(precio.precioARS)
+        : (precio && precio.precioUSD ? f(`=D${r}*${ref.dolar}`) : null);
+      ws.getCell(r, 5).numFmt = FMT_ARS;
+      ws.getCell(r, 6).value = precio ? (precio.proveedor || '') : '';
+      const fecha = precio ? fechaExcel(precio.fecha) : null;
+      if (fecha) {
+        ws.getCell(r, 7).value = fecha;
+        ws.getCell(r, 7).numFmt = 'dd/mm/yyyy';
+      }
+      r++;
+    });
+
+    if (r === primera) { ws.getCell(r, 2).value = 'Sin materiales en la Biblioteca.'; r++; }
+    const ultima = r - 1;
+    bordear(ws, primera, 2, ultima, 7);
+
+    ws.views = [{ state: 'frozen', ySplit: filaCab }];
+    ws.autoFilter = { from: { row: filaCab, column: 2 }, to: { row: ultima, column: 7 } };
+
+    // Rango y columnas con las que el A.P busca cada material por nombre.
+    ref.materiales = {
+      nombres,
+      rango: `Materiales!$B$${primera}:$E$${ultima}`,
+      colUnidad: 2,   // C, contando desde B
+      colPrecio: 4,   // E
+    };
+  }
+
+  /* ===== Hoja Equipos =====
+     Un renglón por equipo con su costo diario desglosado término por término
+     (amortización, intereses, reparaciones, combustible y lubricantes), que es
+     la cuenta de calcDesgloseCostoEquipo escrita en fórmulas contra los
+     parámetros de la hoja Datos. El A.P después sólo busca el costo diario.
+
+     Un equipo al que le falte costo, vida útil o uso anual no cuesta nada en
+     el sistema (la línea del análisis se descarta), así que acá va en cero y
+     sin desglose: poner las fórmulas daría #¡DIV/0! y ensuciaría todo el libro. */
+
+  function hojaEquipos(ws, ctx, ref) {
+    const m = ctx.modelo;
+    const hayDolar = m.dolarObra != null;
+
+    ws.getColumn(1).width = 4;
+    ws.getColumn(2).width = 42;
+    [11, 12, 12, 14, 16, 15, 14, 15, 15, 14, 17].forEach((w, i) => { ws.getColumn(3 + i).width = w; });
+
+    let r = 2;
+    r = titulo(ws, r, 2, 13, 'EQUIPOS', 13) + 1;
+
+    const filaCab = r;
+    cabecera(ws, r, 2, ['Designación', 'Potencia\nHP', 'Uso anual\nHs', 'Vida útil\nHs',
+      'Costo actual\nU$D', 'Costo actual\n$', 'Amortización\n$/día', 'Intereses\n$/día',
+      'Reparaciones\n$/día', 'Combustible\n$/día', 'Lubricantes\n$/día', 'Costo diario\n$']);
+    ws.getRow(r).height = 32;
+    r++;
+
+    const equipos = m.catalogos.equipos.slice()
+      .sort((a, b) => `${a.tipo || ''} ${a.codigo || ''}`.localeCompare(`${b.tipo || ''} ${b.codigo || ''}`, 'es'));
+    const nombres = nombresUnicos(equipos, e => `${e.tipo || ''} ${e.codigo || ''}`.trim());
+
+    const primera = r;
+    equipos.forEach(eq => {
+      const completo = hayDolar && !!eq.costoUSD && !!eq.vidaUtil && !!eq.usoAnual;
+      ws.getCell(r, 2).value = nombres[eq.key];
+      ws.getCell(r, 3).value = num(eq.potencia) || 0;
+      ws.getCell(r, 3).numFmt = '#,##0.##';
+      ws.getCell(r, 4).value = num(eq.usoAnual);
+      ws.getCell(r, 5).value = num(eq.vidaUtil);
+      ws.getCell(r, 6).value = num(eq.costoUSD);
+      ws.getCell(r, 6).numFmt = FMT_CANT;
+      if (completo) {
+        ws.getCell(r, 7).value  = f(`=F${r}*${ref.dolar}`);                                  // costo actual $
+        ws.getCell(r, 8).value  = f(`=G${r}*${ref.jornada}/E${r}`);                           // amortización
+        ws.getCell(r, 9).value  = f(`=G${r}*${ref.tasaInteres}/2/D${r}*${ref.jornada}`);      // intereses
+        ws.getCell(r, 10).value = f(`=H${r}*${ref.reparaciones}`);                            // reparaciones
+        ws.getCell(r, 11).value = f(`=(${ref.consumo}*C${r}*${ref.jornada})*${ref.combustible}`);
+        ws.getCell(r, 12).value = f(`=K${r}*${ref.lubricantes}`);                             // lubricantes
+        ws.getCell(r, 13).value = f(`=H${r}+I${r}+J${r}+K${r}+L${r}`);
+      } else {
+        ws.getCell(r, 13).value = 0;
+      }
+      for (let c = 7; c <= 13; c++) ws.getCell(r, c).numFmt = FMT_ARS;
+      negrita(ws, r, 13, 13);
+      r++;
+    });
+
+    if (r === primera) { ws.getCell(r, 2).value = 'Sin equipos en la Biblioteca.'; r++; }
+    const ultima = r - 1;
+    bordear(ws, primera, 2, ultima, 13);
+
+    ws.views = [{ state: 'frozen', ySplit: filaCab, xSplit: 2 }];
+    ws.autoFilter = { from: { row: filaCab, column: 2 }, to: { row: ultima, column: 13 } };
+
+    ref.equipos = {
+      nombres,
+      rango: `Equipos!$B$${primera}:$M$${ultima}`,
+      colCosto: 12,   // M, contando desde B
+    };
   }
 
   /* ===== Hoja CyP =====
@@ -498,11 +665,15 @@
     const hojas = {
       resumen: wb.addWorksheet('Resumen'),
       cyp: wb.addWorksheet('CyP'),
+      materiales: wb.addWorksheet('Materiales'),
+      equipos: wb.addWorksheet('Equipos'),
       datos: wb.addWorksheet('Datos'),
     };
 
     const ref = {};
     hojaDatos(hojas.datos, ctx, ref);
+    hojaMateriales(hojas.materiales, ctx, ref);
+    hojaEquipos(hojas.equipos, ctx, ref);
     hojaCyP(hojas.cyp, ctx, ref, logoId);
     hojaResumen(hojas.resumen, ctx, ref, logoId);
 
