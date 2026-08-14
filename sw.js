@@ -46,7 +46,13 @@ self.addEventListener('fetch', event => {
 
   // Código de la app (HTML, JS, CSS, JSON) y navegaciones → network-first:
   // siempre trae lo último cuando hay red, cae a caché si no hay conexión.
-  const appCode = sameOrigin &&
+  // Librerías de terceros vendorizadas (js/vendor/): quedan afuera del
+  // network-first y caen en cache-first. Son archivos grandes (ExcelJS pesa
+  // ~950 kb) que no cambian entre deploys, y el caché entero se descarta en
+  // cada deploy igual, así que se bajan una sola vez.
+  const vendor = sameOrigin && /\/js\/vendor\//i.test(path);
+
+  const appCode = sameOrigin && !vendor &&
     (event.request.mode === 'navigate' || /\.(html|js|css|json)$/i.test(path));
 
   if (appCode) {

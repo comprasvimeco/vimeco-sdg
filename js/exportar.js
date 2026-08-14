@@ -129,7 +129,10 @@ function importeEnLetras(n) {
 
 /* ===== Bloques del documento ===== */
 
-function membrete(titulo) {
+// Filas del membrete, con los datos fijos de VIMECO agregados. Lo usa el
+// documento imprimible y también la exportación a Excel (js/excelExport.js),
+// para que las dos salidas lleven exactamente la misma cabecera.
+function filasMembrete() {
   const filas = window.membreteDeObra(modelo);
   // Oferente y domicilio son fijos de VIMECO, pero en obras en consorcio se
   // cargan a mano como dato adicional (con el nombre del consorcio): en ese
@@ -137,6 +140,11 @@ function membrete(titulo) {
   const yaEsta = et => filas.some(f => (f.etiqueta || '').toUpperCase() === et);
   if (!yaEsta('OFERENTE')) filas.push({ etiqueta: 'OFERENTE', valor: OFERENTE });
   if (!yaEsta('DOMICILIO')) filas.push({ etiqueta: 'DOMICILIO', valor: DOMICILIO });
+  return filas;
+}
+
+function membrete(titulo) {
+  const filas = filasMembrete();
   return `
     <div class="doc-membrete">
       <div class="doc-membrete-logo"><img src="${LOGO_BASE64}" alt="VIMECO S.A."></div>
@@ -642,10 +650,12 @@ function renderDocumento() {
   if (modelo.k == null) {
     doc.innerHTML = '<p style="padding:2rem;text-align:center;color:#6b7280;">Esta obra todavía no tiene ítems cargados en el Cómputo: no hay presupuesto que exportar.</p>';
     $('btn-imprimir').disabled = true;
+    $('btn-excel').disabled = true;
     $('export-aviso').textContent = 'Cargá el Cómputo de la obra para poder exportar.';
     return;
   }
   $('btn-imprimir').disabled = false;
+  $('btn-excel').disabled = false;
   $('export-aviso').textContent = 'En el diálogo de impresión: A4, márgenes por defecto y "Gráficos de fondo" activado.';
   doc.innerHTML = SECCIONES
     .map(s => {
@@ -742,8 +752,46 @@ async function loadAll() {
   $('main-content').style.display = '';
 }
 
+/* ===== Excel =====
+   El libro lo arma js/excelExport.js, que carga ExcelJS (~950 kb) recién al
+   apretar el botón: es la única pantalla que lo necesita y no tiene por qué
+   pesar en la carga de la app. Acá sólo se junta el contexto — los mismos
+   datos que alimentan el documento imprimible. */
+
+function contextoExcel() {
+  return {
+    modelo, plan, planConfig,
+    membrete: filasMembrete(),
+    titulo: 'Cómputo y presupuesto',
+    lugar: (config.lugar || '').trim(),
+    fecha: config.fecha,
+    fechaLarga: fechaLarga(config.fecha),
+    notas: config.notas != null ? config.notas : NOTAS_DEFAULT,
+    oferente: OFERENTE,
+    totalEnLetras: importeEnLetras(modelo.total),
+  };
+}
+
+async function descargarExcel() {
+  const btn = $('btn-excel');
+  const texto = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generando…';
+  try {
+    await window.descargarExcelObra(contextoExcel());
+    showToast('Excel generado.');
+  } catch (e) {
+    console.error(e);
+    showToast('No se pudo generar el Excel.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = texto;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   $('btn-imprimir').addEventListener('click', () => window.print());
+  $('btn-excel').addEventListener('click', descargarExcel);
   await loadAll();
   await getDolarSnapshot().catch(() => {});
 });
