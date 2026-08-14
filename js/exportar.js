@@ -512,15 +512,14 @@ function seccionCurvas() {
 
 /* ===== Carga Fija ===== */
 
-// Lo que sale en papel es sólo el detalle del Coeficiente K, nunca el
-// desglose de los conceptos de carga fija (alquileres, sueldos, seguros…):
-// ese detalle es interno de la empresa y no se comparte con el comitente.
-// Por el mismo motivo el K no arranca del costo del Cómputo en pesos sino de
-// un costo unitario 1: se muestra cómo se compone el coeficiente, no sobre
-// qué monto se aplica.
+// En papel el coeficiente se llama "Carga Fija" (nunca "K") y sale solo: ni
+// los conceptos que lo componen (alquileres, sueldos, seguros…), ni el total
+// de gastos fijos, ni el costo del Cómputo sobre el que se prorratean. Todo
+// eso es interno de la empresa. Por eso el cuadro arranca de un costo
+// unitario 1: muestra cómo se compone el coeficiente, no sobre qué monto se
+// aplica.
 function seccionCargaFija() {
   const r = modelo.kDesglose;
-  const gastosFijos = modelo.cargaFija.gastosFijos;
 
   const filaK = (label, pct, aporte, clase) => `
     <tr class="${clase || ''}">
@@ -534,7 +533,7 @@ function seccionCargaFija() {
     : `
       <table class="doc-tabla">
         <thead>
-          <tr><th>Concepto</th><th style="width:26mm;">%</th><th style="width:30mm;">Aporte al K</th></tr>
+          <tr><th>Concepto</th><th style="width:26mm;">%</th><th style="width:30mm;">Aporte</th></tr>
         </thead>
         <tbody>
           ${filaK('Costo', null, 1)}
@@ -546,28 +545,16 @@ function seccionCargaFija() {
           ${r.impuestos.map(i => filaK(i.nombre || 'Impuesto', i.porcentaje, r.aportePorImpuesto[i.key])).join('')}
           ${filaK('Impuestos', null, r.impuestoFrac, 'doc-fila-subtotal')}
           <tr class="doc-fila-total">
-            <td colspan="2">Coeficiente K</td>
+            <td colspan="2">Carga Fija</td>
             <td class="doc-num">${fmtDoc(r.k, 4)}</td>
           </tr>
         </tbody>
       </table>`;
 
-  // Los tres datos que entran al coeficiente, uno debajo del otro. El % de
-  // Gastos Generales sale siempre como un número solo: en papel no se
-  // distingue si lo calculó el sistema o lo pisó la empresa a mano.
   return `
     ${membrete('Carga Fija')}
-    <table class="doc-tabla doc-tabla-datos" style="width:90mm;">
-      <tbody>
-        <tr><td>Total de gastos fijos</td><td class="doc-num">${docARS(gastosFijos)}</td></tr>
-        <tr><td>Costo total del Cómputo</td><td class="doc-num">${docARS(modelo.costoComputo)}</td></tr>
-        <tr><td>% de Gastos Generales</td><td class="doc-num">${docPct(r.ggFrac)}</td></tr>
-      </tbody>
-    </table>
-
-    <h3 class="doc-grafico-titulo">Coeficiente K</h3>
     ${bloqueK}
-    <p class="doc-notas">El Coeficiente K se aplica al costo unitario de cada ítem para obtener su precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
+    <p class="doc-notas">La Carga Fija se aplica al costo unitario de cada ítem para obtener su precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
 }
 
 /* ===== Render ===== */
