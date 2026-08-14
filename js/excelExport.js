@@ -458,7 +458,257 @@
     ref.equipos = {
       nombres,
       rango: `Equipos!$B$${primera}:$M$${ultima}`,
-      colCosto: 12,   // M, contando desde B
+      colPotencia: 2,   // C, contando desde B
+      colCosto: 12,     // M
+    };
+  }
+
+  /* ===== Hoja A.P =====
+     Un bloque por renglón del presupuesto, con la misma lectura que la
+     pantalla del análisis de precio: A-Equipos, B-Mano de Obra, C-Materiales,
+     subtotal, Coeficiente K y precio unitario.
+
+     Los precios de los insumos no se copian: cada fila los busca con VLOOKUP
+     en las hojas Materiales y Equipos, y los jornales salen de la hoja Datos.
+     En la fila del código de cada bloque quedan además el total (columna K) y
+     el costo unitario sin K (columna L), que son las dos celdas que CyP lee
+     con INDEX/MATCH — por eso esas dos columnas no se usan para nada más. */
+
+  const HOJA_AP = "'A.P'";
+
+  function hojaAP(ws, ctx, ref) {
+    const m = ctx.modelo;
+
+    ws.getColumn(1).width = 3;
+    ws.getColumn(2).width = 26;
+    ws.getColumn(3).width = 46;
+    ws.getColumn(4).width = 12;
+    ws.getColumn(5).width = 11;
+    ws.getColumn(6).width = 12;
+    ws.getColumn(7).width = 12;
+    ws.getColumn(8).width = 18;
+    ws.getColumn(9).width = 20;
+    ws.getColumn(10).width = 10;
+    ws.getColumn(11).width = 20;
+    ws.getColumn(12).width = 20;
+
+    let r = 2;
+    ref.ap = { filaDe: {} };   // { numeroDeLinea: fila del código }
+
+    const lineas = m.rubros.flatMap(ru => ru.lineas);
+    lineas.forEach(linea => {
+      const ap = window.analisisDePrecioDe(m, linea.itemKey);
+      const filaCodigo = r;
+      ref.ap.filaDe[linea.numero] = filaCodigo;
+
+      ws.getCell(r, 2).value = 'Ítem:';
+      negrita(ws, r, 2, 2);
+      ws.getCell(r, 3).value = linea.numero;
+      ws.getCell(r, 3).font = { bold: true, size: 12, color: { argb: AZUL } };
+      ws.getCell(r, 10).value = 'Precio unitario';
+      ws.getCell(r, 10).alignment = { horizontal: 'right' };
+      ws.getCell(r, 12).value = 'Costo unitario';
+      ws.getCell(r, 12).alignment = { horizontal: 'right' };
+      r++;
+
+      ws.getCell(r, 2).value = 'Descripción:';
+      ws.getCell(r, 3).value = f(`=VLOOKUP(C${filaCodigo},CyP!$B:$C,2,FALSE)`);
+      ws.getCell(r, 3).alignment = { wrapText: true, vertical: 'top' };
+      ws.getCell(r, 10).value = 'Unidad:';
+      ws.getCell(r, 10).alignment = { horizontal: 'right' };
+      ws.getCell(r, 11).value = f(`=VLOOKUP(C${filaCodigo},CyP!$B:$D,3,FALSE)`);
+      ws.getCell(r, 11).alignment = { horizontal: 'center' };
+      r++;
+
+      if (!ap) {
+        ws.getCell(r, 3).value = 'Este ítem todavía no tiene un análisis de precio cargado.';
+        ws.getCell(r, 3).font = { italic: true, color: { argb: GRIS_TEXTO } };
+        ws.getCell(filaCodigo, 11).value = 0;
+        ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
+        ws.getCell(filaCodigo, 12).value = 0;
+        ws.getCell(filaCodigo, 12).numFmt = FMT_ARS;
+        r += 3;
+        return;
+      }
+
+      ws.getCell(r, 2).value = 'Rendimiento:';
+      const filaRend = r;
+      ws.getCell(r, 3).value = ap.rendimiento || 1;
+      ws.getCell(r, 3).numFmt = '#,##0.####';
+      ws.getCell(r, 4).value = 'uds./jornada';
+      ws.getCell(r, 4).font = { size: 9, color: { argb: GRIS_TEXTO } };
+      r += 2;
+
+      /* A — Equipos. El costo diario de cada equipo sale de la hoja Equipos;
+         la potencia se trae sólo para mostrar los HP puestos en juego. */
+      ws.getCell(r, 2).value = 'A — Equipos';
+      pintar(ws, r, 2, 9, GRIS_CABECERA);
+      negrita(ws, r, 2, 9);
+      r++;
+      cabecera(ws, r, 3, ['Denominación', 'HP unitario', 'Cantidad', 'HP total', '', 'Costo diario $', 'Costo total $']);
+      r++;
+      const eq0 = r;
+      ap.equipos.forEach(fila => {
+        const nombre = fila.refKey ? ref.equipos.nombres[fila.refKey] : null;
+        ws.getCell(r, 3).value = nombre || fila.nombre;
+        ws.getCell(r, 4).value = nombre ? f(`=VLOOKUP(C${r},${ref.equipos.rango},${ref.equipos.colPotencia},FALSE)`) : 0;
+        ws.getCell(r, 4).numFmt = '#,##0.##';
+        ws.getCell(r, 5).value = num(fila.cantidad);
+        ws.getCell(r, 5).numFmt = FMT_CANT;
+        ws.getCell(r, 6).value = f(`=+E${r}*D${r}`);
+        ws.getCell(r, 6).numFmt = '#,##0.##';
+        // Sin equipo elegido no hay costo: la línea no suma nada, igual que en
+        // el motor de cálculo (un VLOOKUP daría #N/A y rompería el bloque).
+        ws.getCell(r, 8).value = nombre ? f(`=VLOOKUP(C${r},${ref.equipos.rango},${ref.equipos.colCosto},FALSE)`) : 0;
+        ws.getCell(r, 8).numFmt = FMT_ARS;
+        ws.getCell(r, 9).value = f(`=+E${r}*H${r}`);
+        ws.getCell(r, 9).numFmt = FMT_ARS;
+        r++;
+      });
+      const eqN = r - 1;
+      if (eqN < eq0) { ws.getCell(r, 3).value = 'Sin equipos.'; ws.getCell(r, 3).font = { italic: true, color: { argb: GRIS_TEXTO } }; r++; }
+      bordear(ws, eq0 - 1, 3, r - 1, 9);
+
+      const filaEqDiario = r;
+      ws.getCell(r, 3).value = 'Costo diario Equipos';
+      ws.getCell(r, 9).value = eqN >= eq0 ? f(`=SUM(I${eq0}:I${eqN})`) : 0;
+      ws.getCell(r, 9).numFmt = FMT_ARS;
+      r++;
+      const filaEqUnit = r;
+      ws.getCell(r, 3).value = 'Costo unitario de Equipos (A)';
+      ws.getCell(r, 9).value = f(`=I${filaEqDiario}/C${filaRend}`);
+      ws.getCell(r, 9).numFmt = FMT_ARS;
+      negrita(ws, r, 3, 9);
+      r += 2;
+
+      /* B — Mano de obra. El jornal de cada categoría vive en la hoja Datos. */
+      ws.getCell(r, 2).value = 'B — Mano de obra';
+      pintar(ws, r, 2, 9, GRIS_CABECERA);
+      negrita(ws, r, 2, 9);
+      r++;
+      cabecera(ws, r, 3, ['Denominación', '', '', '', 'Cantidad', 'Jornal $', 'Costo total $']);
+      r++;
+      const mo0 = r;
+      ap.manoDeObra.forEach(fila => {
+        const celdaJornal = ref.roles[fila.nombre];
+        ws.getCell(r, 3).value = fila.nombre;
+        ws.getCell(r, 7).value = num(fila.cantidad);
+        ws.getCell(r, 7).numFmt = FMT_CANT;
+        ws.getCell(r, 8).value = celdaJornal ? f(`=${celdaJornal}`) : 0;
+        ws.getCell(r, 8).numFmt = FMT_ARS;
+        ws.getCell(r, 9).value = f(`=+G${r}*H${r}`);
+        ws.getCell(r, 9).numFmt = FMT_ARS;
+        r++;
+      });
+      const moN = r - 1;
+      if (moN < mo0) { ws.getCell(r, 3).value = 'Sin mano de obra.'; ws.getCell(r, 3).font = { italic: true, color: { argb: GRIS_TEXTO } }; r++; }
+      bordear(ws, mo0 - 1, 3, r - 1, 9);
+
+      const sumaJornales = moN >= mo0 ? `SUM(I${mo0}:I${moN})` : '0';
+      let formulaMODiario = `=${sumaJornales}`;
+      if (ap.costoDiarioSeguridadCapataz > 0) {
+        // Adicional de la obra sobre la mano de obra de este análisis. Sólo
+        // aparece en los ítems donde efectivamente se aplica: los excluidos
+        // (item.sinSeguridadCapataz) directamente no llevan la fila.
+        const filaSuma = r;
+        ws.getCell(r, 3).value = 'Subtotal jornales';
+        ws.getCell(r, 9).value = f(`=${sumaJornales}`);
+        ws.getCell(r, 9).numFmt = FMT_ARS;
+        r++;
+        ws.getCell(r, 3).value = 'Seguridad y Capataz';
+        ws.getCell(r, 7).value = f(`=${ref.segCapataz}`);
+        ws.getCell(r, 7).numFmt = FMT_PCT;
+        ws.getCell(r, 9).value = f(`=I${filaSuma}*G${r}`);
+        ws.getCell(r, 9).numFmt = FMT_ARS;
+        formulaMODiario = `=I${filaSuma}+I${r}`;
+        r++;
+      }
+
+      const filaMODiario = r;
+      ws.getCell(r, 3).value = 'Costo diario Mano de Obra';
+      ws.getCell(r, 9).value = f(formulaMODiario);
+      ws.getCell(r, 9).numFmt = FMT_ARS;
+      r++;
+      const filaMOUnit = r;
+      ws.getCell(r, 3).value = 'Costo unitario Mano de Obra (B)';
+      ws.getCell(r, 9).value = f(`=I${filaMODiario}/C${filaRend}`);
+      ws.getCell(r, 9).numFmt = FMT_ARS;
+      negrita(ws, r, 3, 9);
+      r += 2;
+
+      /* C — Materiales. Precio y unidad salen de la hoja Materiales. */
+      ws.getCell(r, 2).value = 'C — Materiales';
+      pintar(ws, r, 2, 9, GRIS_CABECERA);
+      negrita(ws, r, 2, 9);
+      r++;
+      cabecera(ws, r, 3, ['Denominación', '', '', 'Unidad', 'Cantidad', 'Precio unitario $', 'Total $']);
+      r++;
+      const mat0 = r;
+      ap.materiales.forEach(fila => {
+        const nombre = fila.refKey ? ref.materiales.nombres[fila.refKey] : null;
+        ws.getCell(r, 3).value = nombre || fila.nombre;
+        ws.getCell(r, 6).value = nombre ? f(`=VLOOKUP(C${r},${ref.materiales.rango},${ref.materiales.colUnidad},FALSE)`) : '';
+        ws.getCell(r, 6).alignment = { horizontal: 'center' };
+        ws.getCell(r, 7).value = num(fila.cantidad);
+        ws.getCell(r, 7).numFmt = FMT_CANT;
+        ws.getCell(r, 8).value = nombre ? f(`=VLOOKUP(C${r},${ref.materiales.rango},${ref.materiales.colPrecio},FALSE)`) : 0;
+        ws.getCell(r, 8).numFmt = FMT_ARS;
+        ws.getCell(r, 9).value = f(`=+G${r}*H${r}`);
+        ws.getCell(r, 9).numFmt = FMT_ARS;
+        r++;
+      });
+      const matN = r - 1;
+      if (matN < mat0) { ws.getCell(r, 3).value = 'Sin materiales.'; ws.getCell(r, 3).font = { italic: true, color: { argb: GRIS_TEXTO } }; r++; }
+      bordear(ws, mat0 - 1, 3, r - 1, 9);
+
+      const filaMat = r;
+      ws.getCell(r, 3).value = 'Costo unitario de Materiales (C)';
+      ws.getCell(r, 9).value = matN >= mat0 ? f(`=SUM(I${mat0}:I${matN})`) : 0;
+      ws.getCell(r, 9).numFmt = FMT_ARS;
+      negrita(ws, r, 3, 9);
+      r += 2;
+
+      // El subtotal se suma en el mismo orden que calcCostoUnitarioItem:
+      // materiales + equipos + mano de obra.
+      const filaSub = r;
+      ws.getCell(r, 2).value = 'SUBTOTAL (A+B+C)';
+      ws.getCell(r, 9).value = f(`=I${filaMat}+I${filaEqUnit}+I${filaMOUnit}`);
+      ws.getCell(r, 9).numFmt = FMT_ARS;
+      negrita(ws, r, 2, 9);
+      bordear(ws, r, 2, r, 9, fuerteBorde);
+      r++;
+      ws.getCell(r, 2).value = 'Coeficiente K';
+      ws.getCell(r, 9).value = f(`=${ref.k}`);
+      ws.getCell(r, 9).numFmt = FMT_COEF;
+      r++;
+      ws.getCell(r, 2).value = 'PRECIO UNITARIO';
+      ws.getCell(r, 9).value = f(`=I${filaSub}*I${r - 1}`);
+      ws.getCell(r, 9).numFmt = FMT_ARS;
+      pintar(ws, r, 2, 9, AZUL);
+      negrita(ws, r, 2, 9, 'FFFFFFFF');
+
+      // Las dos celdas que lee CyP, en la fila del código.
+      ws.getCell(filaCodigo, 11).value = f(`=I${r}`);
+      ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
+      ws.getCell(filaCodigo, 12).value = f(`=I${filaSub}`);
+      ws.getCell(filaCodigo, 12).numFmt = FMT_ARS;
+      r += 3;
+    });
+
+    if (!lineas.length) ws.getCell(2, 2).value = 'Sin ítems en el Cómputo.';
+
+    /* Rangos acotados al alto real de la hoja para el INDEX/MATCH de CyP: con
+       columnas enteras Excel barre un millón de filas por cada renglón del
+       presupuesto, y hay programas de planilla que directamente no lo
+       resuelven. Se deja un margen de filas por si alguien agrega un bloque. */
+    const hasta = Math.max(r + 200, 300);
+    ref.ap.rangoCodigos = `${HOJA_AP}!$C$2:$C$${hasta}`;
+    ref.ap.rangoPrecios = `${HOJA_AP}!$K$2:$K$${hasta}`;
+    ref.ap.rangoCostos  = `${HOJA_AP}!$L$2:$L$${hasta}`;
+
+    ws.pageSetup = {
+      paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
     };
   }
 
@@ -478,13 +728,19 @@
     ws.getColumn(6).width = 20;
     ws.getColumn(7).width = 22;
     ws.getColumn(8).width = 11;
+    ws.getColumn(9).width = 20;
+    ws.getColumn(10).width = 22;
 
     let r = membrete(ws, ctx, logoId, 8);
     r = titulo(ws, r, 2, 8, 'DETALLE DE LA PROPUESTA DISCRIMINADA POR ÍTEM', 12);
     r++;
 
     const filaCab = r;
-    cabecera(ws, r, 2, ['Ítem Nº', 'Denominación', 'Un.', 'Cantidad', 'Precio', 'Importe ($)', 'Incid. %']);
+    // Las dos últimas columnas son el costo (el precio sin Coeficiente K): no
+    // van en el presupuesto que se entrega, pero de ahí sale el costo del
+    // Cómputo con el que la hoja Carga fija prorratea los gastos generales.
+    cabecera(ws, r, 2, ['Ítem Nº', 'Denominación', 'Un.', 'Cantidad', 'Precio', 'Importe ($)', 'Incid. %',
+      'Costo unit. ($)', 'Costo total ($)']);
     ws.getRow(r).height = 26;
     r++;
 
@@ -513,8 +769,12 @@
       ws.getCell(r, 7).numFmt = FMT_ARS;
       ws.getCell(r, 8).value = f(`=G${r}/$G$${filaTotal}`);
       ws.getCell(r, 8).numFmt = FMT_PCT;
-      pintar(ws, r, 2, 8, GRIS_CABECERA);
-      negrita(ws, r, 2, 8);
+      ws.getCell(r, 10).value = rubro.lineas.length
+        ? f(`=SUM(J${filaRubro + 1}:J${filaRubro + rubro.lineas.length})`)
+        : 0;
+      ws.getCell(r, 10).numFmt = FMT_ARS;
+      pintar(ws, r, 2, 10, GRIS_CABECERA);
+      negrita(ws, r, 2, 10);
       r++;
 
       rubro.lineas.forEach(l => {
@@ -525,14 +785,19 @@
         ws.getCell(r, 4).alignment = { horizontal: 'center' };
         ws.getCell(r, 5).value = num(l.cantidad);
         ws.getCell(r, 5).numFmt = FMT_CANT;
-        // Precio unitario: valor mientras no exista la hoja A.P; pasa a
-        // INDEX/MATCH contra el análisis de precio del ítem cuando se agrega.
-        ws.getCell(r, 6).value = num(l.precioUnitario);
+        // Precio y costo unitarios: los busca en la hoja A.P por el código del
+        // ítem, que es único. Tocar un precio de material en la hoja
+        // Materiales se propaga hasta acá sin volver a exportar.
+        ws.getCell(r, 6).value = f(`=INDEX(${ref.ap.rangoPrecios},MATCH($B${r},${ref.ap.rangoCodigos},0))`);
         ws.getCell(r, 6).numFmt = FMT_ARS;
         ws.getCell(r, 7).value = f(`=+E${r}*F${r}`);
         ws.getCell(r, 7).numFmt = FMT_ARS;
         ws.getCell(r, 8).value = f(`=G${r}/$G$${filaTotal}`);
         ws.getCell(r, 8).numFmt = FMT_PCT;
+        ws.getCell(r, 9).value = f(`=INDEX(${ref.ap.rangoCostos},MATCH($B${r},${ref.ap.rangoCodigos},0))`);
+        ws.getCell(r, 9).numFmt = FMT_ARS;
+        ws.getCell(r, 10).value = f(`=+E${r}*I${r}`);
+        ws.getCell(r, 10).numFmt = FMT_ARS;
         r++;
       });
     });
@@ -541,7 +806,7 @@
       ws.getCell(r, 2).value = 'Sin rubros cargados en el Cómputo.';
       r++;
     }
-    bordear(ws, primera, 2, Math.max(r - 1, primera), 8);
+    bordear(ws, primera, 2, Math.max(r - 1, primera), 10);
 
     r = filaTotal;
     ws.getCell(r, 2).value = 'PRESUPUESTO TOTAL';
@@ -551,9 +816,11 @@
     ws.getCell(r, 7).numFmt = FMT_ARS;
     ws.getCell(r, 8).value = f(`=G${r}/$G$${r}`);
     ws.getCell(r, 8).numFmt = FMT_PCT;
-    pintar(ws, r, 2, 8, AZUL);
-    negrita(ws, r, 2, 8, 'FFFFFFFF');
-    bordear(ws, r, 2, r, 8, fuerteBorde);
+    ws.getCell(r, 10).value = f(`=SUMIF(${rangoCod},"*.*",$J$${primera}:$J$${ultima})`);
+    ws.getCell(r, 10).numFmt = FMT_ARS;
+    pintar(ws, r, 2, 10, AZUL);
+    negrita(ws, r, 2, 10, 'FFFFFFFF');
+    bordear(ws, r, 2, r, 10, fuerteBorde);
 
     ws.views = [{ state: 'frozen', ySplit: filaCab }];
     ws.pageSetup = {
@@ -562,7 +829,11 @@
       margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
     };
 
-    ref.cyp = { primera, ultima, filaTotal, total: `CyP!$G$${filaTotal}` };
+    ref.cyp = {
+      primera, ultima, filaTotal,
+      total: `CyP!$G$${filaTotal}`,
+      costoComputo: `CyP!$J$${filaTotal}`,
+    };
   }
 
   /* ===== Hoja Resumen =====
@@ -665,6 +936,7 @@
     const hojas = {
       resumen: wb.addWorksheet('Resumen'),
       cyp: wb.addWorksheet('CyP'),
+      ap: wb.addWorksheet('A.P'),
       materiales: wb.addWorksheet('Materiales'),
       equipos: wb.addWorksheet('Equipos'),
       datos: wb.addWorksheet('Datos'),
@@ -674,6 +946,7 @@
     hojaDatos(hojas.datos, ctx, ref);
     hojaMateriales(hojas.materiales, ctx, ref);
     hojaEquipos(hojas.equipos, ctx, ref);
+    hojaAP(hojas.ap, ctx, ref);
     hojaCyP(hojas.cyp, ctx, ref, logoId);
     hojaResumen(hojas.resumen, ctx, ref, logoId);
 

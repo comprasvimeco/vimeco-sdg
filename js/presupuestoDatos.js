@@ -177,6 +177,12 @@
           const entidad = cat.find(c => c.key === l.refKey);
           const d = r.detallePorLinea[lineaKey];
           return {
+            // refKey identifica al insumo, no sólo lo nombra: la exportación a
+            // Excel lo necesita para escribir el nombre con el que quedó en la
+            // hoja Materiales/Equipos (dos insumos que se llaman igual se
+            // desambiguan allá) y que el VLOOKUP lo encuentre.
+            refKey: entidad ? entidad.key : null,
+            tipo,
             nombre: entidad ? nombreDe(tipo, entidad) : '(sin elegir)',
             unidad: tipo === 'material' && entidad ? (entidad.unidad || '') : '',
             cantidad: l.cantidad != null && !isNaN(l.cantidad) ? Number(l.cantidad) : null,
