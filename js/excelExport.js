@@ -150,10 +150,11 @@
     return r + 1;
   }
 
-  // Cierre de hoja: notas al pie, lugar y fecha.
-  function pie(ws, r, ctx, colFin, conNotas) {
+  // Cierre de hoja: sólo las notas al pie. Igual que el documento imprimible,
+  // el libro no lleva lugar, fecha ni espacio de firma.
+  function pie(ws, r, ctx, colFin) {
     r++;
-    if (conNotas && ctx.notas && ctx.notas.trim()) {
+    if (ctx.notas && ctx.notas.trim()) {
       ctx.notas.split('\n').forEach(linea => {
         const cell = ws.getCell(r, 2);
         cell.value = linea;
@@ -161,15 +162,7 @@
         if (colFin > 2) ws.mergeCells(r, 2, r, colFin);
         r++;
       });
-      r++;
     }
-    if (ctx.lugar || ctx.fechaLarga) {
-      ws.getCell(r, 2).value = `${ctx.lugar}${ctx.lugar && ctx.fechaLarga ? ', ' : ''}${ctx.fechaLarga}.`;
-      ws.getCell(r, 2).font = { size: 9 };
-      r += 2;
-    }
-    ws.getCell(r, 2).value = ctx.oferente;
-    ws.getCell(r, 2).font = { bold: true, size: 9 };
     return r + 1;
   }
 
@@ -1030,7 +1023,7 @@
     bordear(ws, r, 2, r, 8, fuerteBorde);
     r++;
 
-    pie(ws, r, ctx, 8, true);
+    pie(ws, r, ctx, 8);
 
     ws.views = [{ state: 'frozen', ySplit: filaCab }];
     ws.pageSetup = {

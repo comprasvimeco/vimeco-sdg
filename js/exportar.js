@@ -45,7 +45,7 @@ const SECCIONES = [
 const PERIODOS_POR_HOJA = 11;
 
 let modelo = null;
-let config = { lugar: '', fecha: '', notas: null };
+let config = { notas: null };
 let incluidas = {};   // { seccionId: bool }
 
 /* ===== Formato del documento =====
@@ -61,19 +61,6 @@ function fmtDoc(n, dec, extra) {
 const docARS  = n => fmtDoc(n, 2, { style: 'currency', currency: 'ARS' });
 const docCant = n => (n == null || isNaN(n) ? '—' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 2 }));
 const docPct  = frac => (frac == null || isNaN(frac) ? '—' : fmtDoc(frac * 100, 2) + '%');
-
-function fechaLarga(iso) {
-  if (!iso) return '';
-  const [a, m, d] = iso.split('-').map(Number);
-  if (!a || !m || !d) return iso;
-  // Mediodía para que ningún huso corra el día al formatear.
-  return new Date(a, m - 1, d, 12).toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function hoyIso() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
 
 /* ===== Importe en letras ===== */
 
@@ -155,19 +142,11 @@ function membrete(titulo) {
     <h2 class="doc-titulo">${escHtml(titulo)}</h2>`;
 }
 
-// `compacto` deja sólo el lugar y la fecha, sin el espacio para la firma: en
-// la hoja apaisada del cronograma ese bloque se llevaba una página entera
-// para dos renglones.
-function pie(conNotas, compacto) {
+// Cierre de hoja: sólo las notas. El documento no lleva lugar, fecha ni
+// espacio de firma — la fecha que corresponde es la del membrete.
+function notasAlPie() {
   const notas = config.notas != null ? config.notas : NOTAS_DEFAULT;
-  const lugar = (config.lugar || '').trim();
-  const fecha = fechaLarga(config.fecha);
-  return `
-    ${conNotas && notas.trim() ? `<div class="doc-notas">${escHtml(notas)}</div>` : ''}
-    <div class="doc-firma">
-      ${lugar || fecha ? `${escHtml(lugar)}${lugar && fecha ? ', ' : ''}${escHtml(fecha)}.` : ''}
-      ${compacto ? '' : `<div class="doc-firma-linea">${escHtml(OFERENTE)}</div>`}
-    </div>`;
+  return notas.trim() ? `<div class="doc-notas">${escHtml(notas)}</div>` : '';
 }
 
 function seccionResumen() {
@@ -209,7 +188,7 @@ function seccionResumen() {
       </tbody>
     </table>
     <div class="doc-son-pesos">Son pesos: ${escHtml(importeEnLetras(modelo.total))}</div>
-    ${pie(true)}`;
+    ${notasAlPie()}`;
 }
 
 function seccionPresupuesto() {
@@ -257,8 +236,7 @@ function seccionPresupuesto() {
           <td class="doc-num">100,00%</td>
         </tr>
       </tbody>
-    </table>
-    ${pie(false)}`;
+    </table>`;
 }
 
 /* ===== Análisis de Precios ===== */
@@ -475,8 +453,7 @@ function seccionPlanTrabajos() {
   return `
     ${membrete('Plan de trabajos — cronograma de avance e inversiones')}
     <p class="doc-subtitulo">Avance planificado por ${unidad}, expresado como porcentaje de cada ítem.</p>
-    ${bloques.join('')}
-    ${pie(false, true)}`;
+    ${bloques.join('')}`;
 }
 
 function seccionCurvas() {
@@ -530,54 +507,21 @@ function seccionCurvas() {
         </tr>
       </thead>
       <tbody>${filas.join('')}</tbody>
-    </table>
-    ${pie(false)}`;
+    </table>`;
 }
 
 /* ===== Carga Fija ===== */
 
-const BASE_PCT_LABEL = { pctComputo: 'del costo del Cómputo', pctOficial: 'del presupuesto oficial' };
-
-// Cómo se lee el cálculo de un concepto: los de monto fijo muestran
-// cantidad × precio × meses; los porcentuales, sobre qué base se aplican.
-function detalleConceptoCargaFija(l) {
-  const tipo = l.tipo || 'monto';
-  if (tipo === 'pctComputo' || tipo === 'pctOficial') {
-    return {
-      cantidad: '', precio: '', meses: '',
-      base: `${docCant(l.porcentaje)}% ${BASE_PCT_LABEL[tipo]}`,
-    };
-  }
-  return {
-    cantidad: docCant(l.cantidad), precio: docARS(l.precioUnitario), meses: docCant(l.meses), base: '',
-  };
-}
-
+// Lo que sale en papel es sólo el detalle del Coeficiente K, nunca el
+// desglose de los conceptos de carga fija (alquileres, sueldos, seguros…):
+// ese detalle es interno de la empresa y no se comparte con el comitente.
+// Por el mismo motivo el K no arranca del costo del Cómputo en pesos sino de
+// un costo unitario 1: se muestra cómo se compone el coeficiente, no sobre
+// qué monto se aplica.
 function seccionCargaFija() {
-  const cf = modelo.cargaFija;
   const r = modelo.kDesglose;
-  const gastosFijos = cf.gastosFijos;
+  const gastosFijos = modelo.cargaFija.gastosFijos;
 
-  // Mismo orden que en la pantalla de Carga Fija (campo `orden`).
-  const conceptos = window.lineasCargaFijaOrdenadas(cf.lineas);
-  const filas = conceptos.map(([, l]) => {
-    const d = detalleConceptoCargaFija(l);
-    const total = window.totalLineaCargaFija(l, modelo.costoComputo, modelo.obra.presupuestoOficial);
-    const incidencia = gastosFijos > 0 && total != null ? total / gastosFijos : null;
-    return `
-      <tr>
-        <td>${escHtml(l.concepto || '(sin nombre)')}</td>
-        <td class="doc-num">${d.cantidad}</td>
-        <td class="doc-num">${d.precio}</td>
-        <td class="doc-num">${d.meses}</td>
-        <td>${escHtml(d.base)}</td>
-        <td class="doc-num">${total != null ? docARS(total) : '—'}</td>
-        <td class="doc-num">${docPct(incidencia)}</td>
-      </tr>`;
-  }).join('');
-
-  // Bloque del Coeficiente K: cada fila con su % y cuánto aporta al
-  // coeficiente, la misma lectura que la hoja "Carga fija" de la planilla.
   const filaK = (label, pct, aporte, clase) => `
     <tr class="${clase || ''}">
       <td>${escHtml(label)}</td>
@@ -593,7 +537,8 @@ function seccionCargaFija() {
           <tr><th>Concepto</th><th style="width:26mm;">%</th><th style="width:30mm;">Aporte al K</th></tr>
         </thead>
         <tbody>
-          ${filaK('Gastos Generales' + (r.ggEsManual ? ' (cargado a mano)' : ''), r.ggFrac * 100, r.ggFrac)}
+          ${filaK('Costo', null, 1)}
+          ${filaK('Gastos Generales', r.ggFrac * 100, r.ggFrac)}
           ${filaK('Beneficio', r.beneficioFrac * 100, r.beneficioFrac)}
           ${filaK('Subtotal costo', null, r.subtotalCosto, 'doc-fila-subtotal')}
           ${filaK('Costo financiero', r.costoFinancieroFrac * 100, r.aporteFinanciero)}
@@ -607,40 +552,22 @@ function seccionCargaFija() {
         </tbody>
       </table>`;
 
+  // Los tres datos que entran al coeficiente, uno debajo del otro. El % de
+  // Gastos Generales sale siempre como un número solo: en papel no se
+  // distingue si lo calculó el sistema o lo pisó la empresa a mano.
   return `
-    ${membrete('Carga fija — gastos generales y coeficiente K')}
-    <table class="doc-tabla">
-      <thead>
-        <tr>
-          <th>Concepto</th>
-          <th style="width:16mm;">Cant.</th>
-          <th style="width:28mm;">Precio unit.</th>
-          <th style="width:14mm;">Meses</th>
-          <th style="width:38mm;">Base</th>
-          <th style="width:30mm;">Total</th>
-          <th style="width:16mm;">Incid.</th>
-        </tr>
-      </thead>
+    ${membrete('Carga Fija')}
+    <table class="doc-tabla doc-tabla-datos" style="width:90mm;">
       <tbody>
-        ${filas || '<tr><td colspan="7" class="doc-centro">Esta obra todavía no tiene conceptos de carga fija cargados.</td></tr>'}
-        <tr class="doc-fila-total">
-          <td colspan="5">Total de gastos fijos</td>
-          <td class="doc-num">${docARS(gastosFijos)}</td>
-          <td class="doc-num">100,00%</td>
-        </tr>
+        <tr><td>Total de gastos fijos</td><td class="doc-num">${docARS(gastosFijos)}</td></tr>
+        <tr><td>Costo total del Cómputo</td><td class="doc-num">${docARS(modelo.costoComputo)}</td></tr>
+        <tr><td>% de Gastos Generales</td><td class="doc-num">${docPct(r.ggFrac)}</td></tr>
       </tbody>
     </table>
 
     <h3 class="doc-grafico-titulo">Coeficiente K</h3>
-    <table class="doc-tabla doc-tabla-datos">
-      <tbody>
-        <tr><td>Costo total del Cómputo</td><td class="doc-num">${docARS(modelo.costoComputo)}</td>
-            <td>Total de gastos fijos</td><td class="doc-num">${docARS(gastosFijos)}</td></tr>
-      </tbody>
-    </table>
     ${bloqueK}
-    <p class="doc-notas">El Coeficiente K se aplica al costo unitario de cada ítem para obtener su precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>
-    ${pie(false)}`;
+    <p class="doc-notas">El Coeficiente K se aplica al costo unitario de cada ítem para obtener su precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
 }
 
 /* ===== Render ===== */
@@ -693,12 +620,7 @@ async function persistConfig(cambios) {
 }
 
 function engancharConfig() {
-  const lugar = $('export-lugar');
-  const fecha = $('export-fecha');
   const notas = $('export-notas');
-
-  lugar.value = config.lugar || '';
-  fecha.value = config.fecha || '';
   notas.value = config.notas != null ? config.notas : NOTAS_DEFAULT;
 
   function guardar(el, campo, transformar) {
@@ -712,8 +634,6 @@ function engancharConfig() {
     el.addEventListener('keydown', e => { if (e.key === 'Enter' && el.tagName !== 'TEXTAREA') el.blur(); });
   }
 
-  guardar(lugar, 'lugar', v => v.trim());
-  guardar(fecha, 'fecha');
   guardar(notas, 'notas');
 }
 
@@ -739,7 +659,7 @@ async function loadAll() {
     plan = window.calcPlanAvance(
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
-  config = { lugar: 'Córdoba', fecha: hoyIso(), notas: null, ...(exportData || {}) };
+  config = { notas: null, ...(exportData || {}) };
   SECCIONES.forEach(s => { incluidas[s.id] = true; });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
@@ -763,11 +683,7 @@ function contextoExcel() {
     modelo, plan, planConfig,
     membrete: filasMembrete(),
     titulo: 'Cómputo y presupuesto',
-    lugar: (config.lugar || '').trim(),
-    fecha: config.fecha,
-    fechaLarga: fechaLarga(config.fecha),
     notas: config.notas != null ? config.notas : NOTAS_DEFAULT,
-    oferente: OFERENTE,
     totalEnLetras: importeEnLetras(modelo.total),
   };
 }

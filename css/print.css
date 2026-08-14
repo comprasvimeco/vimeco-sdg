@@ -150,7 +150,6 @@
 .doc-seccion-apaisada .doc-membrete-logo { width: 34mm; }
 .doc-seccion-apaisada .doc-titulo { font-size: 10pt; margin-bottom: 1.5mm; }
 .doc-seccion-apaisada .doc-subtitulo { margin: 0 0 2.5mm; font-size: 7.5pt; }
-.doc-seccion-apaisada .doc-firma { margin-top: 6mm; }
 
 /* En pantalla la vista previa de esa sección se ensancha al útil de una A4
    apaisada (297 − 2×10 de margen) y desborda la hoja vertical, que scrollea:
@@ -201,8 +200,6 @@
   font-weight: 600;
 }
 .doc-notas { margin-top: 4mm; font-size: 7.5pt; color: #374151; white-space: pre-wrap; }
-.doc-firma { margin-top: 10mm; font-size: 8.5pt; }
-.doc-firma-linea { margin-top: 16mm; border-top: .2mm solid var(--doc-tinta); width: 65mm; padding-top: 1mm; text-align: center; font-size: 7.5pt; }
 
 /* ===== Pantalla: controles de la exportación ===== */
 
