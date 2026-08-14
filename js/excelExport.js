@@ -1042,6 +1042,212 @@
     ref.resumen = { primera, ultima, filaTotal };
   }
 
+  /* ===== Hoja Plan de trabajos =====
+     El cronograma de avance e inversiones. Cada ítem ocupa tres renglones,
+     como en la planilla: el "% en Ítem" es lo único que se carga a mano, y de
+     ahí salen el "% en Obra" (× la incidencia del ítem) y el "% en Cant."
+     (× la cantidad de contrato). La cabecera de cada rubro suma el "% en Obra"
+     de sus ítems, y al pie van las certificaciones parcial y acumulada, en
+     porcentaje y en pesos.
+
+     Todo lo que no es avance —designación, unidad, cantidad y precio— se trae
+     de CyP por el código del ítem, así que el cronograma se mantiene alineado
+     con el presupuesto sin volver a exportar. */
+
+  function hojaPlanTrabajos(ws, ctx, ref, logoId) {
+    const plan = ctx.plan;
+    const n = plan.n;
+    const unidad = window.nombreUnidadPlan(ctx.planConfig);
+    const colP0 = 9;   // primera columna de período (I)
+
+    ws.getColumn(1).width = 3;
+    ws.getColumn(2).width = 10;
+    ws.getColumn(3).width = 44;
+    ws.getColumn(4).width = 9;
+    ws.getColumn(5).width = 13;
+    ws.getColumn(6).width = 22;
+    ws.getColumn(7).width = 10;
+    ws.getColumn(8).width = 14;
+    for (let i = 0; i < n; i++) ws.getColumn(colP0 + i).width = 12;
+
+    const colFin = colP0 + n - 1;
+    const col = i => ws.getColumn(colP0 + i).letter;
+
+    let r = membrete(ws, ctx, logoId, 8);
+    r = titulo(ws, r, 2, 8, 'PLAN DE TRABAJOS — CRONOGRAMA DE AVANCE E INVERSIONES', 12);
+    r++;
+
+    /* Datos de cierre del plan: el anticipo se cobra al inicio y se amortiza
+       sobre cada certificado, así que sale de acá el (1 − anticipo) de los
+       importes parciales. */
+    const filaTotal = r;
+    ws.getCell(r, 2).value = 'Total del presupuesto';
+    negrita(ws, r, 2, 2);
+    ws.getCell(r, 6).value = f(`=${ref.cyp.total}`);
+    ws.getCell(r, 6).numFmt = FMT_ARS;
+    r++;
+    const filaAnticipoPct = r;
+    ws.getCell(r, 2).value = 'Anticipo financiero';
+    negrita(ws, r, 2, 2);
+    ws.getCell(r, 6).value = plan.anticipoFrac || 0;
+    ws.getCell(r, 6).numFmt = FMT_PCT;
+    r++;
+    const filaAnticipo = r;
+    ws.getCell(r, 2).value = 'Anticipo';
+    ws.getCell(r, 6).value = f(`=$F$${filaAnticipoPct}*$F$${filaTotal}`);
+    ws.getCell(r, 6).numFmt = FMT_ARS;
+    r++;
+    ws.getCell(r, 2).value = 'Plazo de obra';
+    const plural = unidad === 'Mes' ? 'meses' : 'semanas';
+    ws.getCell(r, 6).value = `${n} ${n === 1 ? unidad.toLowerCase() : plural}`;
+    r += 2;
+
+    /* Cabecera: número de período arriba y fecha de arranque abajo. */
+    const filaCab = r;
+    cabecera(ws, r, 2, ['Ítem Nº', 'Designación', 'Unidad', 'Cant. contrato', 'Precio del ítem', 'Incid. %', '']);
+    for (let i = 0; i < n; i++) {
+      const cell = ws.getCell(r, colP0 + i);
+      cell.value = `${i + 1}° ${unidad}`;
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    }
+    pintar(ws, r, colP0, colFin, GRIS_CABECERA);
+    negrita(ws, r, colP0, colFin);
+    bordear(ws, r, colP0, r, colFin, fuerteBorde);
+    ws.getRow(r).height = 26;
+    r++;
+    ws.getCell(r, 8).value = 'Inicio de obra';
+    ws.getCell(r, 8).font = { size: 8, color: { argb: GRIS_TEXTO } };
+    for (let i = 0; i < n; i++) {
+      const d = window.fechaPeriodoPlan(ctx.planConfig, i);
+      const cell = ws.getCell(r, colP0 + i);
+      if (d) {
+        cell.value = d;
+        cell.numFmt = 'dd/mm/yy';
+      }
+      cell.font = { size: 8, color: { argb: GRIS_TEXTO } };
+      cell.alignment = { horizontal: 'center' };
+    }
+    bordear(ws, r, 2, r, colFin);
+    r++;
+
+    const primera = r;
+    const filasRubro = [];
+
+    plan.gruposRubro.forEach(g => {
+      const filaRubro = r;
+      filasRubro.push(filaRubro);
+      ws.getCell(r, 2).value = Number(g.numero);
+      ws.getCell(r, 3).value = f(`=VLOOKUP($B${r},CyP!$B:$C,2,FALSE)`);
+      ws.getCell(r, 6).value = f(`=VLOOKUP($B${r},CyP!$B:$G,6,FALSE)`);
+      ws.getCell(r, 6).numFmt = FMT_ARS;
+      ws.getCell(r, 7).value = f(`=+F${r}/$F$${filaTotal}`);
+      ws.getCell(r, 7).numFmt = FMT_PCT;
+      ws.getCell(r, 8).value = '% en Obra';
+      pintar(ws, r, 2, colFin, GRIS_CABECERA);
+      negrita(ws, r, 2, colFin);
+      r++;
+
+      const itemsDesde = r;
+      g.lineas.forEach(x => {
+        const o = r;           // % en Obra
+        const c = r + 1;       // % en Cant.
+        const t = r + 2;       // % en Ítem  ← lo único que se carga a mano
+        ws.getCell(o, 2).value = x.numero;
+        ws.getCell(o, 3).value = f(`=VLOOKUP($B${o},CyP!$B:$C,2,FALSE)`);
+        ws.getCell(o, 3).alignment = { wrapText: true, vertical: 'middle' };
+        ws.getCell(o, 4).value = f(`=VLOOKUP($B${o},CyP!$B:$D,3,FALSE)`);
+        ws.getCell(o, 4).alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getCell(o, 5).value = f(`=VLOOKUP($B${o},CyP!$B:$E,4,FALSE)`);
+        ws.getCell(o, 5).numFmt = FMT_CANT;
+        ws.getCell(o, 6).value = f(`=VLOOKUP($B${o},CyP!$B:$G,6,FALSE)`);
+        ws.getCell(o, 6).numFmt = FMT_ARS;
+        ws.getCell(o, 7).value = f(`=+F${o}/$F$${filaTotal}`);
+        ws.getCell(o, 7).numFmt = FMT_PCT;
+        for (let k = 2; k <= 7; k++) ws.mergeCells(o, k, t, k);
+
+        ws.getCell(o, 8).value = '% en Obra';
+        ws.getCell(c, 8).value = '% en Cant.';
+        ws.getCell(t, 8).value = '% en Ítem';
+        [o, c, t].forEach(fila => { ws.getCell(fila, 8).font = { size: 8, color: { argb: GRIS_TEXTO } }; });
+        negrita(ws, t, 8, 8);
+
+        for (let i = 0; i < n; i++) {
+          const L = col(i);
+          ws.getCell(o, colP0 + i).value = f(`=+${L}${t}*$G${o}`);
+          ws.getCell(o, colP0 + i).numFmt = FMT_PCT;
+          ws.getCell(c, colP0 + i).value = f(`=+${L}${t}*$E${o}`);
+          ws.getCell(c, colP0 + i).numFmt = FMT_CANT;
+          const celda = ws.getCell(t, colP0 + i);
+          celda.value = x.pctItem[i] || 0;
+          celda.numFmt = '0.##%';
+          celda.font = { bold: true };
+        }
+        bordear(ws, o, 2, t, colFin);
+        r += 3;
+      });
+
+      // La cabecera del rubro suma el "% en Obra" de sus propios ítems: la
+      // etiqueta de la columna H es la que distingue esas filas de las otras dos.
+      const itemsHasta = r - 1;
+      for (let i = 0; i < n; i++) {
+        const L = col(i);
+        ws.getCell(filaRubro, colP0 + i).value = g.lineas.length
+          ? f(`=SUMIF($H$${itemsDesde}:$H$${itemsHasta},"% en Obra",${L}$${itemsDesde}:${L}$${itemsHasta})`)
+          : 0;
+        ws.getCell(filaRubro, colP0 + i).numFmt = FMT_PCT;
+      }
+      bordear(ws, filaRubro, 2, filaRubro, colFin, fuerteBorde);
+    });
+
+    if (r === primera) { ws.getCell(r, 2).value = 'Sin ítems en el Cómputo.'; r++; }
+    r++;
+
+    /* Pie: la certificación de cada período. El parcial en pesos amortiza el
+       anticipo y el acumulado arranca justamente en el anticipo, que es lo que
+       ya se cobró antes del primer certificado. */
+    const sumaRubros = filasRubro.length
+      ? L => filasRubro.map(fr => `${L}${fr}`).join('+')
+      : () => '0';
+
+    const filaPie = (etiqueta, formulaDe, fmt, clase) => {
+      const fila = r;
+      ws.getCell(fila, 2).value = etiqueta;
+      ws.mergeCells(fila, 2, fila, 8);
+      for (let i = 0; i < n; i++) {
+        const cell = ws.getCell(fila, colP0 + i);
+        cell.value = f(formulaDe(col(i), i));
+        cell.numFmt = fmt;
+      }
+      if (clase === 'total') {
+        pintar(ws, fila, 2, colFin, AZUL);
+        negrita(ws, fila, 2, colFin, 'FFFFFFFF');
+      } else {
+        pintar(ws, fila, 2, colFin, GRIS_SUAVE);
+        negrita(ws, fila, 2, colFin);
+      }
+      bordear(ws, fila, 2, fila, colFin);
+      r++;
+      return fila;
+    };
+
+    const fParcialPct = filaPie('Certificación parcial %', L => `=${sumaRubros(L)}`, FMT_PCT);
+    const fAcumPct = filaPie('Certificación acumulada %',
+      (L, i) => (i === 0 ? `=${L}${fParcialPct}` : `=${col(i - 1)}${r}+${L}${fParcialPct}`), FMT_PCT);
+    const fParcialM = filaPie('Certificación parcial ($)',
+      L => `=${L}${fParcialPct}*$F$${filaTotal}*(1-$F$${filaAnticipoPct})`, FMT_ARS);
+    const fAcumM = filaPie('Certificación acumulada ($)',
+      (L, i) => (i === 0 ? `=$F$${filaAnticipo}+${L}${fParcialM}` : `=${col(i - 1)}${r}+${L}${fParcialM}`),
+      FMT_ARS, 'total');
+    filaPie('Remanente ($)', L => `=$F$${filaTotal}-${L}${fAcumM}`, FMT_ARS);
+
+    ws.views = [{ state: 'frozen', xSplit: 8, ySplit: filaCab + 1 }];
+    ws.pageSetup = {
+      paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      printTitlesRow: `${filaCab}:${filaCab + 1}`,
+      margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+    };
+  }
+
   /* ===== Armado y descarga ===== */
 
   const nombreArchivo = obra =>
@@ -1063,9 +1269,10 @@
       resumen: wb.addWorksheet('Resumen'),
       cyp: wb.addWorksheet('CyP'),
       ap: wb.addWorksheet('A.P'),
+      plan: ctx.plan ? wb.addWorksheet('Plan de trabajos') : null,
+      cargafija: wb.addWorksheet('Carga fija'),
       materiales: wb.addWorksheet('Materiales'),
       equipos: wb.addWorksheet('Equipos'),
-      cargafija: wb.addWorksheet('Carga fija'),
       datos: wb.addWorksheet('Datos'),
     };
 
@@ -1076,6 +1283,7 @@
     hojaAP(hojas.ap, ctx, ref);
     hojaCyP(hojas.cyp, ctx, ref, logoId);
     hojaCargaFija(hojas.cargafija, ctx, ref);
+    if (hojas.plan) hojaPlanTrabajos(hojas.plan, ctx, ref, logoId);
     hojaResumen(hojas.resumen, ctx, ref, logoId);
 
     // Último eslabón: los Gastos Generales del Coeficiente K son el total de la
