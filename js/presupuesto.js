@@ -41,7 +41,7 @@ function renderTodo() {
   const resumen = $('resumen');
 
   if (modelo.k == null) {
-    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Esta obra todavía no tiene ítems cargados en el Cómputo — no se puede calcular el Presupuesto hasta que haya un costo de obra sobre el cual aplicar el Coeficiente K.</p>';
+    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Esta obra todavía no tiene ítems cargados en el Cómputo — no se puede calcular el Presupuesto hasta que haya un costo de obra sobre el cual aplicar la Carga Fija.</p>';
     resumen.innerHTML = '';
     return;
   }
@@ -71,9 +71,9 @@ function renderTodo() {
 
   resumen.innerHTML = `
     <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(modelo.costoComputo, 'presupuesto:costoComputo', 'Costo total del Cómputo')}>${fmtARS(modelo.costoComputo)}</span></div>
-    <div class="ap-resumen-row"><span>Coeficiente K</span><span${calcAttrs(modelo.k, 'presupuesto:k', 'Coeficiente K')}>${fmtK(modelo.k)}</span></div>
+    <div class="ap-resumen-row"><span>Carga Fija</span><span${calcAttrs(modelo.k, 'presupuesto:k', 'Carga Fija')}>${fmtK(modelo.k)}</span></div>
     <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span${calcAttrs(modelo.total, 'presupuesto:total', 'Total del Presupuesto')}>${fmtARS(modelo.total)}</span></div>
-    <p class="form-hint" style="margin-top:.5rem;">K se recalcula en vivo a partir de Carga Fija — no se cachea.</p>`;
+    <p class="form-hint" style="margin-top:.5rem;">La Carga Fija se recalcula en vivo a partir de su pantalla — no se cachea.</p>`;
 }
 
 async function loadAll() {

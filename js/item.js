@@ -408,7 +408,7 @@ function renderResumenCosto(r) {
   const k = kPorObra[activeVersion];
   const precioUnitarioHtml = k
     ? `<div class="ap-resumen-row total"><span>Precio Unitario</span><span${calcAttrs(r.costoUnitario * k, 'ap:precioUnitario', 'Precio Unitario')}>${fmtARS(r.costoUnitario * k)}</span></div>
-       <p class="form-hint" style="margin-top:.4rem;">Precio Unitario = Subtotal × Coeficiente K (${fmtK(k)}) de <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> de esta obra.</p>`
+       <p class="form-hint" style="margin-top:.4rem;">Precio Unitario = Subtotal × <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> (${fmtK(k)}) de esta obra.</p>`
     : k === null
       ? `<p class="form-hint" style="margin-top:.4rem;">No se pudo calcular el Precio Unitario — a esta obra le falta Cómputo o <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> cargada.</p>`
       : '';

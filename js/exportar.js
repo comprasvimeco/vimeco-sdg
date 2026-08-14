@@ -321,7 +321,7 @@ function analisisDeLinea(linea) {
           ${filaSubtotalAP('Costo unitario de Materiales (C)', ap.costoMateriales, true)}
 
           <tr class="doc-fila-subtotal"><td colspan="4">Subtotal (A+B+C)</td><td class="doc-num">${docARS(ap.costoUnitario)}</td></tr>
-          <tr><td colspan="4">Coeficiente K</td><td class="doc-num">${fmtDoc(modelo.k, 4)}</td></tr>
+          <tr><td colspan="4">Carga Fija</td><td class="doc-num">${fmtDoc(modelo.k, 4)}</td></tr>
           <tr class="doc-fila-total"><td colspan="4">Precio unitario</td><td class="doc-num">${docARS(linea.precioUnitario)}</td></tr>
           ${importe}
         </tbody>

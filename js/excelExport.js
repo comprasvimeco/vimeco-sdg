@@ -270,8 +270,8 @@
        planilla. El %GG queda como valor: pasa a ser fórmula contra el total de
        gastos fijos cuando se agrega la hoja Carga fija. */
     const d = m.kDesglose;
-    r = titulo(ws, r, 2, 4, 'COEFICIENTE K', 12);
-    cabecera(ws, r, 2, ['Concepto', '%', 'Aporte al K']);
+    r = titulo(ws, r, 2, 4, 'CARGA FIJA', 12);
+    cabecera(ws, r, 2, ['Concepto', '%', 'Aporte']);
     r++;
     const filaK0 = r;
 
@@ -302,7 +302,7 @@
     // K se calcula como en el motor: subtotal con financiero × (1 + Σ%), no
     // sumando aporte por aporte — dos caminos que dan lo mismo en papel pero
     // no bit a bit en punto flotante.
-    ws.getCell(r, 2).value = 'COEFICIENTE K';
+    ws.getCell(r, 2).value = 'CARGA FIJA';
     ws.getCell(r, 4).value = f(rangoImp ? `=D${rSubF}*(1+SUM(${rangoImp}))` : `=D${rSubF}`);
     ws.getCell(r, 4).numFmt = FMT_COEF;
     pintar(ws, r, 2, 4, AZUL);
@@ -673,7 +673,7 @@
       negrita(ws, r, 2, 9);
       bordear(ws, r, 2, r, 9, fuerteBorde);
       r++;
-      ws.getCell(r, 2).value = 'Coeficiente K';
+      ws.getCell(r, 2).value = 'Carga Fija';
       ws.getCell(r, 9).value = f(`=${ref.k}`);
       ws.getCell(r, 9).numFmt = FMT_COEF;
       r++;
@@ -941,7 +941,7 @@
     bordear(ws, r, 2, r, 9, fuerteBorde);
     r += 2;
 
-    ws.getCell(r, 2).value = 'El % de Gastos Generales del Coeficiente K sale de este total dividido por el costo del Cómputo. Ver la hoja Datos.';
+    ws.getCell(r, 2).value = 'El % de Gastos Generales de la Carga Fija sale de este total dividido por el costo del Cómputo. Ver la hoja Datos.';
     ws.getCell(r, 2).font = { size: 9, italic: true, color: { argb: GRIS_TEXTO } };
     ws.mergeCells(r, 2, r, 9);
 

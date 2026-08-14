@@ -301,8 +301,8 @@ function renderCoeficienteK() {
     ${filasImpuestos || '<p class="form-hint">Esta obra no tiene impuestos cargados.</p>'}
     <button type="button" class="btn btn-sm btn-outline cf-impuesto-add" id="cf-add-impuesto">+ Agregar impuesto</button>
     ${filaK({ label: 'Impuesto', aporte: r.impuestoFrac, clase: 'cf-subtotal', id: 'cargafija:impuestoTotal', calcLabel: 'Impuesto (total)' })}
-    ${filaK({ label: 'TOTAL (K)', aporte: r.k, clase: 'total', id: 'cargafija:k', calcLabel: 'Coeficiente K' })}
-    <p class="form-hint" style="margin-top:.5rem;">K se aplica al costo unitario de cada ítem en el Presupuesto de la obra para sacar el precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
+    ${filaK({ label: 'TOTAL (Carga Fija)', aporte: r.k, clase: 'total', id: 'cargafija:k', calcLabel: 'Carga Fija' })}
+    <p class="form-hint" style="margin-top:.5rem;">La Carga Fija se aplica al costo unitario de cada ítem en el Presupuesto de la obra para sacar el precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
 
   // El TOTAL (K) no sigue el selector de decimales del header: siempre 4 como
   // mínimo (ver fmtK en moneda.js). Es la única excepción de la app.
