@@ -316,7 +316,11 @@
     negrita(ws, r, 2, 4, 'FFFFFFFF');
     ws.mergeCells(r, 2, r, 3);
     ref.k = `Datos!$D$${r}`;
-    ref.ggPct = `Datos!$C$${rGG}`;
+    // La hoja Carga fija todavía no existe: si el % de Gastos Generales es el
+    // calculado (y no uno cargado a mano), esta celda pasa a ser la división
+    // gastos fijos / costo del Cómputo una vez que estén las dos hojas.
+    ref.filaGG = rGG;
+    ref.ggEsManual = d.ggEsManual;
     bordear(ws, filaK0, 2, r, 4);
     r++;
   }
@@ -767,7 +771,7 @@
         ? f(`=SUM(G${filaRubro + 1}:G${filaRubro + rubro.lineas.length})`)
         : 0;
       ws.getCell(r, 7).numFmt = FMT_ARS;
-      ws.getCell(r, 8).value = f(`=G${r}/$G$${filaTotal}`);
+      ws.getCell(r, 8).value = f(`=IFERROR(G${r}/$G$${filaTotal},0)`);
       ws.getCell(r, 8).numFmt = FMT_PCT;
       ws.getCell(r, 10).value = rubro.lineas.length
         ? f(`=SUM(J${filaRubro + 1}:J${filaRubro + rubro.lineas.length})`)
@@ -792,7 +796,7 @@
         ws.getCell(r, 6).numFmt = FMT_ARS;
         ws.getCell(r, 7).value = f(`=+E${r}*F${r}`);
         ws.getCell(r, 7).numFmt = FMT_ARS;
-        ws.getCell(r, 8).value = f(`=G${r}/$G$${filaTotal}`);
+        ws.getCell(r, 8).value = f(`=IFERROR(G${r}/$G$${filaTotal},0)`);
         ws.getCell(r, 8).numFmt = FMT_PCT;
         ws.getCell(r, 9).value = f(`=INDEX(${ref.ap.rangoCostos},MATCH($B${r},${ref.ap.rangoCodigos},0))`);
         ws.getCell(r, 9).numFmt = FMT_ARS;
@@ -814,7 +818,7 @@
     // "*.*" toma sólo los códigos de ítem (los de rubro son números, sin punto).
     ws.getCell(r, 7).value = f(`=SUMIF(${rangoCod},"*.*",${rangoImp})`);
     ws.getCell(r, 7).numFmt = FMT_ARS;
-    ws.getCell(r, 8).value = f(`=G${r}/$G$${r}`);
+    ws.getCell(r, 8).value = f(`=IFERROR(G${r}/$G$${r},0)`);
     ws.getCell(r, 8).numFmt = FMT_PCT;
     ws.getCell(r, 10).value = f(`=SUMIF(${rangoCod},"*.*",$J$${primera}:$J$${ultima})`);
     ws.getCell(r, 10).numFmt = FMT_ARS;
@@ -834,6 +838,128 @@
       total: `CyP!$G$${filaTotal}`,
       costoComputo: `CyP!$J$${filaTotal}`,
     };
+  }
+
+  /* ===== Hoja Carga fija =====
+     Los gastos generales de la obra concepto por concepto. Cada uno se calcula
+     según su tipo, igual que totalLineaCargaFija(): monto fijo
+     (cantidad × precio × meses) o un porcentaje del costo del Cómputo o del
+     presupuesto oficial.
+
+     El total de esta hoja es lo que la hoja Datos prorratea sobre el costo del
+     Cómputo para sacar el % de Gastos Generales del Coeficiente K, así que
+     agregar un concepto acá mueve el K y con él todo el presupuesto. */
+
+  const BASE_PCT = {
+    pctComputo: 'del costo del Cómputo',
+    pctOficial: 'del presupuesto oficial',
+  };
+
+  function hojaCargaFija(ws, ctx, ref) {
+    const m = ctx.modelo;
+    const cf = m.cargaFija;
+
+    ws.getColumn(1).width = 4;
+    ws.getColumn(2).width = 56;
+    ws.getColumn(3).width = 12;
+    ws.getColumn(4).width = 20;
+    ws.getColumn(5).width = 10;
+    ws.getColumn(6).width = 10;
+    ws.getColumn(7).width = 28;
+    ws.getColumn(8).width = 22;
+    ws.getColumn(9).width = 11;
+
+    let r = 2;
+    r = titulo(ws, r, 2, 9, 'CARGA FIJA', 13);
+    ws.getCell(r, 2).value = m.obra.nombre || '';
+    ws.getCell(r, 2).font = { size: 9, color: { argb: GRIS_TEXTO } };
+    r += 2;
+
+    const dato = (etiqueta, valor, unidad, fmt) => {
+      ws.getCell(r, 2).value = etiqueta;
+      negrita(ws, r, 2, 2);
+      const cell = ws.getCell(r, 3);
+      cell.value = valor;
+      if (fmt) cell.numFmt = fmt;
+      if (unidad) {
+        ws.getCell(r, 4).value = unidad;
+        ws.getCell(r, 4).font = { size: 9, color: { argb: GRIS_TEXTO } };
+      }
+      return r++;
+    };
+
+    // Duración de la obra: los conceptos que están cargados con esa cantidad de
+    // meses la referencian, así que cambiarla acá los mueve a todos de una,
+    // igual que el campo de la pantalla de Carga Fija.
+    const duracion = num(cf.config.duracionMeses);
+    const filaDuracion = dato('Duración de la obra', duracion, 'meses', '#,##0.##');
+    const filaCosto = dato('Costo del Cómputo', f(`=${ref.cyp.costoComputo}`), '', FMT_ARS);
+    const filaOficial = dato('Presupuesto oficial', num(m.obra.presupuestoOficial), '', FMT_ARS);
+    r++;
+
+    const filaCab = r;
+    cabecera(ws, r, 2, ['Concepto', 'Cantidad', 'Precio unitario', 'Meses', '%', 'Base', 'Total', 'Incid. %']);
+    ws.getRow(r).height = 26;
+    r++;
+
+    const conceptos = window.lineasCargaFijaOrdenadas(cf.lineas);
+    const primera = r;
+    const filaTotal = primera + Math.max(conceptos.length, 1) + 1;
+
+    conceptos.forEach(([, l]) => {
+      const tipo = l.tipo || 'monto';
+      ws.getCell(r, 2).value = l.concepto || '(sin nombre)';
+      ws.getCell(r, 2).alignment = { wrapText: true, vertical: 'top' };
+      if (tipo === 'pctComputo' || tipo === 'pctOficial') {
+        ws.getCell(r, 6).value = num(l.porcentaje) / 100;
+        ws.getCell(r, 6).numFmt = FMT_PCT;
+        ws.getCell(r, 7).value = BASE_PCT[tipo];
+        ws.getCell(r, 7).font = { size: 9, color: { argb: GRIS_TEXTO } };
+        ws.getCell(r, 8).value = f(`=+F${r}*$C$${tipo === 'pctComputo' ? filaCosto : filaOficial}`);
+      } else {
+        ws.getCell(r, 3).value = num(l.cantidad);
+        ws.getCell(r, 3).numFmt = FMT_CANT;
+        ws.getCell(r, 4).value = num(l.precioUnitario);
+        ws.getCell(r, 4).numFmt = FMT_ARS;
+        ws.getCell(r, 5).value = duracion != null && num(l.meses) === duracion
+          ? f(`=$C$${filaDuracion}`)
+          : num(l.meses);
+        ws.getCell(r, 5).numFmt = '#,##0.##';
+        ws.getCell(r, 8).value = f(`=+C${r}*D${r}*E${r}`);
+      }
+      ws.getCell(r, 8).numFmt = FMT_ARS;
+      ws.getCell(r, 9).value = f(`=IFERROR(H${r}/$H$${filaTotal},0)`);
+      ws.getCell(r, 9).numFmt = FMT_PCT;
+      r++;
+    });
+
+    if (r === primera) { ws.getCell(r, 2).value = 'Esta obra todavía no tiene conceptos de carga fija cargados.'; r++; }
+    const ultima = filaTotal - 2;
+    bordear(ws, primera, 2, Math.max(r - 1, primera), 9);
+
+    r = filaTotal;
+    ws.getCell(r, 2).value = 'TOTAL DE GASTOS FIJOS';
+    ws.mergeCells(r, 2, r, 7);
+    ws.getCell(r, 8).value = f(`=SUM(H${primera}:H${ultima})`);
+    ws.getCell(r, 8).numFmt = FMT_ARS;
+    ws.getCell(r, 9).value = f(`=IFERROR(H${r}/$H$${r},0)`);
+    ws.getCell(r, 9).numFmt = FMT_PCT;
+    pintar(ws, r, 2, 9, AZUL);
+    negrita(ws, r, 2, 9, 'FFFFFFFF');
+    bordear(ws, r, 2, r, 9, fuerteBorde);
+    r += 2;
+
+    ws.getCell(r, 2).value = 'El % de Gastos Generales del Coeficiente K sale de este total dividido por el costo del Cómputo. Ver la hoja Datos.';
+    ws.getCell(r, 2).font = { size: 9, italic: true, color: { argb: GRIS_TEXTO } };
+    ws.mergeCells(r, 2, r, 9);
+
+    ws.views = [{ state: 'frozen', ySplit: filaCab }];
+    ws.pageSetup = {
+      paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+    };
+
+    ref.cargaFija = { total: `'Carga fija'!$H$${filaTotal}` };
   }
 
   /* ===== Hoja Resumen =====
@@ -878,7 +1004,7 @@
       ws.getCell(r, 6).numFmt = FMT_ARS;
       ws.getCell(r, 7).value = f(`=+E${r}*F${r}`);
       ws.getCell(r, 7).numFmt = FMT_ARS;
-      ws.getCell(r, 8).value = f(`=+G${r}/$G$${filaTotal}`);
+      ws.getCell(r, 8).value = f(`=IFERROR(+G${r}/$G$${filaTotal},0)`);
       ws.getCell(r, 8).numFmt = FMT_PCT;
       r++;
     });
@@ -939,6 +1065,7 @@
       ap: wb.addWorksheet('A.P'),
       materiales: wb.addWorksheet('Materiales'),
       equipos: wb.addWorksheet('Equipos'),
+      cargafija: wb.addWorksheet('Carga fija'),
       datos: wb.addWorksheet('Datos'),
     };
 
@@ -948,7 +1075,18 @@
     hojaEquipos(hojas.equipos, ctx, ref);
     hojaAP(hojas.ap, ctx, ref);
     hojaCyP(hojas.cyp, ctx, ref, logoId);
+    hojaCargaFija(hojas.cargafija, ctx, ref);
     hojaResumen(hojas.resumen, ctx, ref, logoId);
+
+    // Último eslabón: los Gastos Generales del Coeficiente K son el total de la
+    // hoja Carga fija prorrateado sobre el costo del Cómputo. Recién se puede
+    // escribir cuando existen las dos hojas. No hay círculo: el costo del
+    // Cómputo son los análisis de precio sin K.
+    if (!ref.ggEsManual) {
+      const celda = hojas.datos.getCell(ref.filaGG, 3);
+      celda.value = f(`=${ref.cargaFija.total}/${ref.cyp.costoComputo}`);
+      celda.numFmt = FMT_PCT;
+    }
 
     const buffer = await wb.xlsx.writeBuffer();
     const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
