@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .datos-extra-header, .datos-extra-linea { display: grid; grid-template-columns: 1fr 1fr 40px; gap: .5rem; align-items: center; }
+    .datos-extra-header, .datos-extra-linea { display: grid; grid-template-columns: 1fr 1.6fr 40px; gap: .5rem; align-items: center; }
     .datos-extra-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: 1px solid var(--gray-200); }
     .datos-extra-linea { padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .datos-extra-linea:last-child { border-bottom: none; }
@@ -33,13 +33,9 @@
 
   <main class="app-main" id="main-content" style="display:none;">
     <div class="card">
-      <div class="card-header"><span class="card-title">Datos generales</span></div>
+      <div class="card-header"><span class="card-title">Parámetros generales</span></div>
       <div class="card-body">
         <div class="form-row">
-          <div class="form-group">
-            <label for="obra-comitente">Comitente</label>
-            <input type="text" id="obra-comitente" class="form-control" placeholder="Ej: Fuerza Aérea Argentina">
-          </div>
           <div class="form-group u-mb-0">
             <label for="obra-dolar">Dólar de esta obra ($)</label>
             <input type="text" id="obra-dolar" class="form-control" placeholder="Ej: 1.520,00">
@@ -53,7 +49,21 @@
           <span id="dolar-vivo-txt">Dólar oficial en vivo: —</span>
           <button type="button" id="btn-usar-dolar-vivo">Usar este valor</button>
         </div>
-        <span class="form-hint">Se usa en todos los cálculos de esta obra (materiales, equipos). No se actualiza solo — cargalo a mano cuando quieras cambiarlo.</span>
+        <span class="form-hint">El dólar se usa en todos los cálculos de esta obra (materiales, equipos). No se actualiza solo — cargalo a mano cuando quieras cambiarlo.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Datos generales</span>
+        <button class="btn btn-sm btn-primary" id="btn-add-encabezado">+ Agregar campo</button>
+      </div>
+      <div class="card-body">
+        <p class="form-hint" style="margin:0 0 .75rem;">Son los que salen en el encabezado del presupuesto, en el PDF y en el Excel. Se pueden editar, agregar y borrar: cada licitación pide lo suyo.</p>
+        <div class="datos-extra-header">
+          <span>Campo</span><span>Valor</span><span></span>
+        </div>
+        <div id="encabezado-lista"></div>
       </div>
     </div>
 
@@ -63,6 +73,7 @@
         <button class="btn btn-sm btn-primary" id="btn-add-dato">+ Agregar dato</button>
       </div>
       <div class="card-body">
+        <p class="form-hint" style="margin:0 0 .75rem;">De uso interno: no salen en el encabezado ni en nada que se exporte.</p>
         <div class="datos-extra-header">
           <span>Dato</span><span>Valor</span><span></span>
         </div>
@@ -81,6 +92,7 @@
   <script src="js/moneda.js"></script>
   <script src="js/config.js"></script>
   <script src="js/firebase.js"></script>
+  <script src="js/encabezado.js"></script>
   <script src="js/datos-obra.js"></script>
 </body>
 </html>

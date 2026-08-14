@@ -21,9 +21,6 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
 
-const OFERENTE = 'VIMECO S.A.';
-const DOMICILIO = 'Bv. Rivadavia Nº 3450 — Bº Los Boulevares — Córdoba';
-
 const NOTAS_DEFAULT =
   '* Los precios indicados incluyen IVA, Beneficios, Costos Directos e Indirectos, y todo otro gasto necesario para la correcta ejecución de los trabajos.\n' +
   '** En todos los ítems se cotiza de acuerdo a lo detallado en el Pliego de Especificaciones Técnicas y en la documentación gráfica del proyecto.';
@@ -116,18 +113,13 @@ function importeEnLetras(n) {
 
 /* ===== Bloques del documento ===== */
 
-// Filas del membrete, con los datos fijos de VIMECO agregados. Lo usa el
-// documento imprimible y también la exportación a Excel (js/excelExport.js),
-// para que las dos salidas lleven exactamente la misma cabecera.
+// Filas del membrete: los "Datos generales" de la obra, tal como se cargan en
+// la pantalla Datos (ver js/encabezado.js). Nada es fijo acá — hasta Oferente
+// y Domicilio se editan por obra, que es lo que hace falta cuando se presenta
+// en consorcio. Lo usa el documento imprimible y también la exportación a
+// Excel (js/excelExport.js), para que las dos salidas lleven la misma cabecera.
 function filasMembrete() {
-  const filas = window.membreteDeObra(modelo);
-  // Oferente y domicilio son fijos de VIMECO, pero en obras en consorcio se
-  // cargan a mano como dato adicional (con el nombre del consorcio): en ese
-  // caso manda lo cargado y no se agrega la fila fija, que quedaría duplicada.
-  const yaEsta = et => filas.some(f => (f.etiqueta || '').toUpperCase() === et);
-  if (!yaEsta('OFERENTE')) filas.push({ etiqueta: 'OFERENTE', valor: OFERENTE });
-  if (!yaEsta('DOMICILIO')) filas.push({ etiqueta: 'DOMICILIO', valor: DOMICILIO });
-  return filas;
+  return window.filasEncabezado(modelo.obra, modelo.encabezado);
 }
 
 function membrete(titulo) {

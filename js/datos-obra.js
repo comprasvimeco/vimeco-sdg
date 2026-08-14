@@ -1,6 +1,12 @@
 /* VIMECO S.A. — Sistema de Gestión — Datos de obra
-   Comitente, dólar propio de la obra (se usa en todo el cálculo, ver
-   calcCostos.js) y una lista dinámica de datos adicionales libres. */
+
+   Tres bloques, con destinos distintos:
+   - Parámetros generales: dólar propio de la obra (se usa en todo el cálculo,
+     ver calcCostos.js) y presupuesto oficial.
+   - Datos generales: las filas del encabezado de lo que se exporta. Se
+     siembran solas la primera vez (ver js/encabezado.js) y desde ahí se
+     editan, se agregan y se borran como cualquier lista.
+   - Datos adicionales: notas internas de la obra, no salen en el papel. */
 
 const $ = id => document.getElementById(id);
 
@@ -13,93 +19,119 @@ const obraKey = params.get('obra');
 
 let obra = null;
 let dolarObra = { valor: null, fecha: null };
-let datosExtra = {};   // { campoKey: { etiqueta, valor, creadoEn } }
+let encabezado = {};   // { campoKey: { etiqueta, valor, orden } }   → sale en el papel
+let datosExtra = {};   // { campoKey: { etiqueta, valor, orden } }   → interno
 
-function renderDatosExtra() {
-  const container = $('datos-extra-lista');
-  const entradas = Object.entries(datosExtra).sort((a, b) => (a[1].creadoEn || 0) - (b[1].creadoEn || 0));
-  if (!entradas.length) {
-    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Sin datos adicionales todavía.</p>';
-  } else {
+/* ===== Listas de campos etiqueta/valor =====
+   El encabezado y los datos adicionales se editan igual; lo único que cambia
+   es el nodo de Firebase donde viven y los textos. `datos` es el objeto en
+   memoria, que se muta acá mismo para no tener que releer la obra. */
+
+function crearLista(cfg) {
+  const { nodo, contenedorId, datos, placeholderEtiqueta, placeholderValor, vacio, tituloBorrar } = cfg;
+
+  // Los campos nuevos guardan `orden`; los datos adicionales cargados antes de
+  // v088 traen `creadoEn`, que servía para lo mismo.
+  const orden = c => (c.orden != null ? c.orden : (c.creadoEn || 0));
+
+  const path = campoKey => `/obras/${obraKey}/${nodo}/${campoKey}.json`;
+
+  function render() {
+    const container = $(contenedorId);
+    const entradas = Object.entries(datos()).sort((a, b) => orden(a[1]) - orden(b[1]));
+    if (!entradas.length) {
+      container.innerHTML = `<p class="text-muted" style="font-size:.85rem;">${escHtml(vacio)}</p>`;
+      return;
+    }
     container.innerHTML = entradas.map(([campoKey, c]) => `
       <div class="datos-extra-linea" data-key="${escHtml(campoKey)}">
-        <input type="text" class="form-control de-etiqueta" value="${escHtml(c.etiqueta || '')}" placeholder="Ej: Expediente">
-        <input type="text" class="form-control de-valor" value="${escHtml(c.valor || '')}" placeholder="Ej: 1234/2026">
-        <button class="datos-extra-del" title="Eliminar dato">${icSvg('x')}</button>
+        <input type="text" class="form-control de-etiqueta" value="${escHtml(c.etiqueta || '')}" placeholder="${escHtml(placeholderEtiqueta)}">
+        <input type="text" class="form-control de-valor" value="${escHtml(c.valor || '')}" placeholder="${escHtml(placeholderValor)}">
+        <button class="datos-extra-del" title="${escHtml(tituloBorrar)}">${icSvg('x')}</button>
       </div>`).join('');
+
+    container.querySelectorAll('.datos-extra-linea').forEach(row => {
+      const campoKey = row.dataset.key;
+      const etiqueta = row.querySelector('.de-etiqueta');
+      const valor = row.querySelector('.de-valor');
+      etiqueta.addEventListener('blur', () => update(campoKey, { etiqueta: etiqueta.value.trim() }));
+      etiqueta.addEventListener('keydown', e => { if (e.key === 'Enter') etiqueta.blur(); });
+      valor.addEventListener('blur', () => update(campoKey, { valor: valor.value.trim() }));
+      valor.addEventListener('keydown', e => { if (e.key === 'Enter') valor.blur(); });
+      row.querySelector('.datos-extra-del').addEventListener('click', () => borrar(campoKey));
+    });
   }
 
-  container.querySelectorAll('.datos-extra-linea').forEach(row => {
-    const campoKey = row.dataset.key;
-    const etiqueta = row.querySelector('.de-etiqueta');
-    const valor = row.querySelector('.de-valor');
-    etiqueta.addEventListener('blur', () => updateDato(campoKey, { etiqueta: etiqueta.value.trim() }));
-    etiqueta.addEventListener('keydown', e => { if (e.key === 'Enter') etiqueta.blur(); });
-    valor.addEventListener('blur', () => updateDato(campoKey, { valor: valor.value.trim() }));
-    valor.addEventListener('keydown', e => { if (e.key === 'Enter') valor.blur(); });
-    row.querySelector('.datos-extra-del').addEventListener('click', () => deleteDato(campoKey));
-  });
+  function update(campoKey, cambios) {
+    const actual = datos()[campoKey];
+    if (!actual) return;
+    Object.assign(actual, cambios);
+    _fbPatch(path(campoKey), cambios).catch(() => showToast('Error al guardar el dato.', 'error'));
+  }
+
+  function agregar() {
+    const campoKey = 'campo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    datos()[campoKey] = { etiqueta: '', valor: '', orden: Date.now() };
+    render();
+    _fbPatch(path(campoKey), datos()[campoKey]).catch(() => showToast('Error al guardar el dato.', 'error'));
+    const nuevaFila = $(contenedorId).querySelector(`.datos-extra-linea[data-key="${campoKey}"] .de-etiqueta`);
+    if (nuevaFila) nuevaFila.focus();
+  }
+
+  async function borrar(campoKey) {
+    delete datos()[campoKey];
+    render();
+    try {
+      await _fbDel(path(campoKey));
+    } catch (_) {
+      showToast('Error al eliminar el dato.', 'error');
+      return;
+    }
+    showToast('Campo eliminado.');
+  }
+
+  return { render, agregar };
 }
 
-async function persistDatoCambios(campoKey, cambios) {
+const listaEncabezado = crearLista({
+  nodo: 'encabezado',
+  contenedorId: 'encabezado-lista',
+  datos: () => encabezado,
+  placeholderEtiqueta: 'Ej: Expediente',
+  placeholderValor: 'Ej: 1234/2026',
+  vacio: 'El encabezado quedó sin campos: lo que se exporte sale sólo con el logo.',
+  tituloBorrar: 'Quitar del encabezado',
+});
+
+const listaDatosExtra = crearLista({
+  nodo: 'datosExtra',
+  contenedorId: 'datos-extra-lista',
+  datos: () => datosExtra,
+  placeholderEtiqueta: 'Ej: Contacto de obra',
+  placeholderValor: 'Ej: Juan Pérez — 351 555 0000',
+  vacio: 'Sin datos adicionales todavía.',
+  tituloBorrar: 'Eliminar dato',
+});
+
+// La primera vez que se abre la obra, el encabezado se siembra con los campos
+// de siempre. La marca va en la obra y no en el propio nodo: si después se
+// borran todos los campos, no se vuelven a sembrar solos.
+async function sembrarEncabezadoSiHaceFalta() {
+  if (Object.keys(encabezado).length || obra.encabezadoSembrado) return;
+  encabezado = window.encabezadoInicial(obra);
   try {
-    await _fbPatch(`/obras/${obraKey}/datosExtra/${campoKey}.json`, cambios);
+    await _fbPatch(`/obras/${obraKey}/encabezado.json`, encabezado);
+    await _fbPatch(`/obras/${obraKey}.json`, { encabezadoSembrado: true });
+    obra.encabezadoSembrado = true;
   } catch (_) {
-    showToast('Error al guardar el dato.', 'error');
+    showToast('Error al preparar el encabezado de la obra.', 'error');
   }
-}
-
-async function persistDatoNuevo(campoKey) {
-  try {
-    await _fbPut(`/obras/${obraKey}/datosExtra/${campoKey}.json`, datosExtra[campoKey]);
-  } catch (_) {
-    showToast('Error al guardar el dato.', 'error');
-  }
-}
-
-function updateDato(campoKey, cambios) {
-  datosExtra[campoKey] = { ...datosExtra[campoKey], ...cambios };
-  persistDatoCambios(campoKey, cambios);
-}
-
-function addDato() {
-  const campoKey = 'campo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-  datosExtra[campoKey] = { etiqueta: '', valor: '', creadoEn: Date.now() };
-  renderDatosExtra();
-  persistDatoNuevo(campoKey);
-  const nuevaFila = document.querySelector(`.datos-extra-linea[data-key="${campoKey}"] .de-etiqueta`);
-  if (nuevaFila) nuevaFila.focus();
-}
-
-async function deleteDato(campoKey) {
-  delete datosExtra[campoKey];
-  renderDatosExtra();
-  try {
-    await _fbDel(`/obras/${obraKey}/datosExtra/${campoKey}.json`);
-  } catch (_) {
-    showToast('Error al eliminar el dato.', 'error');
-  }
-  showToast('Dato eliminado.');
 }
 
 function renderDolarVivo() {
   const venta = window.dolarOficialVenta();
   $('dolar-vivo-txt').textContent = venta ? `Dólar oficial en vivo: ${fmtARS(venta)}` : 'Dólar oficial en vivo: —';
   $('btn-usar-dolar-vivo').disabled = !venta;
-}
-
-function setupComitente() {
-  const input = $('obra-comitente');
-  input.value = obra.comitente || '';
-  input.addEventListener('blur', async () => {
-    const comitente = input.value.trim();
-    try {
-      await _fbPatch(`/obras/${obraKey}.json`, { comitente });
-    } catch (_) {
-      showToast('Error al guardar el comitente.', 'error');
-    }
-  });
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
 }
 
 function setupDolar() {
@@ -152,9 +184,10 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, dolarData, datosExtraData] = await Promise.all([
+  const [obraData, dolarData, encabezadoData, datosExtraData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/dolar.json`),
+    _fbGet(`/obras/${obraKey}/encabezado.json`),
     _fbGet(`/obras/${obraKey}/datosExtra.json`),
   ]);
 
@@ -164,22 +197,25 @@ async function loadAll() {
   }
   obra = obraData;
   dolarObra = dolarData || { valor: null, fecha: null };
+  encabezado = encabezadoData || {};
   datosExtra = datosExtraData || {};
+  await sembrarEncabezadoSiHaceFalta();
 
   $('header-obra-nombre').textContent = 'Datos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'datos');
-  setupComitente();
   setupDolar();
   setupPresupuestoOficial();
   renderDolarVivo();
-  renderDatosExtra();
+  listaEncabezado.render();
+  listaDatosExtra.render();
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  $('btn-add-dato').addEventListener('click', addDato);
+  $('btn-add-encabezado').addEventListener('click', () => listaEncabezado.agregar());
+  $('btn-add-dato').addEventListener('click', () => listaDatosExtra.agregar());
   await loadAll();
   await getDolarSnapshot().catch(() => {});
   if (obra) renderDolarVivo();

@@ -1,4 +1,8 @@
-/* VIMECO S.A. — Sistema de Gestión — Obras (CRUD básico) */
+/* VIMECO S.A. — Sistema de Gestión — Obras (CRUD básico)
+
+   Nombre, ubicación y estado son de uso interno: sirven para encontrar la obra
+   en esta lista. Los datos que salen impresos (obra, comitente, expediente…)
+   se cargan dentro de la obra, en Datos → Datos generales. */
 
 const $ = id => document.getElementById(id);
 
@@ -19,7 +23,7 @@ function renderObras(list) {
   }
   container.innerHTML = list.map(o => {
     const estado = ESTADOS[o.estado] || ESTADOS.preparacion;
-    const meta = [o.comitente, o.ubicacion].filter(Boolean).join(' · ');
+    const meta = o.ubicacion || '';
     return `
       <div class="item-card" data-key="${escHtml(o.key)}">
         <div class="item-card-info">

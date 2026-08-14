@@ -33,7 +33,7 @@
      no existe. Ver el final del archivo para la forma del objeto. */
   window.cargarPresupuestoObra = async function (obraKey) {
     const [obraData, computoData, rubrosData, itemsData, materialesData,
-           equiposData, rolesData, cfLineasData, cfConfigData, datosExtraData] = await Promise.all([
+           equiposData, rolesData, cfLineasData, cfConfigData, encabezadoData] = await Promise.all([
       _fbGet(`/obras/${obraKey}.json`),
       _fbGet(`/obras/${obraKey}/computo.json`),
       _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
@@ -43,7 +43,7 @@
       _fbGet(`/obras/${obraKey}/roles.json`),
       _fbGet(`/obras/${obraKey}/cargaFija/lineas.json`),
       _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
-      _fbGet(`/obras/${obraKey}/datosExtra.json`),
+      _fbGet(`/obras/${obraKey}/encabezado.json`),
     ]);
 
     if (!obraData) return null;
@@ -137,7 +137,7 @@
 
     return {
       obraKey, obra,
-      datosExtra: datosExtraData || {},
+      encabezado: encabezadoData || {},
       catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra,
       computo: lineas,
       cargaFija: { lineas: cargaFijaLineas, config: cargaFijaConfig, gastosFijos },
@@ -219,21 +219,4 @@
     };
   };
 
-  // Datos de cabecera de la obra listos para un documento: nombre, comitente y
-  // ubicación son campos propios, y todo lo demás (expediente, número de
-  // licitación, etc.) son los "datos adicionales" libres que se cargan en
-  // Datos de obra, en el orden en que se crearon.
-  window.membreteDeObra = function (modelo) {
-    const filas = [];
-    if (modelo.obra.nombre) filas.push({ etiqueta: 'OBRA', valor: modelo.obra.nombre });
-    if (modelo.obra.comitente) filas.push({ etiqueta: 'COMITENTE', valor: modelo.obra.comitente });
-    if (modelo.obra.ubicacion) filas.push({ etiqueta: 'UBICACIÓN', valor: modelo.obra.ubicacion });
-    Object.values(modelo.datosExtra || {})
-      .sort((a, b) => (a.creadoEn || 0) - (b.creadoEn || 0))
-      .forEach(d => {
-        if (!d.etiqueta && !d.valor) return;
-        filas.push({ etiqueta: (d.etiqueta || '').toUpperCase(), valor: d.valor || '' });
-      });
-    return filas;
-  };
 })();
