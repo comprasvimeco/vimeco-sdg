@@ -57,6 +57,10 @@
 .doc-membrete-datos { flex: 1; display: grid; grid-template-columns: auto 1fr; gap: .4mm 3mm; font-size: 8pt; }
 .doc-membrete-datos dt { font-weight: 700; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; }
 .doc-membrete-datos dd { }
+/* El mismo bloque de etiqueta/valor pero suelto en el cuerpo de una sección
+   (Gastos fijos de la obra), no dentro del membrete: ajustado al contenido y
+   con aire antes de la tabla que le sigue. */
+.doc-membrete-datos.doc-datos-sueltos { display: inline-grid; margin: 0 0 3mm; }
 
 .doc-titulo {
   text-align: center;

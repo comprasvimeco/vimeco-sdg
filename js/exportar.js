@@ -32,7 +32,13 @@ const SECCIONES = [
   { id: 'plan',        label: 'Plan de trabajos', render: seccionPlanTrabajos, apaisada: true },
   { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas },
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
+  { id: 'gastosfijos', label: 'Gastos fijos de la obra', render: seccionGastosFijos },
 ];
+
+// Secciones internas de la empresa: existen para poder imprimirlas cuando uno
+// quiere, pero arrancan destildadas para que no se vayan sin querer en un
+// presupuesto que se manda al comitente.
+const SECCIONES_INTERNAS = ['gastosfijos'];
 
 // Una obra sin rubros (ver js/numeracion.js) no tiene Resumen por rubro que
 // emitir: la sección no se ofrece ni se imprime.
@@ -557,6 +563,92 @@ function seccionCargaFija() {
     <p class="doc-notas">La Carga Fija se aplica al costo unitario de cada ítem para obtener su precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
 }
 
+/* Gastos fijos de la obra: el desglose concepto por concepto, con montos.
+
+   Es la contracara de la sección "Carga Fija", que a propósito sale sin un peso
+   (ver arriba): esto es interno de la empresa y por eso la sección arranca
+   destildada. Se imprime cuando hace falta tener el detalle en papel.
+
+   Los mismos números y el mismo orden que la pantalla de Carga Fija: el total
+   de cada concepto sale de totalLineaCargaFija() y el orden de
+   lineasCargaFijaOrdenadas(), las dos en js/calcCostos.js. Acá no se recalcula
+   nada. */
+
+const BASE_PCT_DOC = {
+  pctComputo: 'del Costo del Cómputo',
+  pctOficial: 'del Presupuesto oficial',
+};
+
+function seccionGastosFijos() {
+  const cf = modelo.cargaFija;
+  const total = cf.gastosFijos;
+  const conceptos = window.lineasCargaFijaOrdenadas(cf.lineas);
+
+  const filas = conceptos.map(([, l]) => {
+    const tipo = l.tipo || 'monto';
+    const esPct = tipo === 'pctComputo' || tipo === 'pctOficial';
+    const t = window.totalLineaCargaFija(l, modelo.costoComputo,
+      modelo.obra.presupuestoOficial != null ? modelo.obra.presupuestoOficial : null);
+    return `
+      <tr>
+        <td>${escHtml(l.concepto || '(sin nombre)')}</td>
+        <td class="doc-num">${esPct ? '' : docCant(l.cantidad)}</td>
+        <td class="doc-num">${esPct ? '' : docARS(l.precioUnitario)}</td>
+        <td class="doc-num">${esPct ? '' : docCant(l.meses)}</td>
+        <td class="doc-num">${esPct ? docCant(l.porcentaje) + '%' : ''}</td>
+        <td>${esPct ? escHtml(BASE_PCT_DOC[tipo]) : ''}</td>
+        <td class="doc-num">${t == null ? '—' : docARS(t)}</td>
+        <td class="doc-num">${total > 0 && t != null ? docPct(t / total) : '—'}</td>
+      </tr>`;
+  }).join('');
+
+  // Datos de arriba: los mismos que encabezan la hoja "Carga fija" del Excel.
+  // El presupuesto oficial sólo aparece si la obra lo tiene cargado.
+  const datos = [
+    ['Duración de la obra', cf.config.duracionMeses != null
+      ? `${docCant(cf.config.duracionMeses)} ${cf.config.duracionMeses === 1 ? 'mes' : 'meses'}` : '—'],
+    ['Costo del Cómputo', docARS(modelo.costoComputo)],
+  ];
+  if (modelo.obra.presupuestoOficial != null) {
+    datos.push(['Presupuesto oficial', docARS(modelo.obra.presupuestoOficial)]);
+  }
+
+  const gg = modelo.kDesglose;
+  const notaGG = gg.ggFracCalculado == null
+    ? 'Sin ítems en el Cómputo: no hay costo sobre el cual prorratear los gastos fijos.'
+    : `% de Gastos Generales = total de gastos fijos / costo del Cómputo = ${docPct(gg.ggFracCalculado)}`
+      + (gg.ggEsManual ? ` — se está usando ${docPct(gg.ggFrac)}, cargado a mano.` : '.');
+
+  return `
+    ${membrete('Gastos fijos de la obra')}
+    <dl class="doc-membrete-datos doc-datos-sueltos">
+      ${datos.map(([k, v]) => `<dt>${escHtml(k)}:</dt><dd>${v}</dd>`).join('')}
+    </dl>
+    <table class="doc-tabla">
+      <thead>
+        <tr>
+          <th>Concepto</th>
+          <th style="width:16mm;">Cant.</th>
+          <th style="width:26mm;">Precio unit.</th>
+          <th style="width:14mm;">Meses</th>
+          <th style="width:16mm;">%</th>
+          <th style="width:34mm;">Base</th>
+          <th style="width:30mm;">Total</th>
+          <th style="width:17mm;">Incid.</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filas || '<tr><td colspan="8" class="doc-centro">Esta obra todavía no tiene conceptos de gastos fijos cargados.</td></tr>'}
+        <tr class="doc-fila-total">
+          <td colspan="6">Total gastos fijos</td>
+          <td class="doc-num">${docARS(total)}</td>
+          <td class="doc-num">${total > 0 ? '100,00%' : '—'}</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="doc-notas">${escHtml(notaGG)}</p>`;
+}
+
 /* ===== Render ===== */
 
 function renderDocumento() {
@@ -647,7 +739,7 @@ async function loadAll() {
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
   config = { notas: null, ...(exportData || {}) };
-  SECCIONES.forEach(s => { incluidas[s.id] = true; });
+  SECCIONES.forEach(s => { incluidas[s.id] = !SECCIONES_INTERNAS.includes(s.id); });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
   renderHeaderTabs(obraKey, 'exportar');
