@@ -176,6 +176,12 @@ function ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData) 
   numeracionActiva = apNavIndex !== -1 ? lineasOrdenadas[apNavIndex].numeracion : null;
 }
 
+// Este AP es el de un análisis auxiliar (vive en /obras/{obra}/auxiliares, no
+// en el Cómputo): no es parte de la obra y no lleva Carga Fija.
+function esAuxiliar() {
+  return !!(lineaVinculada && lineaVinculada.aux);
+}
+
 // Vecina sin AP vinculado todavía: navega igual, a item.html?linea=...&obra=...
 // (mismo modo que el ícono "Análisis de Precio" de una línea nueva en
 // computo.html), que crea/vincula el ítem en el momento.
@@ -405,7 +411,9 @@ function renderResumenCosto(r) {
   const card = $('resumen-card');
   if (!r) { card.classList.add('hidden'); return; }
   card.classList.remove('hidden');
-  const k = kPorObra[activeVersion];
+  // Un análisis auxiliar no lleva Carga Fija: su resultado es el Subtotal, que
+  // es el costo que después se copia a mano a Carga Fija o a otro AP.
+  const k = esAuxiliar() ? undefined : kPorObra[activeVersion];
   const precioUnitarioHtml = k
     ? `<div class="ap-resumen-row total"><span>Precio Unitario</span><span${calcAttrs(r.costoUnitario * k, 'ap:precioUnitario', 'Precio Unitario')}>${fmtARS(r.costoUnitario * k)}</span></div>
        <p class="form-hint" style="margin-top:.4rem;">Precio Unitario = Subtotal × <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> (${fmtK(k)}) de esta obra.</p>`

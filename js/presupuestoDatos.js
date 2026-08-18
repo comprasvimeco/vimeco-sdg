@@ -136,13 +136,13 @@
 
     /* ---- Análisis auxiliares ----
        No son parte de la obra: no entran al costo del Cómputo, ni al total, ni
-       a las incidencias, ni al Plan. Se valorizan igual (mismo costo unitario y
-       el mismo K) porque la sección opcional del PDF y la hoja "A.P auxiliares"
-       del Excel imprimen su análisis completo. */
+       a las incidencias, ni al Plan. Y **no llevan Carga Fija**: el análisis
+       termina en el Subtotal (A+B+C), que es el costo. Ese es el número que se
+       copia a mano a Carga Fija, donde se cargan costos —el Coeficiente K se
+       calcula después sobre ellos—, así que aplicarle K acá sería multiplicar
+       dos veces. Por eso no tienen precioUnitario ni total. */
     const auxiliares = window.numerarAuxiliares(auxiliaresData).map(a => {
-      const cantidad = num(a.cantidad);
       const costoUnitario = costoUnitarioDe(a.itemKey);
-      const precioUnitario = k == null ? null : costoUnitario * k;
       return {
         key: a.key,
         numero: a.codigo,
@@ -151,10 +151,7 @@
         cantidad: a.cantidad != null && !isNaN(a.cantidad) ? Number(a.cantidad) : null,
         itemKey: a.itemKey || null,
         costoUnitario,
-        costoTotal: costoUnitario * cantidad,
-        precioUnitario,
-        total: precioUnitario == null ? null : precioUnitario * cantidad,
-        incidencia: null,
+        costoTotal: costoUnitario * num(a.cantidad),
       };
     });
 

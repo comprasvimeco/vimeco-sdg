@@ -683,6 +683,16 @@
       ws.getCell(r, 9).numFmt = FMT_ARS;
       negrita(ws, r, 2, 9);
       bordear(ws, r, 2, r, 9, fuerteBorde);
+
+      /* Un análisis auxiliar termina acá: su resultado es un costo, que después
+         se copia a mano a Carga Fija. Multiplicarlo por el K sería cargarlo dos
+         veces, así que el subtotal se lleva el cierre de la hoja. */
+      if (literal) {
+        pintar(ws, r, 2, 9, AZUL);
+        negrita(ws, r, 2, 9, 'FFFFFFFF');
+        return r + 3;
+      }
+
       r++;
       ws.getCell(r, 2).value = 'Carga Fija';
       ws.getCell(r, 9).value = f(`=${ref.k}`);
@@ -695,12 +705,10 @@
       negrita(ws, r, 2, 9, 'FFFFFFFF');
 
       // Las dos celdas que lee CyP, en la fila del código.
-      if (!literal) {
-        ws.getCell(filaCodigo, 11).value = f(`=I${r}`);
-        ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
-        ws.getCell(filaCodigo, 12).value = f(`=I${filaSub}`);
-        ws.getCell(filaCodigo, 12).numFmt = FMT_ARS;
-      }
+      ws.getCell(filaCodigo, 11).value = f(`=I${r}`);
+      ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
+      ws.getCell(filaCodigo, 12).value = f(`=I${filaSub}`);
+      ws.getCell(filaCodigo, 12).numFmt = FMT_ARS;
       return r + 3;
   }
 

@@ -271,12 +271,15 @@ const filaSubtotalAP = (txt, valor, fuerte) =>
   `<tr class="${fuerte ? 'doc-fila-subtotal' : ''}"><td colspan="4">${escHtml(txt)}</td><td class="doc-num">${docARS(valor)}</td></tr>`;
 const filaVaciaAP = txt => `<tr><td colspan="5" class="doc-centro" style="color:#6b7280;">${escHtml(txt)}</td></tr>`;
 
-function analisisDeLinea(linea) {
+/* `sinCarga` corta el bloque en el Subtotal (A+B+C): es lo que corresponde a un
+   análisis auxiliar, cuyo resultado es un costo que después se copia a mano a
+   Carga Fija. Aplicarle el K ahí sería cargarlo dos veces. */
+function analisisDeLinea(linea, sinCarga) {
   const ap = window.analisisDePrecioDe(modelo, linea.itemKey);
   const meta = [
     linea.unidad ? `Unidad: ${linea.unidad}` : '',
     ap ? `Rendimiento: ${docCant(ap.rendimiento)} uds./jornada` : '',
-    linea.cantidad != null ? `Cantidad de cómputo: ${docCant(linea.cantidad)} ${linea.unidad || ''}`.trim() : '',
+    linea.cantidad != null ? `${sinCarga ? 'Cantidad' : 'Cantidad de cómputo'}: ${docCant(linea.cantidad)} ${linea.unidad || ''}`.trim() : '',
   ].filter(Boolean).join('  ·  ');
 
   const encabezado = `
@@ -301,6 +304,15 @@ function analisisDeLinea(linea) {
   const importe = linea.total != null
     ? `<tr class="doc-fila-subtotal"><td colspan="4">Importe del ítem (${docCant(linea.cantidad)} ${escHtml(linea.unidad || '')} × precio unitario)</td><td class="doc-num">${docARS(linea.total)}</td></tr>`
     : '';
+
+  // El cierre del bloque: con Carga Fija y precio unitario en un ítem del
+  // presupuesto, nada más que el subtotal en un auxiliar.
+  const cierre = sinCarga
+    ? `<tr class="doc-fila-total"><td colspan="4">Subtotal (A+B+C)</td><td class="doc-num">${docARS(ap.costoUnitario)}</td></tr>`
+    : `<tr class="doc-fila-subtotal"><td colspan="4">Subtotal (A+B+C)</td><td class="doc-num">${docARS(ap.costoUnitario)}</td></tr>
+       <tr><td colspan="4">Carga Fija</td><td class="doc-num">${fmtDoc(modelo.k, 4)}</td></tr>
+       <tr class="doc-fila-total"><td colspan="4">Precio unitario</td><td class="doc-num">${docARS(linea.precioUnitario)}</td></tr>
+       ${importe}`;
 
   return `
     <article class="doc-ap">
@@ -331,10 +343,7 @@ function analisisDeLinea(linea) {
           ${ap.materiales.length ? ap.materiales.map(f => filaInsumo(f)).join('') : filaVaciaAP('Sin materiales.')}
           ${filaSubtotalAP('Costo unitario de Materiales (C)', ap.costoMateriales, true)}
 
-          <tr class="doc-fila-subtotal"><td colspan="4">Subtotal (A+B+C)</td><td class="doc-num">${docARS(ap.costoUnitario)}</td></tr>
-          <tr><td colspan="4">Carga Fija</td><td class="doc-num">${fmtDoc(modelo.k, 4)}</td></tr>
-          <tr class="doc-fila-total"><td colspan="4">Precio unitario</td><td class="doc-num">${docARS(linea.precioUnitario)}</td></tr>
-          ${importe}
+          ${cierre}
         </tbody>
       </table>
     </article>`;
@@ -348,16 +357,18 @@ function seccionAnalisisPrecios() {
   if (!lineas.length) {
     return `${membrete('Análisis de precios')}<p class="doc-centro">Sin ítems en el Cómputo.</p>`;
   }
-  return `${membrete('Análisis de precios')}${lineas.map(analisisDeLinea).join('')}`;
+  // Sin `l => `, el índice del map entraría como `sinCarga` y todos los AP
+  // menos el primero saldrían cortados en el subtotal.
+  return `${membrete('Análisis de precios')}${lineas.map(l => analisisDeLinea(l)).join('')}`;
 }
 
-/* Los análisis auxiliares, con el mismo bloque que un AP del presupuesto. No
-   son parte de la obra —no están en el Presupuesto, ni en el Resumen, ni en el
-   Plan, ni en el total— así que la sección arranca destildada
-   (SECCIONES_INTERNAS): se imprime cuando uno la pide, no se va sola en un
-   presupuesto que va al comitente. */
+/* Los análisis auxiliares, con el mismo bloque que un AP del presupuesto pero
+   cortado en el Subtotal: no llevan Carga Fija. No son parte de la obra —no
+   están en el Presupuesto, ni en el Resumen, ni en el Plan, ni en el total— así
+   que la sección arranca destildada (SECCIONES_INTERNAS): se imprime cuando uno
+   la pide, no se va sola en un presupuesto que va al comitente. */
 function seccionAuxiliares() {
-  return `${membrete('Análisis auxiliares')}${modelo.auxiliares.map(analisisDeLinea).join('')}`;
+  return `${membrete('Análisis auxiliares')}${modelo.auxiliares.map(a => analisisDeLinea(a, true)).join('')}`;
 }
 
 /* ===== Plan de trabajos y curva de inversión ===== */
