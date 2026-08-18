@@ -473,9 +473,7 @@
 
   const HOJA_AP = "'A.P'";
 
-  function hojaAP(ws, ctx, ref) {
-    const m = ctx.modelo;
-
+  function columnasAP(ws) {
     ws.getColumn(1).width = 3;
     ws.getColumn(2).width = 26;
     ws.getColumn(3).width = 46;
@@ -488,12 +486,18 @@
     ws.getColumn(10).width = 10;
     ws.getColumn(11).width = 20;
     ws.getColumn(12).width = 20;
+  }
 
-    let r = 2;
-    ref.ap = {};
+  /* Un bloque de análisis de precio, escrito desde la fila `r`. Devuelve la
+     fila donde arranca el siguiente.
 
-    const lineas = m.rubros.flatMap(ru => ru.lineas);
-    lineas.forEach(linea => {
+     `literal` es lo único que separa a las dos hojas que lo usan. En la hoja
+     A.P la descripción y la unidad se traen de CyP con un VLOOKUP contra el
+     código, así el libro queda vivo; pero un análisis auxiliar no está en CyP
+     —no es parte de la obra— y ese VLOOKUP daría #N/A en cadena, así que van
+     escritas como texto. Por lo mismo tampoco se escriben las dos celdas (K y
+     L) de la fila del código, que son las que CyP lee de vuelta. */
+  function bloqueAP(ws, r, m, ref, linea, literal) {
       const ap = window.analisisDePrecioDe(m, linea.itemKey);
       const filaCodigo = r;
 
@@ -501,30 +505,37 @@
       negrita(ws, r, 2, 2);
       ws.getCell(r, 3).value = linea.numero;
       ws.getCell(r, 3).font = { bold: true, size: 12, color: { argb: AZUL } };
-      ws.getCell(r, 10).value = 'Precio unitario';
-      ws.getCell(r, 10).alignment = { horizontal: 'right' };
-      ws.getCell(r, 12).value = 'Costo unitario';
-      ws.getCell(r, 12).alignment = { horizontal: 'right' };
+      if (!literal) {
+        ws.getCell(r, 10).value = 'Precio unitario';
+        ws.getCell(r, 10).alignment = { horizontal: 'right' };
+        ws.getCell(r, 12).value = 'Costo unitario';
+        ws.getCell(r, 12).alignment = { horizontal: 'right' };
+      }
       r++;
 
       ws.getCell(r, 2).value = 'Descripción:';
-      ws.getCell(r, 3).value = f(`=VLOOKUP(C${filaCodigo},CyP!$B:$C,2,FALSE)`);
+      ws.getCell(r, 3).value = literal
+        ? (linea.nombre || '')
+        : f(`=VLOOKUP(C${filaCodigo},CyP!$B:$C,2,FALSE)`);
       ws.getCell(r, 3).alignment = { wrapText: true, vertical: 'top' };
       ws.getCell(r, 10).value = 'Unidad:';
       ws.getCell(r, 10).alignment = { horizontal: 'right' };
-      ws.getCell(r, 11).value = f(`=VLOOKUP(C${filaCodigo},CyP!$B:$D,3,FALSE)`);
+      ws.getCell(r, 11).value = literal
+        ? (linea.unidad || '')
+        : f(`=VLOOKUP(C${filaCodigo},CyP!$B:$D,3,FALSE)`);
       ws.getCell(r, 11).alignment = { horizontal: 'center' };
       r++;
 
       if (!ap) {
         ws.getCell(r, 3).value = 'Este ítem todavía no tiene un análisis de precio cargado.';
         ws.getCell(r, 3).font = { italic: true, color: { argb: GRIS_TEXTO } };
-        ws.getCell(filaCodigo, 11).value = 0;
-        ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
-        ws.getCell(filaCodigo, 12).value = 0;
-        ws.getCell(filaCodigo, 12).numFmt = FMT_ARS;
-        r += 3;
-        return;
+        if (!literal) {
+          ws.getCell(filaCodigo, 11).value = 0;
+          ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
+          ws.getCell(filaCodigo, 12).value = 0;
+          ws.getCell(filaCodigo, 12).numFmt = FMT_ARS;
+        }
+        return r + 3;
       }
 
       ws.getCell(r, 2).value = 'Rendimiento:';
@@ -684,12 +695,24 @@
       negrita(ws, r, 2, 9, 'FFFFFFFF');
 
       // Las dos celdas que lee CyP, en la fila del código.
-      ws.getCell(filaCodigo, 11).value = f(`=I${r}`);
-      ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
-      ws.getCell(filaCodigo, 12).value = f(`=I${filaSub}`);
-      ws.getCell(filaCodigo, 12).numFmt = FMT_ARS;
-      r += 3;
-    });
+      if (!literal) {
+        ws.getCell(filaCodigo, 11).value = f(`=I${r}`);
+        ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
+        ws.getCell(filaCodigo, 12).value = f(`=I${filaSub}`);
+        ws.getCell(filaCodigo, 12).numFmt = FMT_ARS;
+      }
+      return r + 3;
+  }
+
+  function hojaAP(ws, ctx, ref) {
+    const m = ctx.modelo;
+    columnasAP(ws);
+
+    let r = 2;
+    ref.ap = {};
+
+    const lineas = m.rubros.flatMap(ru => ru.lineas);
+    lineas.forEach(linea => { r = bloqueAP(ws, r, m, ref, linea, false); });
 
     if (!lineas.length) ws.getCell(2, 2).value = 'Sin ítems en el Cómputo.';
 
@@ -701,6 +724,26 @@
     ref.ap.rangoCodigos = `${HOJA_AP}!$C$2:$C$${hasta}`;
     ref.ap.rangoPrecios = `${HOJA_AP}!$K$2:$K$${hasta}`;
     ref.ap.rangoCostos  = `${HOJA_AP}!$L$2:$L$${hasta}`;
+
+    ws.pageSetup = {
+      paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+    };
+  }
+
+  /* ===== Hoja A.P auxiliares =====
+     Los análisis que no son parte de la obra. Misma pinta que la hoja A.P, pero
+     suelta: nadie la referencia y ella no referencia a CyP (ver `literal` en
+     bloqueAP). Sí sigue leyendo los precios de las hojas Materiales, Equipos y
+     Datos, que listan el catálogo completo — o sea que el auxiliar también se
+     recalcula solo si se toca un precio en el Excel. */
+
+  function hojaAPAuxiliares(ws, ctx, ref) {
+    const m = ctx.modelo;
+    columnasAP(ws);
+
+    let r = 2;
+    m.auxiliares.forEach(aux => { r = bloqueAP(ws, r, m, ref, aux, true); });
 
     ws.pageSetup = {
       paperSize: 9, orientation: 'portrait', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
@@ -1304,6 +1347,7 @@
       resumen: ctx.modelo.numeracion.sinRubros ? null : wb.addWorksheet('Resumen'),
       cyp: wb.addWorksheet('CyP'),
       ap: wb.addWorksheet('A.P'),
+      apAux: ctx.modelo.auxiliares.length ? wb.addWorksheet('A.P auxiliares') : null,
       plan: ctx.plan ? wb.addWorksheet('Plan de trabajos') : null,
       cargafija: wb.addWorksheet('Carga fija'),
       materiales: wb.addWorksheet('Materiales'),
@@ -1316,6 +1360,7 @@
     hojaMateriales(hojas.materiales, ctx, ref);
     hojaEquipos(hojas.equipos, ctx, ref);
     hojaAP(hojas.ap, ctx, ref);
+    if (hojas.apAux) hojaAPAuxiliares(hojas.apAux, ctx, ref);
     hojaCyP(hojas.cyp, ctx, ref, logoId);
     hojaCargaFija(hojas.cargafija, ctx, ref);
     if (hojas.plan) hojaPlanTrabajos(hojas.plan, ctx, ref, logoId);

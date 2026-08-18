@@ -32,11 +32,12 @@
   /* Devuelve el modelo completo del presupuesto de una obra, o null si la obra
      no existe. Ver el final del archivo para la forma del objeto. */
   window.cargarPresupuestoObra = async function (obraKey) {
-    const [obraData, computoData, rubrosData, itemsData, materialesData,
+    const [obraData, computoData, rubrosData, auxiliaresData, itemsData, materialesData,
            equiposData, rolesData, cfLineasData, cfConfigData, encabezadoData] = await Promise.all([
       _fbGet(`/obras/${obraKey}.json`),
       _fbGet(`/obras/${obraKey}/computo.json`),
       _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
+      _fbGet(`/obras/${obraKey}/auxiliares.json`),
       _fbGet('/items.json'),
       _fbGet('/materiales.json'),
       _fbGet('/equipos.json'),
@@ -133,6 +134,30 @@
       };
     });
 
+    /* ---- Análisis auxiliares ----
+       No son parte de la obra: no entran al costo del Cómputo, ni al total, ni
+       a las incidencias, ni al Plan. Se valorizan igual (mismo costo unitario y
+       el mismo K) porque la sección opcional del PDF y la hoja "A.P auxiliares"
+       del Excel imprimen su análisis completo. */
+    const auxiliares = window.numerarAuxiliares(auxiliaresData).map(a => {
+      const cantidad = num(a.cantidad);
+      const costoUnitario = costoUnitarioDe(a.itemKey);
+      const precioUnitario = k == null ? null : costoUnitario * k;
+      return {
+        key: a.key,
+        numero: a.codigo,
+        nombre: a.nombre || '',
+        unidad: a.unidad || '',
+        cantidad: a.cantidad != null && !isNaN(a.cantidad) ? Number(a.cantidad) : null,
+        itemKey: a.itemKey || null,
+        costoUnitario,
+        costoTotal: costoUnitario * cantidad,
+        precioUnitario,
+        total: precioUnitario == null ? null : precioUnitario * cantidad,
+        incidencia: null,
+      };
+    });
+
     return {
       obraKey, obra,
       encabezado: encabezadoData || {},
@@ -143,6 +168,7 @@
       costoComputo, k, kDesglose, total,
       numeracion: numeracion.cfg,
       rubros: rubrosModelo,
+      auxiliares,
     };
   };
 

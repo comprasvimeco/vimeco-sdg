@@ -29,6 +29,7 @@ const SECCIONES = [
   { id: 'resumen',     label: 'Resumen por rubro', render: seccionResumen },
   { id: 'presupuesto', label: 'Presupuesto detallado', render: seccionPresupuesto },
   { id: 'analisis',    label: 'Análisis de precios', render: seccionAnalisisPrecios },
+  { id: 'auxiliares',  label: 'Análisis auxiliares', render: seccionAuxiliares },
   { id: 'plan',        label: 'Plan de trabajos', render: seccionPlanTrabajos, apaisada: true },
   { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas },
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
@@ -38,12 +39,17 @@ const SECCIONES = [
 // Secciones internas de la empresa: existen para poder imprimirlas cuando uno
 // quiere, pero arrancan destildadas para que no se vayan sin querer en un
 // presupuesto que se manda al comitente.
-const SECCIONES_INTERNAS = ['gastosfijos'];
+const SECCIONES_INTERNAS = ['auxiliares', 'gastosfijos'];
 
-// Una obra sin rubros (ver js/numeracion.js) no tiene Resumen por rubro que
-// emitir: la sección no se ofrece ni se imprime.
+/* Secciones que no siempre hay para emitir: una obra sin rubros (ver
+   js/numeracion.js) no tiene Resumen por rubro, y una obra sin análisis
+   auxiliares no tiene nada que poner en esa sección. */
 function seccionesDisponibles() {
-  return SECCIONES.filter(s => !(s.id === 'resumen' && modelo.numeracion.sinRubros));
+  return SECCIONES.filter(s => {
+    if (s.id === 'resumen') return !modelo.numeracion.sinRubros;
+    if (s.id === 'auxiliares') return modelo.auxiliares.length > 0;
+    return true;
+  });
 }
 
 // Períodos por hoja en el Plan de trabajos: el cronograma se corta en bloques
@@ -343,6 +349,15 @@ function seccionAnalisisPrecios() {
     return `${membrete('Análisis de precios')}<p class="doc-centro">Sin ítems en el Cómputo.</p>`;
   }
   return `${membrete('Análisis de precios')}${lineas.map(analisisDeLinea).join('')}`;
+}
+
+/* Los análisis auxiliares, con el mismo bloque que un AP del presupuesto. No
+   son parte de la obra —no están en el Presupuesto, ni en el Resumen, ni en el
+   Plan, ni en el total— así que la sección arranca destildada
+   (SECCIONES_INTERNAS): se imprime cuando uno la pide, no se va sola en un
+   presupuesto que va al comitente. */
+function seccionAuxiliares() {
+  return `${membrete('Análisis auxiliares')}${modelo.auxiliares.map(analisisDeLinea).join('')}`;
 }
 
 /* ===== Plan de trabajos y curva de inversión ===== */
