@@ -152,22 +152,13 @@ let numeracionActiva = null;
 let lineasOrdenadas = [];   // [{ key, itemKey, numeracion }] — todas las líneas del Cómputo, en orden
 let apNavIndex = -1;        // índice de esta línea dentro de lineasOrdenadas (-1 si no está)
 
-function ordenarPorOrden(list) {
-  return [...list].sort((a, b) => (a.orden || 0) - (b.orden || 0));
-}
-
-// Mismo cálculo de numeración "N.M" que renderLineaRow() en computo.js.
+// La numeración sale de js/numeracion.js, la misma que muestra el Cómputo.
 function ubicarLineaYNumeracion(computoData, rubrosComputoData) {
   const todasLineas = Object.entries(computoData || {}).map(([key, l]) => ({ key, ...l }));
-  const rubros = ordenarPorOrden(Object.entries(rubrosComputoData || {}).map(([key, r]) => ({ key, ...r })));
 
-  lineasOrdenadas = [];
-  rubros.forEach((rubro, rubroIdx) => {
-    const grupo = ordenarPorOrden(todasLineas.filter(l => l.rubroId === rubro.key));
-    grupo.forEach((l, lineaIdx) => {
-      lineasOrdenadas.push({ key: l.key, itemKey: l.itemKey || null, numeracion: `${rubroIdx + 1}.${lineaIdx + 1}` });
-    });
-  });
+  lineasOrdenadas = window.numerarComputo(obrasFull[obraParam], rubrosComputoData, computoData)
+    .lineasEnOrden
+    .map(l => ({ key: l.key, itemKey: l.itemKey || null, numeracion: l.codigo }));
   apNavIndex = lineasOrdenadas.findIndex(l => l.itemKey === itemKey);
 
   const entry = todasLineas.find(l => l.itemKey === itemKey);

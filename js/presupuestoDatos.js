@@ -50,9 +50,6 @@
 
     const obra = obraData;
     const lineas = computoData || {};
-    const rubros = Object.entries(rubrosData || {})
-      .map(([key, r]) => ({ key, ...r }))
-      .sort((a, b) => (a.orden || 0) - (b.orden || 0));
     const catalogos = {
       items:      Object.entries(itemsData      || {}).map(([key, i]) => ({ key, ...i })),
       materiales: Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })),
@@ -97,19 +94,20 @@
 
     /* ---- Árbol rubro → línea ---- */
 
-    const rubrosModelo = rubros.map((rubro, ri) => {
-      const propias = Object.entries(lineas)
-        .filter(([, l]) => l.rubroId === rubro.key)
-        .sort((a, b) => (a[1].orden || 0) - (b[1].orden || 0));
+    // El número de cada rubro y de cada línea sale de js/numeracion.js, que es
+    // el mismo que usan el Cómputo, el AP y el Plan de Avance: si acá se
+    // numerara distinto, el papel saldría con otra numeración que la pantalla.
+    const numeracion = window.numerarComputo(obra, rubrosData, lineas);
 
-      const lineasModelo = propias.map(([lineaKey, l], li) => {
+    const rubrosModelo = numeracion.rubros.map(rubro => {
+      const lineasModelo = rubro.lineas.map(l => {
         const cantidad = num(l.cantidad);
         const costoUnitario  = costoUnitarioDe(l.itemKey);
         const precioUnitario = k == null ? null : costoUnitario * k;
         const totalLinea     = precioUnitario == null ? null : precioUnitario * cantidad;
         return {
-          key: lineaKey,
-          numero: `${ri + 1}.${li + 1}`,
+          key: l.key,
+          numero: l.codigo,
           nombre: l.nombre || '',
           unidad: l.unidad || '',
           cantidad: l.cantidad != null && !isNaN(l.cantidad) ? Number(l.cantidad) : null,
@@ -126,7 +124,7 @@
       const subtotal = k == null ? null : lineasModelo.reduce((acc, l) => acc + (l.total || 0), 0);
       return {
         key: rubro.key,
-        numero: String(ri + 1),
+        numero: rubro.codigo,
         nombre: rubro.nombre || '',
         lineas: lineasModelo,
         subtotalCosto,
@@ -143,6 +141,7 @@
       cargaFija: { lineas: cargaFijaLineas, config: cargaFijaConfig, gastosFijos },
       costoUnitarioDe,
       costoComputo, k, kDesglose, total,
+      numeracion: numeracion.cfg,
       rubros: rubrosModelo,
     };
   };

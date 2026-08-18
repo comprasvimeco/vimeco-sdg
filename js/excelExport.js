@@ -751,7 +751,12 @@
 
     m.rubros.forEach(rubro => {
       const filaRubro = r;
-      ws.getCell(r, 2).value = Number(rubro.numero);
+      // El código va como texto, no como número: con la numeración
+      // personalizada puede ser "I" o "01" (ver js/numeracion.js). Los dos lados
+      // de cada VLOOKUP que lo busca quedan texto contra texto, que es la única
+      // forma de que el match exacto siga encontrándolo.
+      ws.getCell(r, 2).value = rubro.numero;
+      ws.getCell(r, 2).alignment = { horizontal: 'center' };
       ws.getCell(r, 3).value = rubro.nombre || '(sin nombre)';
       // La planilla original suma cada rubro con SUMIF sobre el código
       // ("3.*" junta 3.1, 3.2, …), pero ese rango incluye la celda del propio
@@ -983,7 +988,8 @@
     const filaTotal = primera + Math.max(m.rubros.length, 1) + 1;
 
     m.rubros.forEach(rubro => {
-      ws.getCell(r, 2).value = Number(rubro.numero);
+      ws.getCell(r, 2).value = rubro.numero;
+      ws.getCell(r, 2).alignment = { horizontal: 'center' };
       // La designación y el importe se buscan por número de rubro (único),
       // no por nombre: dos rubros pueden llamarse igual.
       ws.getCell(r, 3).value = f(`=VLOOKUP($B${r},CyP!$B:$C,2,FALSE)`);
@@ -1128,7 +1134,8 @@
     plan.gruposRubro.forEach(g => {
       const filaRubro = r;
       filasRubro.push(filaRubro);
-      ws.getCell(r, 2).value = Number(g.numero);
+      ws.getCell(r, 2).value = g.numero;
+      ws.getCell(r, 2).alignment = { horizontal: 'center' };
       ws.getCell(r, 3).value = f(`=VLOOKUP($B${r},CyP!$B:$C,2,FALSE)`);
       ws.getCell(r, 6).value = f(`=VLOOKUP($B${r},CyP!$B:$G,6,FALSE)`);
       ws.getCell(r, 6).numFmt = FMT_ARS;

@@ -29,6 +29,14 @@
     .computo-linea[draggable="true"] { cursor: grab; }
     .computo-linea.dragging { opacity: .4; }
     .computo-linea-numero { color: var(--gray-500); font-size: .85rem; }
+    /* Con la numeración personalizada prendida, la celda del número pasa a ser
+       un campo editable (ver celdaNumero() en js/computo.js): la primera
+       columna necesita lugar para "01.01" o "VIII". */
+    .computo-codigo-input { width: 100%; min-width: 0; font-size: .8rem; padding: .15rem .25rem; border: 1px solid var(--gray-200); border-radius: 4px; background: #fff; }
+    .computo-codigo-input:focus { border-color: var(--primary); outline: none; }
+    .computo-rubro-numero.computo-codigo-input { font-weight: 700; color: var(--primary); }
+    .con-codigo .computo-rubro-header { grid-template-columns: 62px 1fr 160px 130px; }
+    .con-codigo .computo-linea { grid-template-columns: 62px 1.3fr 70px 90px 120px 130px 170px; }
     .computo-linea-costo, .computo-linea-total { text-align: right; white-space: nowrap; }
     .computo-linea-total { font-weight: 600; color: var(--gray-700); }
     .computo-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: none !important; }
@@ -86,6 +94,9 @@
       .computo-rubro-nombre-input { grid-area: nombre; }
       .computo-rubro-acciones { grid-area: acc; }
       .computo-rubro-subtotal { grid-area: subtotal; }
+
+      .con-codigo .computo-rubro-header { grid-template-columns: 54px 1fr auto; }
+      .con-codigo .computo-linea { grid-template-columns: 54px 1fr 1fr; }
 
       .computo-linea-header { display: none; }
       .computo-linea {
@@ -208,6 +219,7 @@
   <script src="js/calculadora-flotante.js"></script>
   <script src="js/config.js"></script>
   <script src="js/firebase.js"></script>
+  <script src="js/numeracion.js"></script>
   <script src="js/computo.js"></script>
   <script src="js/computo-ia.js"></script>
 </body>

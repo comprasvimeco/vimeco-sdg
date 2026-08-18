@@ -50,6 +50,18 @@
           <button type="button" id="btn-usar-dolar-vivo">Usar este valor</button>
         </div>
         <span class="form-hint">El dólar se usa en todos los cálculos de esta obra (materiales, equipos). No se actualiza solo — cargalo a mano cuando quieras cambiarlo.</span>
+
+        <div class="form-row" style="margin-top:1rem;align-items:flex-end;">
+          <div class="form-group" style="display:flex;align-items:center;gap:.5rem;">
+            <input type="checkbox" id="obra-numeracion-personalizada" style="width:auto;">
+            <label for="obra-numeracion-personalizada" style="margin:0;">Numeración personalizada</label>
+          </div>
+          <div class="form-group u-mb-0 hidden" id="grupo-estilo-numeracion">
+            <label for="obra-estilo-numeracion">Estilo del número automático</label>
+            <select id="obra-estilo-numeracion" class="form-control"></select>
+          </div>
+        </div>
+        <span class="form-hint" id="hint-numeracion">Sin activarla, los rubros y los ítems se numeran solos 1, 1.1, 1.2… Activala cuando el pliego numere de otra forma: además del estilo, en el Cómputo podés escribir a mano el código de cada rubro y de cada ítem.</span>
       </div>
     </div>
 
@@ -93,6 +105,7 @@
   <script src="js/config.js"></script>
   <script src="js/firebase.js"></script>
   <script src="js/encabezado.js"></script>
+  <script src="js/numeracion.js"></script>
   <script src="js/datos-obra.js"></script>
 </body>
 </html>

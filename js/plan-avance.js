@@ -106,15 +106,25 @@ function construirDatos() {
 
   rubros.sort((a, b) => (a.orden || 0) - (b.orden || 0));
 
+  // La numeración sale de js/numeracion.js, igual que en el Cómputo y en el
+  // Presupuesto: la grilla y el cronograma impreso muestran el mismo número.
+  const num = window.numerarComputo(obra, rubros, lineas);
+
   const gruposRubro = rubros.map(r => {
     const grupo = lineasDeRubro(r.key).map(([lineaKey, l]) => ({
       key: lineaKey,
+      numero: num.codigoDeLinea[lineaKey],
       linea: l,
       cantidad: cantidadDe(l),
       precioUnitario: costoUnitarioDe(l.itemKey) * k,
       precioTotal: costoUnitarioDe(l.itemKey) * k * cantidadDe(l),
     }));
-    return { rubro: r, lineas: grupo, precioTotal: grupo.reduce((a, x) => a + x.precioTotal, 0) };
+    return {
+      rubro: r,
+      numero: num.codigoDeRubro[r.key],
+      lineas: grupo,
+      precioTotal: grupo.reduce((a, x) => a + x.precioTotal, 0),
+    };
   });
 
   // El reparto por período, las certificaciones y los remanentes salen de
@@ -194,7 +204,7 @@ function renderTabla(d) {
       </tr>
     </thead>`;
 
-  const cuerpo = d.gruposRubro.map((g, gi) => {
+  const cuerpo = d.gruposRubro.map(g => {
     const celdasRubro = [];
     for (let i = 0; i < n; i++) {
       celdasRubro.push(modoRubros
@@ -206,7 +216,7 @@ function renderTabla(d) {
     const filaRubro = `
       <tr class="pa-fila-rubro">
         <td class="pa-col-nombre">
-          <span class="pa-rubro-numero">${gi + 1}.</span>
+          <span class="pa-rubro-numero">${escHtml(g.numero)}.</span>
           <span class="pa-rubro-nombre">${escHtml(g.rubro.nombre || '(sin nombre)')}</span>
           ${modoRubros ? `<button class="pa-btn-distribuir" data-scope="rubro" data-row="${escHtml(g.rubro.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>` : ''}
         </td>
@@ -218,7 +228,7 @@ function renderTabla(d) {
         ${celdasRubro.join('')}
       </tr>`;
 
-    const filasItems = g.lineas.map((x, xi) => {
+    const filasItems = g.lineas.map(x => {
       const celdas = [];
       for (let i = 0; i < n; i++) {
         celdas.push(modoRubros
@@ -228,7 +238,7 @@ function renderTabla(d) {
       const principal = `
         <tr class="pa-fila-item">
           <td class="pa-col-nombre">
-            <span class="pa-item-numero">${gi + 1}.${xi + 1}</span>
+            <span class="pa-item-numero">${escHtml(x.numero)}</span>
             <span class="pa-item-nombre">${escHtml(x.linea.nombre || '(sin nombre)')}</span>
             ${modoRubros ? '' : `<button class="pa-btn-distribuir" data-scope="item" data-row="${escHtml(x.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>`}
           </td>

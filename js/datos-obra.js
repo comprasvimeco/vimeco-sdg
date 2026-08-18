@@ -2,7 +2,8 @@
 
    Tres bloques, con destinos distintos:
    - Parámetros generales: dólar propio de la obra (se usa en todo el cálculo,
-     ver calcCostos.js) y presupuesto oficial.
+     ver calcCostos.js), presupuesto oficial y cómo se numera el presupuesto
+     (ver js/numeracion.js).
    - Datos generales: las filas del encabezado de lo que se exporta. Se
      siembran solas la primera vez (ver js/encabezado.js) y desde ahí se
      editan, se agregan y se borran como cualquier lista.
@@ -179,6 +180,45 @@ function setupPresupuestoOficial() {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
 }
 
+/* Numeración del presupuesto (ver js/numeracion.js). Apagada — el caso de
+   siempre — no hay nada que elegir: los rubros y los ítems se numeran 1, 1.1,
+   1.2… Prendida aparece el estilo del automático y en el Cómputo se puede
+   escribir el código de cada rubro/ítem a mano, para copiar la numeración del
+   pliego del comitente. */
+function setupNumeracion() {
+  const check = $('obra-numeracion-personalizada');
+  const grupo = $('grupo-estilo-numeracion');
+  const select = $('obra-estilo-numeracion');
+
+  select.innerHTML = window.NUMERACION_ESTILOS
+    .map(e => `<option value="${escHtml(e.id)}">${escHtml(e.label)}</option>`).join('');
+  const validos = window.NUMERACION_ESTILOS.map(e => e.id);
+  select.value = validos.includes(obra.estiloNumeracion) ? obra.estiloNumeracion : 'arabigo';
+  check.checked = !!obra.numeracionPersonalizada;
+  grupo.classList.toggle('hidden', !check.checked);
+
+  async function guardar(cambios) {
+    try {
+      await _fbPatch(`/obras/${obraKey}.json`, cambios);
+    } catch (_) {
+      showToast('Error al guardar la numeración.', 'error');
+    }
+  }
+
+  check.addEventListener('change', () => {
+    grupo.classList.toggle('hidden', !check.checked);
+    obra.numeracionPersonalizada = check.checked;
+    // null borra el campo: la obra queda igual que las que nunca lo activaron.
+    // Los códigos escritos a mano no se tocan — vuelven a valer si se reactiva.
+    guardar({ numeracionPersonalizada: check.checked ? true : null });
+  });
+
+  select.addEventListener('change', () => {
+    obra.estiloNumeracion = select.value;
+    guardar({ estiloNumeracion: select.value });
+  });
+}
+
 async function loadAll() {
   if (!obraKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
@@ -205,6 +245,7 @@ async function loadAll() {
   renderHeaderTabs(obraKey, 'datos');
   setupDolar();
   setupPresupuestoOficial();
+  setupNumeracion();
   renderDolarVivo();
   listaEncabezado.render();
   listaDatosExtra.render();

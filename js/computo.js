@@ -77,12 +77,28 @@ function subtotalGrupo(grupoLineas) {
   return grupoLineas.reduce((acc, [, l]) => acc + totalLinea(l), 0);
 }
 
-function renderRubroHeader(rubro, numero, esPrimero, esUltimo) {
+/* La celda del número. Con la numeración personalizada apagada es el texto de
+   siempre; prendida es un input donde se escribe el código del pliego, con el
+   automático como placeholder para que se vea qué número va a salir si se lo
+   deja vacío. */
+function celdaNumero(clase, tipo, entidad, codigo, codigoAuto, sufijo) {
+  if (!numeracionPersonalizada()) {
+    return `<span class="${clase}">${escHtml(codigo)}${sufijo || ''}</span>`;
+  }
+  const aMano = entidad.codigo != null ? String(entidad.codigo) : '';
+  return `<input type="text" class="${clase} computo-codigo-input" data-codigo-tipo="${tipo}" data-codigo-key="${escHtml(entidad.key)}" value="${escHtml(aMano)}" placeholder="${escHtml(codigoAuto)}" title="Código del pliego — vacío usa la numeración automática">`;
+}
+
+function numeracionPersonalizada() {
+  return window.numeracionCfg(obra).personalizada;
+}
+
+function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
   const grupoLineas = lineasDeRubro(rubro.key);
   const vacio = !grupoLineas.length;
   return `
     <div class="computo-rubro-header" data-rubro-id="${escHtml(rubro.key)}">
-      <span class="computo-rubro-numero">${numero}.</span>
+      ${celdaNumero('computo-rubro-numero', 'rubro', rubro, numero, numeroAuto, '.')}
       <input type="text" class="form-control computo-rubro-nombre-input" data-rubro-id="${escHtml(rubro.key)}" value="${escHtml(rubro.nombre || '')}" placeholder="Nombre del rubro">
       <span class="computo-rubro-acciones">
         <button class="computo-rubro-add-linea" data-rubro-id="${escHtml(rubro.key)}" title="Agregar ítem en este rubro">${icSvg('plus')}</button>
@@ -95,7 +111,7 @@ function renderRubroHeader(rubro, numero, esPrimero, esUltimo) {
     <div class="computo-rubro-lineas" data-rubro-id="${escHtml(rubro.key)}"></div>`;
 }
 
-function renderLineaRow(lineaKey, linea, numero, esPrimero, esUltimo) {
+function renderLineaRow(lineaKey, linea, numero, numeroAuto, esPrimero, esUltimo) {
   const costo = costoUnitarioDe(linea.itemKey);
   const total = totalLinea(linea);
   const hrefAP = linea.itemKey
@@ -106,7 +122,7 @@ function renderLineaRow(lineaKey, linea, numero, esPrimero, esUltimo) {
   const etiqueta = `${numero} ${linea.nombre || 'Ítem'}`;
   return `
     <div class="computo-linea" data-key="${escHtml(lineaKey)}" draggable="true">
-      <span class="computo-linea-numero">${numero}</span>
+      ${celdaNumero('computo-linea-numero', 'linea', { key: lineaKey, codigo: linea.codigo }, numero, numeroAuto)}
       <input type="text" class="form-control linea-nombre" placeholder="Ítem" value="${escHtml(linea.nombre || '')}">
       <input type="text" class="form-control linea-unidad" placeholder="Unidad" value="${escHtml(linea.unidad || '')}">
       <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="computo:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiqueta + ' · Cantidad')}">
@@ -135,15 +151,23 @@ function renderLineas() {
     <div class="computo-linea computo-linea-header">
       <span></span><span>Ítem</span><span>Unidad</span><span>Cantidad</span><span>Costo unitario</span><span>Costo subtotal</span><span></span>
     </div>`;
+  // La numeración sale de js/numeracion.js — la misma que ve el Presupuesto, el
+  // AP y el papel.
+  const num = window.numerarComputo(obra, rubros, lineas);
+  // Los campos de código necesitan una primera columna más ancha que el texto.
+  container.classList.toggle('con-codigo', num.cfg.personalizada);
+
   container.innerHTML = header + rubros.map((rubro, i) =>
-    renderRubroHeader(rubro, i + 1, i === 0, i === rubros.length - 1)
+    renderRubroHeader(rubro, num.codigoDeRubro[rubro.key], num.autoDeRubro[rubro.key],
+      i === 0, i === rubros.length - 1)
   ).join('');
 
-  rubros.forEach((rubro, rubroIdx) => {
+  rubros.forEach(rubro => {
     const lineasContainer = container.querySelector(`.computo-rubro-lineas[data-rubro-id="${CSS.escape(rubro.key)}"]`);
     const grupoLineas = lineasDeRubro(rubro.key);
     lineasContainer.innerHTML = grupoLineas.length
-      ? grupoLineas.map(([k, l], i) => renderLineaRow(k, l, `${rubroIdx + 1}.${i + 1}`, i === 0, i === grupoLineas.length - 1)).join('')
+      ? grupoLineas.map(([k, l], i) => renderLineaRow(k, l, num.codigoDeLinea[k], num.autoDeLinea[k],
+          i === 0, i === grupoLineas.length - 1)).join('')
       : '<p class="text-muted" style="font-size:.8rem;padding:.4rem 0;">Sin líneas en este rubro todavía.</p>';
 
     lineasContainer.addEventListener('dragover', e => { e.preventDefault(); lineasContainer.classList.add('drop-target'); });
@@ -164,6 +188,45 @@ function renderLineas() {
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
   });
+  /* El código del pliego escrito a mano. Tiene que seguir siendo único en toda
+     la obra: es la clave con la que el Excel exportado cruza las hojas CyP, A.P,
+     Resumen y Plan (VLOOKUP / INDEX+MATCH), así que un repetido dejaría la
+     planilla llena de #N/A. Se prueba la numeración completa con el código nuevo
+     puesto y, si aparecieron repetidos que antes no estaban, no se guarda. */
+  container.querySelectorAll('.computo-codigo-input').forEach(input => {
+    const tipo = input.dataset.codigoTipo;
+    const key = input.dataset.codigoKey;
+    const entidad = tipo === 'rubro' ? rubros.find(r => r.key === key) : lineas[key];
+    if (!entidad) return;
+    const anterior = entidad.codigo != null ? String(entidad.codigo) : '';
+
+    input.addEventListener('blur', () => {
+      const v = input.value.trim();
+      if (v === anterior) return;
+
+      const repetidosAntes = window.numerarComputo(obra, rubros, lineas).duplicados.length;
+      entidad.codigo = v;
+      if (window.numerarComputo(obra, rubros, lineas).duplicados.length > repetidosAntes) {
+        entidad.codigo = anterior || null;
+        input.value = anterior;
+        showToast('Ese código ya está usado en el Cómputo.', 'error');
+        return;
+      }
+
+      // null borra el campo en RTDB: es lo que devuelve la línea a la
+      // numeración automática.
+      const guardar = v || null;
+      if (tipo === 'rubro') {
+        entidad.codigo = guardar;
+        persistRubroCambios(key, { codigo: guardar });
+        renderTodo();   // las líneas del rubro se numeran a partir de su código
+      } else {
+        updateLinea(key, { codigo: guardar });
+      }
+    });
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  });
+
   container.querySelectorAll('.computo-rubro-add-linea').forEach(btn => {
     btn.addEventListener('click', () => crearLineaEnRubro(btn.dataset.rubroId));
   });
