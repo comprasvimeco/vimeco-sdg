@@ -27,6 +27,14 @@ const obraKey = params.get('obra');
 let obra = null;
 let rubros = [];   // [{ key, nombre, orden }] — ordenado por `orden`
 let lineas = {};   // { lineaKey: { rubroId, nombre, unidad, cantidad, cantidadFormula, itemKey, orden } }
+/* Análisis auxiliares (/obras/{obraKey}/auxiliares) — entidad aparte del
+   Cómputo, con la misma forma de línea menos `rubroId`. No tienen costo de
+   obra: son cálculos del dueño de la obra para costear algo suelto (un flete)
+   y copiar el resultado a mano a Carga Fija o a otro AP. Viven en su propio
+   nodo justamente para que nada los sume sin querer: los cuatro lugares que
+   calculan el costo del Cómputo (que es el denominador del %GG, y por lo tanto
+   de la Carga Fija) leen /computo y ahí no están. */
+let auxiliares = {};
 let items = [];
 let materiales = [];
 let equipos = [];
@@ -63,6 +71,24 @@ function lineasDeRubro(rubroId) {
   return Object.entries(lineas)
     .filter(([, l]) => l.rubroId === rubroId)
     .sort((a, b) => (a[1].orden || 0) - (b[1].orden || 0));
+}
+
+/* Las filas del Cómputo y las de los auxiliares son la misma fila con otro
+   dueño: mismo alta/edición/orden/duplicar/eliminar, otro nodo de RTDB y otro
+   prefijo de id para las fórmulas entre celdas (js/refs.js). En vez de
+   duplicar todo el CRUD, cada función lleva un `aux` al final y pide acá dónde
+   escribir. */
+function tienda(aux) {
+  return aux
+    ? { datos: auxiliares, nodo: 'auxiliares', prefijo: 'computo:aux' }
+    : { datos: lineas, nodo: 'computo', prefijo: 'computo:linea' };
+}
+
+// Las filas entre las que se mueve una: sus hermanas de rubro en el Cómputo,
+// todas las demás en los auxiliares (no hay rubros ahí).
+function grupoDe(lineaKey, aux) {
+  if (!aux) return lineasDeRubro(lineas[lineaKey].rubroId);
+  return Object.entries(auxiliares).sort((a, b) => (a[1].orden || 0) - (b[1].orden || 0));
 }
 
 // `rubros` se mantiene siempre ordenado por su campo `orden` como
@@ -118,23 +144,30 @@ function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
     <div class="computo-rubro-lineas" data-rubro-id="${escHtml(rubro.key)}"></div>`;
 }
 
-function renderLineaRow(lineaKey, linea, numero, numeroAuto, esPrimero, esUltimo) {
+function renderLineaRow(lineaKey, linea, numero, numeroAuto, esPrimero, esUltimo, aux) {
   const costo = costoUnitarioDe(linea.itemKey);
   const total = totalLinea(linea);
+  const paramNuevo = aux ? 'aux' : 'linea';
   const hrefAP = linea.itemKey
     ? `item.html?key=${encodeURIComponent(linea.itemKey)}&obra=${encodeURIComponent(obraKey)}`
-    : `item.html?linea=${encodeURIComponent(lineaKey)}&obra=${encodeURIComponent(obraKey)}`;
+    : `item.html?${paramNuevo}=${encodeURIComponent(lineaKey)}&obra=${encodeURIComponent(obraKey)}`;
   // Etiqueta con la que se va a leer una referencia a esta línea dentro de
   // una fórmula ("=[1.2 Desmonte · Total]"): la numeración la hace única.
   const etiqueta = `${numero} ${linea.nombre || 'Ítem'}`;
+  const pre = tienda(aux).prefijo;
+  // El auxiliar no está en ningún pliego: su número es "A1", fijo, sin campo
+  // para escribirlo a mano ni estilo que lo cambie.
+  const celda = aux
+    ? `<span class="computo-linea-numero">${escHtml(numero)}</span>`
+    : celdaNumero('computo-linea-numero', 'linea', { key: lineaKey, codigo: linea.codigo }, numero, numeroAuto);
   return `
-    <div class="computo-linea" data-key="${escHtml(lineaKey)}" draggable="${sinRubros() ? 'false' : 'true'}">
-      ${celdaNumero('computo-linea-numero', 'linea', { key: lineaKey, codigo: linea.codigo }, numero, numeroAuto)}
+    <div class="computo-linea" data-key="${escHtml(lineaKey)}" draggable="${aux || sinRubros() ? 'false' : 'true'}">
+      ${celda}
       <input type="text" class="form-control linea-nombre" placeholder="Ítem" value="${escHtml(linea.nombre || '')}">
       <input type="text" class="form-control linea-unidad" placeholder="Unidad" value="${escHtml(linea.unidad || '')}">
-      <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="computo:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiqueta + ' · Cantidad')}">
-      <span class="computo-linea-costo"${calcAttrs(costo, `computo:linea:${lineaKey}:costoUnit`, etiqueta + ' · Costo unit.')}>${fmtARS(costo)}</span>
-      <span class="computo-linea-total"${calcAttrs(total, `computo:linea:${lineaKey}:total`, etiqueta + ' · Total')}>${fmtARS(total)}</span>
+      <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="${pre}:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiqueta + ' · Cantidad')}">
+      <span class="computo-linea-costo"${calcAttrs(costo, `${pre}:${lineaKey}:costoUnit`, etiqueta + ' · Costo unit.')}>${fmtARS(costo)}</span>
+      <span class="computo-linea-total"${calcAttrs(total, `${pre}:${lineaKey}:total`, etiqueta + ' · Total')}>${fmtARS(total)}</span>
       <span class="computo-linea-acciones">
         <button class="computo-linea-mover" data-dir="-1" title="Subir" ${esPrimero ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
         <button class="computo-linea-mover" data-dir="1" title="Bajar" ${esUltimo ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
@@ -226,6 +259,29 @@ function renderLineas() {
   engancharLineas(container);
 }
 
+/* La card de los análisis auxiliares, debajo del Resumen: la misma tabla que
+   el Cómputo pero sin rubros y sin total. Sumarlos no significaría nada — cada
+   auxiliar es un cálculo independiente, y el número que se copia a mano es el
+   de su fila. */
+function renderAuxiliares() {
+  const container = $('lineas-auxiliares');
+  const enOrden = window.numerarAuxiliares(auxiliares);
+
+  if (!enOrden.length) {
+    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Todavía no hay ninguno. Sirven para costear algo suelto —un flete, por ejemplo— y copiar el resultado a mano a Carga Fija o a otro Análisis de Precio.</p>';
+    return;
+  }
+
+  const header = `
+    <div class="computo-linea computo-linea-header">
+      <span></span><span>Ítem</span><span>Unidad</span><span>Cantidad</span><span>Costo unitario</span><span>Costo subtotal</span><span></span>
+    </div>`;
+  container.innerHTML = header + enOrden.map((a, i) =>
+    renderLineaRow(a.key, auxiliares[a.key], a.codigo, a.codigo, i === 0, i === enOrden.length - 1, true)
+  ).join('');
+  engancharLineas(container, true);
+}
+
 /* El código del pliego escrito a mano. Tiene que seguir siendo único en toda la
    obra: es la clave con la que el Excel exportado cruza las hojas CyP, A.P,
    Resumen y Plan (VLOOKUP / INDEX+MATCH), así que un repetido dejaría la
@@ -267,10 +323,10 @@ function engancharCodigos(container) {
   });
 }
 
-function engancharLineas(container) {
+function engancharLineas(container, aux) {
   container.querySelectorAll('.computo-linea[data-key]').forEach(row => {
     const lineaKey = row.dataset.key;
-    const linea = lineas[lineaKey];
+    const linea = tienda(aux).datos[lineaKey];
 
     row.addEventListener('dragstart', () => { draggedLineaKey = lineaKey; row.classList.add('dragging'); });
     row.addEventListener('dragend', () => { draggedLineaKey = null; row.classList.remove('dragging'); });
@@ -278,14 +334,14 @@ function engancharLineas(container) {
     const nombreInput = row.querySelector('.linea-nombre');
     nombreInput.addEventListener('blur', () => {
       const v = nombreInput.value.trim();
-      if (v !== (linea.nombre || '')) updateLinea(lineaKey, { nombre: v });
+      if (v !== (linea.nombre || '')) updateLinea(lineaKey, { nombre: v }, aux);
     });
     nombreInput.addEventListener('keydown', e => { if (e.key === 'Enter') nombreInput.blur(); });
 
     const unidadInput = row.querySelector('.linea-unidad');
     unidadInput.addEventListener('blur', () => {
       const v = unidadInput.value.trim();
-      if (v !== (linea.unidad || '')) updateLinea(lineaKey, { unidad: v });
+      if (v !== (linea.unidad || '')) updateLinea(lineaKey, { unidad: v }, aux);
     });
     unidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') unidadInput.blur(); });
 
@@ -299,15 +355,15 @@ function engancharLineas(container) {
       // Salir del campo sin haberlo tocado no tiene que escribir nada: sin
       // esto, cada paso por una celda dispara un PATCH y un re-render.
       if (n === (linea.cantidad ?? null) && formula === (linea.cantidadFormula || null)) return;
-      updateLinea(lineaKey, { cantidad: n, cantidadFormula: formula });
+      updateLinea(lineaKey, { cantidad: n, cantidadFormula: formula }, aux);
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
 
     row.querySelectorAll('.computo-linea-mover').forEach(btn => {
-      btn.addEventListener('click', () => moverLinea(lineaKey, parseInt(btn.dataset.dir, 10)));
+      btn.addEventListener('click', () => moverLinea(lineaKey, parseInt(btn.dataset.dir, 10), aux));
     });
-    row.querySelector('.computo-linea-dup').addEventListener('click', () => duplicarLinea(lineaKey));
-    row.querySelector('.computo-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
+    row.querySelector('.computo-linea-dup').addEventListener('click', () => duplicarLinea(lineaKey, aux));
+    row.querySelector('.computo-linea-del').addEventListener('click', () => deleteLinea(lineaKey, aux));
   });
 }
 
@@ -350,16 +406,17 @@ let pasadasVivas = 0;
 
 function refrescarFormulasVivas() {
   if (!window.recalcularCeldasVivas) return;
-  const campos = Object.entries(lineas)
+  const camposDe = aux => Object.entries(tienda(aux).datos)
     .filter(([, l]) => window.formulaTieneRefs(l.cantidadFormula))
     .map(([lineaKey, l]) => ({
       formula: l.cantidadFormula,
       valor: l.cantidad ?? null,
       aplicar: valor => {
-        lineas[lineaKey].cantidad = valor;
-        persistLineaCambios(lineaKey, { cantidad: valor });
+        tienda(aux).datos[lineaKey].cantidad = valor;
+        persistLineaCambios(lineaKey, { cantidad: valor }, aux);
       },
     }));
+  const campos = [...camposDe(false), ...camposDe(true)];
   if (!campos.length || !window.recalcularCeldasVivas(campos)) { pasadasVivas = 0; return; }
   if (++pasadasVivas > 10) {
     pasadasVivas = 0;
@@ -372,6 +429,7 @@ function refrescarFormulasVivas() {
 function renderTodo() {
   renderLineas();
   renderResumen();
+  renderAuxiliares();
   actualizarBotonAgregar();
   actualizarBotonComputoIA();
   refrescarFormulasVivas();
@@ -381,17 +439,18 @@ function renderTodo() {
 // editar campos sueltos) en vez de reescribir el árbol completo — mismo
 // criterio que carga-fija.js, evita perder líneas si se edita rápido (ver
 // memoria feedback_firebase_patch_por_linea).
-async function persistLineaNueva(lineaKey) {
+async function persistLineaNueva(lineaKey, aux) {
+  const t = tienda(aux);
   try {
-    await _fbPut(`/obras/${obraKey}/computo/${lineaKey}.json`, lineas[lineaKey]);
+    await _fbPut(`/obras/${obraKey}/${t.nodo}/${lineaKey}.json`, t.datos[lineaKey]);
   } catch (_) {
     showToast('Error al guardar el cómputo.', 'error');
   }
 }
 
-async function persistLineaCambios(lineaKey, cambios) {
+async function persistLineaCambios(lineaKey, cambios, aux) {
   try {
-    await _fbPatch(`/obras/${obraKey}/computo/${lineaKey}.json`, cambios);
+    await _fbPatch(`/obras/${obraKey}/${tienda(aux).nodo}/${lineaKey}.json`, cambios);
   } catch (_) {
     showToast('Error al guardar el cómputo.', 'error');
   }
@@ -414,14 +473,15 @@ async function persistRubroCambios(rubroId, cambios) {
   }
 }
 
-function updateLinea(lineaKey, cambios) {
-  lineas[lineaKey] = { ...lineas[lineaKey], ...cambios };
+function updateLinea(lineaKey, cambios, aux) {
+  const datos = tienda(aux).datos;
+  datos[lineaKey] = { ...datos[lineaKey], ...cambios };
   renderTodo();
-  persistLineaCambios(lineaKey, cambios);
+  persistLineaCambios(lineaKey, cambios, aux);
   // El AP de esta línea (item.html) se llama tal cual sale acá — si cambia
   // nombre/unidad, se propaga al ítem vinculado (best-effort, no bloquea).
-  if ((cambios.nombre !== undefined || cambios.unidad !== undefined) && lineas[lineaKey].itemKey) {
-    persistNombreUnidadItem(lineas[lineaKey].itemKey, { nombre: lineas[lineaKey].nombre, unidad: lineas[lineaKey].unidad });
+  if ((cambios.nombre !== undefined || cambios.unidad !== undefined) && datos[lineaKey].itemKey) {
+    persistNombreUnidadItem(datos[lineaKey].itemKey, { nombre: datos[lineaKey].nombre, unidad: datos[lineaKey].unidad });
   }
 }
 
@@ -498,9 +558,8 @@ function crearLineaEnRubro(rubroId) {
   }, 50);
 }
 
-function moverLinea(lineaKey, dir) {
-  const linea = lineas[lineaKey];
-  const grupo = lineasDeRubro(linea.rubroId);
+function moverLinea(lineaKey, dir, aux) {
+  const grupo = grupoDe(lineaKey, aux);
   const idx = grupo.findIndex(([k]) => k === lineaKey);
   const otroIdx = idx + dir;
   if (idx < 0 || otroIdx < 0 || otroIdx >= grupo.length) return;
@@ -508,8 +567,8 @@ function moverLinea(lineaKey, dir) {
   const ordenA = a.orden, ordenB = b.orden;
   a.orden = ordenB; b.orden = ordenA;
   renderTodo();
-  persistLineaCambios(grupo[idx][0], { orden: a.orden });
-  persistLineaCambios(grupo[otroIdx][0], { orden: b.orden });
+  persistLineaCambios(grupo[idx][0], { orden: a.orden }, aux);
+  persistLineaCambios(grupo[otroIdx][0], { orden: b.orden }, aux);
 }
 
 function moverLineaARubro(lineaKey, rubroIdDestino) {
@@ -524,13 +583,14 @@ function moverLineaARubro(lineaKey, rubroIdDestino) {
 // tal cual sale la línea), así que la copia arranca sin vincular — el AP
 // original se puede traer con "Usar como base" desde el AP de la nueva línea
 // si hace falta la misma receta.
-function duplicarLinea(lineaKey) {
-  const original = lineas[lineaKey];
+function duplicarLinea(lineaKey, aux) {
+  const datos = tienda(aux).datos;
+  const original = datos[lineaKey];
   const nuevaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-  const grupo = lineasDeRubro(original.rubroId);
+  const grupo = grupoDe(lineaKey, aux);
   const orden = grupo.length ? Math.max(...grupo.map(([, l]) => l.orden || 0)) + 1 : 1;
-  lineas[nuevaKey] = {
-    rubroId: original.rubroId,
+  datos[nuevaKey] = {
+    rubroId: original.rubroId || null,
     nombre: (original.nombre || '') + ' (copia)',
     unidad: original.unidad || '',
     cantidad: original.cantidad ?? null,
@@ -540,18 +600,38 @@ function duplicarLinea(lineaKey) {
     creadoEn: Date.now(),
   };
   renderTodo();
-  persistLineaNueva(nuevaKey);
+  persistLineaNueva(nuevaKey, aux);
 }
 
-async function deleteLinea(lineaKey) {
-  delete lineas[lineaKey];
+async function deleteLinea(lineaKey, aux) {
+  const t = tienda(aux);
+  delete t.datos[lineaKey];
   renderTodo();
   try {
-    await _fbDel(`/obras/${obraKey}/computo/${lineaKey}.json`);
+    await _fbDel(`/obras/${obraKey}/${t.nodo}/${lineaKey}.json`);
   } catch (_) {
     showToast('Error al eliminar la línea.', 'error');
   }
   showToast('Línea eliminada.');
+}
+
+/* Alta de un análisis auxiliar. Nace vacío y sin AP: el ícono de Análisis de
+   Precio de la fila lo crea y lo vincula solo (item.html?aux=…), igual que una
+   línea nueva del Cómputo. */
+function crearAuxiliar() {
+  const auxKey = 'aux_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const ordenes = Object.values(auxiliares).map(a => a.orden || 0);
+  auxiliares[auxKey] = {
+    nombre: '', unidad: '', cantidad: null, itemKey: null,
+    orden: ordenes.length ? Math.max(...ordenes) + 1 : 1,
+    creadoEn: Date.now(),
+  };
+  renderTodo();
+  persistLineaNueva(auxKey, true);
+  setTimeout(() => {
+    const input = document.querySelector(`#lineas-auxiliares .computo-linea[data-key="${CSS.escape(auxKey)}"] .linea-nombre`);
+    if (input) input.focus();
+  }, 50);
 }
 
 // Líneas creadas antes de este esquema (rubro como texto libre por línea,
@@ -604,11 +684,12 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, rubrosComputoData, computoRubrosViejo, itemsData, rubrosData, materialesData, equiposData, rolesData] = await Promise.all([
+  const [obraData, lineasData, rubrosComputoData, computoRubrosViejo, auxiliaresData, itemsData, rubrosData, materialesData, equiposData, rolesData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),
     _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
     _fbGet(`/obras/${obraKey}/computoRubros.json`),
+    _fbGet(`/obras/${obraKey}/auxiliares.json`),
     _fbGet('/items.json'),
     _fbGet('/rubros.json'),
     _fbGet('/materiales.json'),
@@ -622,6 +703,7 @@ async function loadAll() {
   }
   obra = obraData;
   lineas = lineasData || {};
+  auxiliares = auxiliaresData || {};
   items = Object.entries(itemsData || {}).map(([key, it]) => ({ key, ...it })).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   rubrosMapBiblioteca = {};
   Object.entries(rubrosData || {}).forEach(([key, r]) => { rubrosMapBiblioteca[key] = r.nombre; });
@@ -645,6 +727,7 @@ async function loadAll() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-rubro').addEventListener('click', () => (sinRubros() ? addItemPlano() : addRubro()));
+  $('btn-add-auxiliar').addEventListener('click', crearAuxiliar);
   $('btn-computo-ia').addEventListener('click', () => {
     if (computoCargado()) return;
     window.openComputoIAModal();

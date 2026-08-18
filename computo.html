@@ -146,6 +146,18 @@
       <div class="card-header"><span class="card-title">Resumen</span></div>
       <div class="card-body" id="resumen"></div>
     </div>
+
+    <!-- Análisis auxiliares: cálculos propios que NO son parte de la obra.
+         Viven en su propio nodo (/obras/{obra}/auxiliares), así que no entran
+         al costo del cómputo, ni al Presupuesto, ni al Plan, ni al papel —
+         salvo la sección opcional de Exportar. -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Análisis auxiliares</span>
+        <button class="btn btn-sm btn-outline" id="btn-add-auxiliar">+ Agregar auxiliar</button>
+      </div>
+      <div class="card-body" id="lineas-auxiliares"></div>
+    </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando cómputo…</div></div>
 

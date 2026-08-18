@@ -158,4 +158,18 @@
       codigoDeRubro, codigoDeLinea, autoDeRubro, autoDeLinea, duplicados,
     };
   };
+
+  /* Los análisis auxiliares (/obras/{obraKey}/auxiliares) son una entidad
+     aparte del Cómputo: no tienen costo de obra, son una herramienta de
+     cálculo para costear algo suelto (un flete) y copiar el resultado a mano
+     a Carga Fija o a otro AP.
+
+     Se numeran A1, A2… con un contador propio, justamente para que no consuman
+     número de pliego: si un auxiliar se llevara el 2.1, el presupuesto que ve
+     el comitente saldría con un agujero (1, 2, 4…). Por eso tampoco les toca
+     el estilo ni el código a mano de la obra: no están en ningún pliego. */
+  window.numerarAuxiliares = function (auxInput) {
+    return aLista(auxInput).sort(porOrden)
+      .map((a, i) => ({ ...a, codigo: `A${i + 1}` }));
+  };
 })();

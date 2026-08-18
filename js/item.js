@@ -13,7 +13,12 @@ const params = new URLSearchParams(window.location.search);
 const itemKey = params.get('key');
 const obraParam = params.get('obra');
 const lineaParam = params.get('linea');
-const modoVincular = !itemKey && !!lineaParam && !!obraParam;
+// Mismo mecanismo para un análisis auxiliar (?aux=), que vive en otro nodo:
+// /obras/{obra}/auxiliares en vez de /obras/{obra}/computo.
+const auxParam = params.get('aux');
+const nodoLinea = auxParam ? 'auxiliares' : 'computo';
+const keyLinea = auxParam || lineaParam;
+const modoVincular = !itemKey && !!keyLinea && !!obraParam;
 
 let item = null;
 let versionesObra = {};    // { obraKey: { rendimiento, rendimientoFormula, lineas } }
@@ -120,7 +125,7 @@ function etiquetaLinea(lineaKey) {
 
 async function autoCrearYVincular() {
   try {
-    const lineaActual = await _fbGet(`/obras/${obraParam}/computo/${lineaParam}.json`);
+    const lineaActual = await _fbGet(`/obras/${obraParam}/${nodoLinea}/${keyLinea}.json`);
     const nombre = (lineaActual && lineaActual.nombre) || '';
     const unidad = (lineaActual && lineaActual.unidad) || '';
     const key = (nombre || 'item').toLowerCase()
@@ -129,7 +134,7 @@ async function autoCrearYVincular() {
       + '_' + Date.now();
     await _fbPut(`/items/${key}.json`, { nombre, unidad, creadoEn: Date.now() });
     await _fbPut(`/items/${key}/versionesObra/${obraParam}.json`, { rendimiento: 1 });
-    await _fbPatch(`/obras/${obraParam}/computo/${lineaParam}.json`, { itemKey: key });
+    await _fbPatch(`/obras/${obraParam}/${nodoLinea}/${keyLinea}.json`, { itemKey: key });
     window.location.href = `item.html?key=${encodeURIComponent(key)}&obra=${encodeURIComponent(obraParam)}`;
   } catch (_) {
     document.body.innerHTML = '<p style="padding:2rem;">Error al crear el Análisis de Precio. Volvé al Cómputo e intentá de nuevo.</p>';
@@ -153,12 +158,16 @@ let lineasOrdenadas = [];   // [{ key, itemKey, numeracion }] — todas las lín
 let apNavIndex = -1;        // índice de esta línea dentro de lineasOrdenadas (-1 si no está)
 
 // La numeración sale de js/numeracion.js, la misma que muestra el Cómputo.
-function ubicarLineaYNumeracion(computoData, rubrosComputoData) {
-  const todasLineas = Object.entries(computoData || {}).map(([key, l]) => ({ key, ...l }));
+function ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData) {
+  const todasLineas = Object.entries(computoData || {}).map(([key, l]) => ({ key, ...l }))
+    .concat(Object.entries(auxiliaresData || {}).map(([key, l]) => ({ key, ...l, aux: true })));
 
+  // Los análisis auxiliares van al final, numerados A1, A2… — no están en el
+  // pliego, pero se recorren con las flechas igual que cualquier otro AP.
   lineasOrdenadas = window.numerarComputo(obrasFull[obraParam], rubrosComputoData, computoData)
     .lineasEnOrden
-    .map(l => ({ key: l.key, itemKey: l.itemKey || null, numeracion: l.codigo }));
+    .concat(window.numerarAuxiliares(auxiliaresData).map(a => ({ ...a, aux: true })))
+    .map(l => ({ key: l.key, itemKey: l.itemKey || null, numeracion: l.codigo, aux: !!l.aux }));
   apNavIndex = lineasOrdenadas.findIndex(l => l.itemKey === itemKey);
 
   const entry = todasLineas.find(l => l.itemKey === itemKey);
@@ -173,7 +182,7 @@ function ubicarLineaYNumeracion(computoData, rubrosComputoData) {
 function hrefParaLinea(l) {
   return l.itemKey
     ? `item.html?key=${encodeURIComponent(l.itemKey)}&obra=${encodeURIComponent(obraParam)}`
-    : `item.html?linea=${encodeURIComponent(l.key)}&obra=${encodeURIComponent(obraParam)}`;
+    : `item.html?${l.aux ? 'aux' : 'linea'}=${encodeURIComponent(l.key)}&obra=${encodeURIComponent(obraParam)}`;
 }
 
 function renderApNav() {
@@ -960,9 +969,9 @@ async function loadAll() {
     _fbGet('/rubros.json'),
     _fbGet('/items.json'),
   ];
-  if (obraParam) fetches.push(_fbGet(`/obras/${obraParam}/computo.json`), _fbGet(`/obras/${obraParam}/rubrosComputo.json`));
+  if (obraParam) fetches.push(_fbGet(`/obras/${obraParam}/computo.json`), _fbGet(`/obras/${obraParam}/rubrosComputo.json`), _fbGet(`/obras/${obraParam}/auxiliares.json`));
 
-  const [itemData, versionesData, obrasData, materialesData, equiposData, rubrosData, allItemsData, computoData, rubrosComputoData] = await Promise.all(fetches);
+  const [itemData, versionesData, obrasData, materialesData, equiposData, rubrosData, allItemsData, computoData, rubrosComputoData, auxiliaresData] = await Promise.all(fetches);
 
   if (!itemData) {
     document.body.innerHTML = '<p style="padding:2rem;">No se encontró el ítem.</p>';
@@ -981,7 +990,7 @@ async function loadAll() {
   allItemsFull = allItemsData || {};
   populateRubroSelect();
 
-  if (obraParam) ubicarLineaYNumeracion(computoData, rubrosComputoData);
+  if (obraParam) ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData);
   renderDatos();
   renderApNav();
 
