@@ -740,43 +740,49 @@
     ws.getRow(r).height = 26;
     r++;
 
+    // Obra sin rubros (ver js/numeracion.js): la hoja lleva sólo las filas de
+    // ítem, como el papel.
+    const plana = m.numeracion.sinRubros;
+
     const primera = r;
     // El total se escribe recién al final, pero las incidencias lo necesitan:
     // se calcula la fila de antemano contando lo que se va a escribir.
-    const cantidadFilas = m.rubros.reduce((acc, ru) => acc + 1 + ru.lineas.length, 0);
-    const filaTotal = primera + Math.max(cantidadFilas, 1) + 1;   // sin rubros queda la fila del aviso
+    const cantidadFilas = m.rubros.reduce((acc, ru) => acc + (plana ? 0 : 1) + ru.lineas.length, 0);
+    const filaTotal = primera + Math.max(cantidadFilas, 1) + 1;   // vacío queda la fila del aviso
     const ultima = filaTotal - 2;
-    const rangoCod = `$B$${primera}:$B$${ultima}`;
-    const rangoImp = `$G$${primera}:$G$${ultima}`;
+    const filasRubro = [];
 
     m.rubros.forEach(rubro => {
       const filaRubro = r;
-      // El código va como texto, no como número: con la numeración
-      // personalizada puede ser "I" o "01" (ver js/numeracion.js). Los dos lados
-      // de cada VLOOKUP que lo busca quedan texto contra texto, que es la única
-      // forma de que el match exacto siga encontrándolo.
-      ws.getCell(r, 2).value = rubro.numero;
-      ws.getCell(r, 2).alignment = { horizontal: 'center' };
-      ws.getCell(r, 3).value = rubro.nombre || '(sin nombre)';
-      // La planilla original suma cada rubro con SUMIF sobre el código
-      // ("3.*" junta 3.1, 3.2, …), pero ese rango incluye la celda del propio
-      // subtotal: Excel lo resuelve igual, otros programas de planilla lo
-      // rechazan como referencia circular. Sumar las filas del rubro da
-      // exactamente lo mismo y el rango se sigue estirando solo si alguien
-      // inserta un ítem en el medio.
-      ws.getCell(r, 7).value = rubro.lineas.length
-        ? f(`=SUM(G${filaRubro + 1}:G${filaRubro + rubro.lineas.length})`)
-        : 0;
-      ws.getCell(r, 7).numFmt = FMT_ARS;
-      ws.getCell(r, 8).value = f(`=IFERROR(G${r}/$G$${filaTotal},0)`);
-      ws.getCell(r, 8).numFmt = FMT_PCT;
-      ws.getCell(r, 10).value = rubro.lineas.length
-        ? f(`=SUM(J${filaRubro + 1}:J${filaRubro + rubro.lineas.length})`)
-        : 0;
-      ws.getCell(r, 10).numFmt = FMT_ARS;
-      pintar(ws, r, 2, 10, GRIS_CABECERA);
-      negrita(ws, r, 2, 10);
-      r++;
+      if (!plana) {
+        filasRubro.push(filaRubro);
+        // El código va como texto, no como número: con la numeración
+        // personalizada puede ser "I" o "01" (ver js/numeracion.js). Los dos
+        // lados de cada VLOOKUP que lo busca quedan texto contra texto, que es
+        // la única forma de que el match exacto siga encontrándolo.
+        ws.getCell(r, 2).value = rubro.numero;
+        ws.getCell(r, 2).alignment = { horizontal: 'center' };
+        ws.getCell(r, 3).value = rubro.nombre || '(sin nombre)';
+        // La planilla original suma cada rubro con SUMIF sobre el código
+        // ("3.*" junta 3.1, 3.2, …), pero ese rango incluye la celda del propio
+        // subtotal: Excel lo resuelve igual, otros programas de planilla lo
+        // rechazan como referencia circular. Sumar las filas del rubro da
+        // exactamente lo mismo y el rango se sigue estirando solo si alguien
+        // inserta un ítem en el medio.
+        ws.getCell(r, 7).value = rubro.lineas.length
+          ? f(`=SUM(G${filaRubro + 1}:G${filaRubro + rubro.lineas.length})`)
+          : 0;
+        ws.getCell(r, 7).numFmt = FMT_ARS;
+        ws.getCell(r, 8).value = f(`=IFERROR(G${r}/$G$${filaTotal},0)`);
+        ws.getCell(r, 8).numFmt = FMT_PCT;
+        ws.getCell(r, 10).value = rubro.lineas.length
+          ? f(`=SUM(J${filaRubro + 1}:J${filaRubro + rubro.lineas.length})`)
+          : 0;
+        ws.getCell(r, 10).numFmt = FMT_ARS;
+        pintar(ws, r, 2, 10, GRIS_CABECERA);
+        negrita(ws, r, 2, 10);
+        r++;
+      }
 
       rubro.lineas.forEach(l => {
         ws.getCell(r, 2).value = l.numero;                 // texto: "3.1"
@@ -804,20 +810,32 @@
     });
 
     if (r === primera) {
-      ws.getCell(r, 2).value = 'Sin rubros cargados en el Cómputo.';
+      ws.getCell(r, 2).value = plana ? 'Sin ítems cargados en el Cómputo.' : 'Sin rubros cargados en el Cómputo.';
       r++;
     }
     bordear(ws, primera, 2, Math.max(r - 1, primera), 10);
 
+    /* El total suma los subtotales de rubro, que a su vez suman sus ítems; en
+       una obra sin rubros suma directo las filas de ítem. La planilla original
+       usaba SUMIF(código,"*.*") para quedarse con los ítems y saltear las filas
+       de rubro, pero eso ataba el total a que todo código de ítem tuviera un
+       punto y ninguno de rubro lo tuviera: con la numeración personalizada un
+       ítem puede llamarse "1 bis" y un rubro "1.A", y el total daba cualquier
+       cosa. Sumar celdas concretas no depende de cómo se escriban los códigos. */
+    const hayItems = m.rubros.some(ru => ru.lineas.length);
+    const sumaDe = col => {
+      if (plana) return hayItems ? f(`=SUM(${col}${primera}:${col}${ultima})`) : 0;
+      return filasRubro.length ? f(`=SUM(${filasRubro.map(fr => `${col}${fr}`).join(',')})`) : 0;
+    };
+
     r = filaTotal;
     ws.getCell(r, 2).value = 'PRESUPUESTO TOTAL';
     ws.mergeCells(r, 2, r, 6);
-    // "*.*" toma sólo los códigos de ítem (los de rubro son números, sin punto).
-    ws.getCell(r, 7).value = f(`=SUMIF(${rangoCod},"*.*",${rangoImp})`);
+    ws.getCell(r, 7).value = sumaDe('G');
     ws.getCell(r, 7).numFmt = FMT_ARS;
     ws.getCell(r, 8).value = f(`=IFERROR(G${r}/$G$${r},0)`);
     ws.getCell(r, 8).numFmt = FMT_PCT;
-    ws.getCell(r, 10).value = f(`=SUMIF(${rangoCod},"*.*",$J$${primera}:$J$${ultima})`);
+    ws.getCell(r, 10).value = sumaDe('J');
     ws.getCell(r, 10).numFmt = FMT_ARS;
     pintar(ws, r, 2, 10, AZUL);
     negrita(ws, r, 2, 10, 'FFFFFFFF');
@@ -1131,20 +1149,25 @@
     const primera = r;
     const filasRubro = [];
 
+    // Obra sin rubros: el cronograma sale sólo con ítems, sin cabeceras de rubro.
+    const plana = ctx.modelo.numeracion.sinRubros;
+
     plan.gruposRubro.forEach(g => {
       const filaRubro = r;
-      filasRubro.push(filaRubro);
-      ws.getCell(r, 2).value = g.numero;
-      ws.getCell(r, 2).alignment = { horizontal: 'center' };
-      ws.getCell(r, 3).value = f(`=VLOOKUP($B${r},CyP!$B:$C,2,FALSE)`);
-      ws.getCell(r, 6).value = f(`=VLOOKUP($B${r},CyP!$B:$G,6,FALSE)`);
-      ws.getCell(r, 6).numFmt = FMT_ARS;
-      ws.getCell(r, 7).value = f(`=+F${r}/$F$${filaTotal}`);
-      ws.getCell(r, 7).numFmt = FMT_PCT;
-      ws.getCell(r, 8).value = '% en Obra';
-      pintar(ws, r, 2, colFin, GRIS_CABECERA);
-      negrita(ws, r, 2, colFin);
-      r++;
+      if (!plana) {
+        filasRubro.push(filaRubro);
+        ws.getCell(r, 2).value = g.numero;
+        ws.getCell(r, 2).alignment = { horizontal: 'center' };
+        ws.getCell(r, 3).value = f(`=VLOOKUP($B${r},CyP!$B:$C,2,FALSE)`);
+        ws.getCell(r, 6).value = f(`=VLOOKUP($B${r},CyP!$B:$G,6,FALSE)`);
+        ws.getCell(r, 6).numFmt = FMT_ARS;
+        ws.getCell(r, 7).value = f(`=+F${r}/$F$${filaTotal}`);
+        ws.getCell(r, 7).numFmt = FMT_PCT;
+        ws.getCell(r, 8).value = '% en Obra';
+        pintar(ws, r, 2, colFin, GRIS_CABECERA);
+        negrita(ws, r, 2, colFin);
+        r++;
+      }
 
       const itemsDesde = r;
       g.lineas.forEach(x => {
@@ -1188,25 +1211,36 @@
       // La cabecera del rubro suma el "% en Obra" de sus propios ítems: la
       // etiqueta de la columna H es la que distingue esas filas de las otras dos.
       const itemsHasta = r - 1;
-      for (let i = 0; i < n; i++) {
-        const L = col(i);
-        ws.getCell(filaRubro, colP0 + i).value = g.lineas.length
-          ? f(`=SUMIF($H$${itemsDesde}:$H$${itemsHasta},"% en Obra",${L}$${itemsDesde}:${L}$${itemsHasta})`)
-          : 0;
-        ws.getCell(filaRubro, colP0 + i).numFmt = FMT_PCT;
+      if (!plana) {
+        for (let i = 0; i < n; i++) {
+          const L = col(i);
+          ws.getCell(filaRubro, colP0 + i).value = g.lineas.length
+            ? f(`=SUMIF($H$${itemsDesde}:$H$${itemsHasta},"% en Obra",${L}$${itemsDesde}:${L}$${itemsHasta})`)
+            : 0;
+          ws.getCell(filaRubro, colP0 + i).numFmt = FMT_PCT;
+        }
+        bordear(ws, filaRubro, 2, filaRubro, colFin, fuerteBorde);
       }
-      bordear(ws, filaRubro, 2, filaRubro, colFin, fuerteBorde);
     });
 
+    const ultimaFilaItem = r - 1;
     if (r === primera) { ws.getCell(r, 2).value = 'Sin ítems en el Cómputo.'; r++; }
     r++;
 
     /* Pie: la certificación de cada período. El parcial en pesos amortiza el
        anticipo y el acumulado arranca justamente en el anticipo, que es lo que
-       ya se cobró antes del primer certificado. */
-    const sumaRubros = filasRubro.length
-      ? L => filasRubro.map(fr => `${L}${fr}`).join('+')
-      : () => '0';
+       ya se cobró antes del primer certificado.
+
+       Sin rubros no hay cabeceras que sumar, así que el parcial junta el
+       "% en Obra" de todos los ítems de la hoja — el mismo SUMIF sobre la
+       etiqueta de la columna H que usa cada cabecera de rubro. */
+    const sumaRubros = plana
+      ? (ultimaFilaItem >= primera
+        ? L => `SUMIF($H$${primera}:$H$${ultimaFilaItem},"% en Obra",${L}$${primera}:${L}$${ultimaFilaItem})`
+        : () => '0')
+      : (filasRubro.length
+        ? L => filasRubro.map(fr => `${L}${fr}`).join('+')
+        : () => '0');
 
     const filaPie = (etiqueta, formulaDe, fmt, clase) => {
       const fila = r;
@@ -1264,8 +1298,10 @@
 
     // Las hojas se crean en el orden en que se leen; se llenan después, en el
     // orden en que se necesitan las direcciones de celda de las anteriores.
+    // Una obra sin rubros no tiene Resumen por rubro que mostrar (igual que en
+    // el papel, ver seccionesDisponibles() en js/exportar.js).
     const hojas = {
-      resumen: wb.addWorksheet('Resumen'),
+      resumen: ctx.modelo.numeracion.sinRubros ? null : wb.addWorksheet('Resumen'),
       cyp: wb.addWorksheet('CyP'),
       ap: wb.addWorksheet('A.P'),
       plan: ctx.plan ? wb.addWorksheet('Plan de trabajos') : null,
@@ -1283,7 +1319,7 @@
     hojaCyP(hojas.cyp, ctx, ref, logoId);
     hojaCargaFija(hojas.cargafija, ctx, ref);
     if (hojas.plan) hojaPlanTrabajos(hojas.plan, ctx, ref, logoId);
-    hojaResumen(hojas.resumen, ctx, ref, logoId);
+    if (hojas.resumen) hojaResumen(hojas.resumen, ctx, ref, logoId);
 
     // Último eslabón: los Gastos Generales del Coeficiente K son el total de la
     // hoja Carga fija prorrateado sobre el costo del Cómputo. Recién se puede

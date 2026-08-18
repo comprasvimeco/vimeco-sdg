@@ -93,6 +93,13 @@ function numeracionPersonalizada() {
   return window.numeracionCfg(obra).personalizada;
 }
 
+// Obra "sin rubros" (ver js/numeracion.js y datos-obra.js): el Cómputo es una
+// sola lista. Por dentro las líneas siguen colgando de un rubro único, que no
+// se muestra ni se imprime.
+function sinRubros() {
+  return window.numeracionCfg(obra).sinRubros;
+}
+
 function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
   const grupoLineas = lineasDeRubro(rubro.key);
   const vacio = !grupoLineas.length;
@@ -121,7 +128,7 @@ function renderLineaRow(lineaKey, linea, numero, numeroAuto, esPrimero, esUltimo
   // una fórmula ("=[1.2 Desmonte · Total]"): la numeración la hace única.
   const etiqueta = `${numero} ${linea.nombre || 'Ítem'}`;
   return `
-    <div class="computo-linea" data-key="${escHtml(lineaKey)}" draggable="true">
+    <div class="computo-linea" data-key="${escHtml(lineaKey)}" draggable="${sinRubros() ? 'false' : 'true'}">
       ${celdaNumero('computo-linea-numero', 'linea', { key: lineaKey, codigo: linea.codigo }, numero, numeroAuto)}
       <input type="text" class="form-control linea-nombre" placeholder="Ítem" value="${escHtml(linea.nombre || '')}">
       <input type="text" class="form-control linea-unidad" placeholder="Unidad" value="${escHtml(linea.unidad || '')}">
@@ -142,8 +149,12 @@ function renderLineas() {
   const container = $('lineas-computo');
   ordenarRubros();
 
-  if (!rubros.length) {
-    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Todavía no hay rubros — empezá agregando uno.</p>';
+  const plana = sinRubros();
+
+  if (!rubros.length || (plana && !Object.keys(lineas).length)) {
+    container.innerHTML = plana
+      ? '<p class="text-muted" style="font-size:.85rem;">Todavía no hay ítems — empezá agregando uno.</p>'
+      : '<p class="text-muted" style="font-size:.85rem;">Todavía no hay rubros — empezá agregando uno.</p>';
     return;
   }
 
@@ -156,6 +167,18 @@ function renderLineas() {
   const num = window.numerarComputo(obra, rubros, lineas);
   // Los campos de código necesitan una primera columna más ancha que el texto.
   container.classList.toggle('con-codigo', num.cfg.personalizada);
+
+  // Lista plana: una sola tira de líneas, sin cabeceras de rubro.
+  if (plana) {
+    const enOrden = num.lineasEnOrden;
+    container.innerHTML = header + enOrden.map((l, i) =>
+      renderLineaRow(l.key, lineas[l.key], num.codigoDeLinea[l.key], num.autoDeLinea[l.key],
+        i === 0, i === enOrden.length - 1)
+    ).join('');
+    engancharCodigos(container);
+    engancharLineas(container);
+    return;
+  }
 
   container.innerHTML = header + rubros.map((rubro, i) =>
     renderRubroHeader(rubro, num.codigoDeRubro[rubro.key], num.autoDeRubro[rubro.key],
@@ -188,11 +211,27 @@ function renderLineas() {
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
   });
-  /* El código del pliego escrito a mano. Tiene que seguir siendo único en toda
-     la obra: es la clave con la que el Excel exportado cruza las hojas CyP, A.P,
-     Resumen y Plan (VLOOKUP / INDEX+MATCH), así que un repetido dejaría la
-     planilla llena de #N/A. Se prueba la numeración completa con el código nuevo
-     puesto y, si aparecieron repetidos que antes no estaban, no se guarda. */
+  engancharCodigos(container);
+
+  container.querySelectorAll('.computo-rubro-add-linea').forEach(btn => {
+    btn.addEventListener('click', () => crearLineaEnRubro(btn.dataset.rubroId));
+  });
+  container.querySelectorAll('.computo-rubro-mover').forEach(btn => {
+    btn.addEventListener('click', () => moverRubro(btn.dataset.rubroId, parseInt(btn.dataset.dir, 10)));
+  });
+  container.querySelectorAll('.computo-rubro-del').forEach(btn => {
+    btn.addEventListener('click', () => { if (!btn.disabled) eliminarRubro(btn.dataset.rubroId); });
+  });
+
+  engancharLineas(container);
+}
+
+/* El código del pliego escrito a mano. Tiene que seguir siendo único en toda la
+   obra: es la clave con la que el Excel exportado cruza las hojas CyP, A.P,
+   Resumen y Plan (VLOOKUP / INDEX+MATCH), así que un repetido dejaría la
+   planilla llena de #N/A. Se prueba la numeración completa con el código nuevo
+   puesto y, si aparecieron repetidos que antes no estaban, no se guarda. */
+function engancharCodigos(container) {
   container.querySelectorAll('.computo-codigo-input').forEach(input => {
     const tipo = input.dataset.codigoTipo;
     const key = input.dataset.codigoKey;
@@ -226,17 +265,9 @@ function renderLineas() {
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
   });
+}
 
-  container.querySelectorAll('.computo-rubro-add-linea').forEach(btn => {
-    btn.addEventListener('click', () => crearLineaEnRubro(btn.dataset.rubroId));
-  });
-  container.querySelectorAll('.computo-rubro-mover').forEach(btn => {
-    btn.addEventListener('click', () => moverRubro(btn.dataset.rubroId, parseInt(btn.dataset.dir, 10)));
-  });
-  container.querySelectorAll('.computo-rubro-del').forEach(btn => {
-    btn.addEventListener('click', () => { if (!btn.disabled) eliminarRubro(btn.dataset.rubroId); });
-  });
-
+function engancharLineas(container) {
   container.querySelectorAll('.computo-linea[data-key]').forEach(row => {
     const lineaKey = row.dataset.key;
     const linea = lineas[lineaKey];
@@ -293,8 +324,21 @@ function renderResumen() {
 function actualizarBotonComputoIA() {
   const btn = $('btn-computo-ia');
   if (!btn) return;
-  btn.disabled = rubros.length > 0;
-  btn.title = rubros.length > 0 ? 'Sólo disponible con el cómputo vacío' : '';
+  btn.disabled = computoCargado();
+  btn.title = computoCargado() ? 'Sólo disponible con el cómputo vacío' : '';
+}
+
+// En una obra sin rubros existe un rubro único invisible desde el primer ítem:
+// lo que dice si el cómputo está vacío son las líneas, no los rubros.
+function computoCargado() {
+  return sinRubros() ? Object.keys(lineas).length > 0 : rubros.length > 0;
+}
+
+// El botón que agrega: rubros en una obra normal, ítems en una obra sin rubros.
+function actualizarBotonAgregar() {
+  const btn = $('btn-add-rubro');
+  if (!btn) return;
+  btn.textContent = sinRubros() ? '+ Agregar ítem' : '+ Agregar rubro';
 }
 
 // Recién renderizado, el DOM tiene los valores de hoy en cada celda: es el
@@ -328,6 +372,7 @@ function refrescarFormulasVivas() {
 function renderTodo() {
   renderLineas();
   renderResumen();
+  actualizarBotonAgregar();
   actualizarBotonComputoIA();
   refrescarFormulasVivas();
 }
@@ -398,6 +443,19 @@ function addRubro() {
     const input = document.querySelector(`.computo-rubro-nombre-input[data-rubro-id="${CSS.escape(rubroId)}"]`);
     if (input) input.focus();
   }, 50);
+}
+
+/* En una obra sin rubros el botón agrega un ítem directamente. Las líneas
+   necesitan un rubro que las contenga igual (el modelo no cambió), así que si
+   todavía no hay ninguno se crea uno sin nombre, invisible en pantalla. */
+async function addItemPlano() {
+  let rubroId = rubros.length ? rubros[0].key : null;
+  if (!rubroId) {
+    rubroId = 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    rubros.push({ key: rubroId, nombre: '', orden: 1 });
+    await persistRubroNuevo(rubroId);
+  }
+  crearLineaEnRubro(rubroId);
 }
 
 function moverRubro(rubroId, dir) {
@@ -586,9 +644,9 @@ async function loadAll() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  $('btn-add-rubro').addEventListener('click', addRubro);
+  $('btn-add-rubro').addEventListener('click', () => (sinRubros() ? addItemPlano() : addRubro()));
   $('btn-computo-ia').addEventListener('click', () => {
-    if (rubros.length) return;
+    if (computoCargado()) return;
     window.openComputoIAModal();
   });
 

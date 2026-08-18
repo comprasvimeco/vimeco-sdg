@@ -46,13 +46,19 @@ function renderTodo() {
     return;
   }
 
-  if (!modelo.rubros.length) {
-    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Todavía no hay rubros cargados en el Cómputo de esta obra.</p>';
-  } else {
-    const header = `
+  const header = `
       <div class="presupuesto-linea presupuesto-linea-header">
         <span></span><span>Ítem</span><span>Unidad</span><span>Cantidad</span><span>Precio unitario</span><span>Total</span><span>Incidencia</span>
       </div>`;
+
+  if (!modelo.rubros.length) {
+    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Todavía no hay rubros cargados en el Cómputo de esta obra.</p>';
+  } else if (modelo.numeracion.sinRubros) {
+    // Obra sin rubros: una sola lista corrida, sin cabeceras de rubro.
+    container.innerHTML = header + modelo.rubros
+      .flatMap(rubro => rubro.lineas)
+      .map(renderLineaRow).join('');
+  } else {
     container.innerHTML = header + modelo.rubros.map(rubro => {
       const et = `${rubro.numero}. ${rubro.nombre || 'Rubro'}`;
       const rubroHtml = `

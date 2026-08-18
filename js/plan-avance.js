@@ -89,6 +89,14 @@ function etiquetaPeriodo(i) {
 
 function nombreUnidad() { return window.nombreUnidadPlan(config); }
 
+// En una obra sin rubros el avance se carga siempre por ítem: no hay rubros por
+// los cuales repartirlo. El modo guardado en la obra se respeta igual, para que
+// vuelva a valer si algún día se le vuelven a poner rubros.
+function modoEfectivo() {
+  if (obra && window.numeracionCfg(obra).sinRubros) return 'items';
+  return config.modo === 'rubros' ? 'rubros' : 'items';
+}
+
 /* ===== Modelo de la grilla ===== */
 
 function lineasDeRubro(rubroId) {
@@ -130,7 +138,7 @@ function construirDatos() {
   // El reparto por período, las certificaciones y los remanentes salen de
   // js/planAvanceDatos.js — la misma función que usa la exportación a PDF.
   return Object.assign(
-    window.calcPlanAvance(gruposRubro, config, distItems, distRubros),
+    window.calcPlanAvance(gruposRubro, { ...config, modo: modoEfectivo() }, distItems, distRubros),
     { k, costoComputo });
 }
 
@@ -183,7 +191,10 @@ function filaSumaClase(suma) {
 
 function renderTabla(d) {
   const n = d.n;
-  const modoRubros = config.modo === 'rubros';
+  const modoRubros = modoEfectivo() === 'rubros';
+  // Obra sin rubros (ver js/numeracion.js): la grilla es una sola lista de
+  // ítems, como el Cómputo y el cronograma impreso.
+  const plana = window.numeracionCfg(obra).sinRubros;
 
   const thPeriodos = [];
   for (let i = 0; i < n; i++) {
@@ -213,7 +224,7 @@ function renderTabla(d) {
     }
     const claseSuma = filaSumaClase(g.sumaRubro);
 
-    const filaRubro = `
+    const filaRubro = plana ? '' : `
       <tr class="pa-fila-rubro">
         <td class="pa-col-nombre">
           <span class="pa-rubro-numero">${escHtml(g.numero)}.</span>
@@ -549,8 +560,12 @@ function aplicarDistribuir() {
 /* ===== Controles de configuración ===== */
 
 function renderControles() {
-  $('pa-modo-items').classList.toggle('active', config.modo !== 'rubros');
-  $('pa-modo-rubros').classList.toggle('active', config.modo === 'rubros');
+  // Sin rubros no hay por dónde cargar el avance "por rubro": el control no se
+  // ofrece.
+  const plana = !!(obra && window.numeracionCfg(obra).sinRubros);
+  $('pa-modo-items').closest('.pa-control').classList.toggle('hidden', plana);
+  $('pa-modo-items').classList.toggle('active', modoEfectivo() !== 'rubros');
+  $('pa-modo-rubros').classList.toggle('active', modoEfectivo() === 'rubros');
   $('pa-unidad').value = config.unidad || 'semana';
   $('pa-cantidad').value = cantidadPeriodos();
   $('pa-fecha-inicio').value = config.fechaInicio || '';

@@ -34,6 +34,12 @@ const SECCIONES = [
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
 ];
 
+// Una obra sin rubros (ver js/numeracion.js) no tiene Resumen por rubro que
+// emitir: la sección no se ofrece ni se imprime.
+function seccionesDisponibles() {
+  return SECCIONES.filter(s => !(s.id === 'resumen' && modelo.numeracion.sinRubros));
+}
+
 // Períodos por hoja en el Plan de trabajos: el cronograma se corta en bloques
 // y cada uno repite las columnas fijas (ítem, cantidad, precio), igual que las
 // tres áreas de impresión de la planilla de referencia. Once es lo que deja
@@ -185,7 +191,8 @@ function seccionResumen() {
 
 function seccionPresupuesto() {
   const filas = modelo.rubros.map(r => {
-    const cabecera = `
+    // Obra sin rubros: la lista sale corrida, sin la fila de cabecera.
+    const cabecera = modelo.numeracion.sinRubros ? '' : `
       <tr class="doc-fila-rubro">
         <td class="doc-centro">${escHtml(r.numero)}</td>
         <td>${escHtml(r.nombre || '(sin nombre)')}</td>
@@ -369,7 +376,8 @@ function bloquePlanTrabajos(desde, hasta) {
   const filas = plan.gruposRubro.map(g => {
     const celdasRubro = [];
     for (let i = desde; i < hasta; i++) celdasRubro.push(`<td class="doc-num">${pctDoc(g.pctObra[i])}</td>`);
-    const filaRubro = `
+    // Obra sin rubros: el cronograma sale sólo con ítems, como el presupuesto.
+    const filaRubro = modelo.numeracion.sinRubros ? '' : `
       <tr class="doc-fila-rubro">
         <td class="doc-centro">${escHtml(g.numero)}</td>
         <td>${escHtml(g.rubro.nombre || '(sin nombre)')}</td>
@@ -563,7 +571,7 @@ function renderDocumento() {
   $('btn-imprimir').disabled = false;
   $('btn-excel').disabled = false;
   $('export-aviso').textContent = 'En el diálogo de impresión: A4, márgenes por defecto y "Gráficos de fondo" activado.';
-  doc.innerHTML = SECCIONES
+  doc.innerHTML = seccionesDisponibles()
     .map(s => {
       const clases = ['doc-seccion'];
       if (s.apaisada) clases.push('doc-seccion-apaisada');
@@ -574,7 +582,7 @@ function renderDocumento() {
 }
 
 function renderSecciones() {
-  $('exportar-secciones').innerHTML = SECCIONES.map(s => `
+  $('exportar-secciones').innerHTML = seccionesDisponibles().map(s => `
     <label class="exportar-check">
       <input type="checkbox" data-seccion="${s.id}" ${incluidas[s.id] ? 'checked' : ''}>
       <span>${escHtml(s.label)}</span>

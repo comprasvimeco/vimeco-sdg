@@ -219,6 +219,95 @@ function setupNumeracion() {
   });
 }
 
+/* "Sin rubros": los pliegos que cotizan una sola lista de ítems numerados
+   corridos. El Cómputo pasa a ser una lista única, el papel y el Excel no
+   imprimen filas de rubro y el Resumen por rubro no se emite.
+
+   Por dentro las líneas siguen colgando de un rubro (el modelo no cambia), así
+   que activarlo junta todas en el primero. Eso es irreversible: los nombres de
+   los rubros se pierden y volver a "con rubros" deja una obra de un solo rubro.
+   Por eso se pregunta antes, con todas las letras. */
+function setupSinRubros() {
+  const check = $('obra-sin-rubros');
+  check.checked = !!obra.sinRubros;
+
+  check.addEventListener('change', async () => {
+    // Apagarlo no toca datos: la obra vuelve a mostrar el rubro que quedó.
+    if (!check.checked) {
+      obra.sinRubros = null;
+      try {
+        await _fbPatch(`/obras/${obraKey}.json`, { sinRubros: null });
+      } catch (_) {
+        showToast('Error al guardar la estructura.', 'error');
+      }
+      return;
+    }
+
+    const [rubrosData, computoData] = await Promise.all([
+      _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
+      _fbGet(`/obras/${obraKey}/computo.json`),
+    ]);
+    const rubros = Object.entries(rubrosData || {})
+      .map(([key, r]) => ({ key, ...r }))
+      .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    const lineas = computoData || {};
+
+    if (rubros.length > 1) {
+      const ok = await showConfirm('Pasar a lista plana',
+        `Las ${Object.keys(lineas).length} líneas del Cómputo se van a juntar en una sola lista, en el orden actual. ` +
+        `Los ${rubros.length} rubros y sus nombres se pierden, y no se puede deshacer.`);
+      if (!ok) { check.checked = false; return; }
+    }
+
+    try {
+      // La marca va primero, antes de mover nada: es lo que el usuario pidió y
+      // lo que decide cómo se ve la obra. Si la fusión se corta a mitad de
+      // camino (o el usuario se va de la pantalla), la lista igual se muestra
+      // plana — quedan líneas en otros rubros, pero ninguna se pierde ni deja
+      // de verse.
+      obra.sinRubros = true;
+      await _fbPatch(`/obras/${obraKey}.json`, { sinRubros: true });
+      if (rubros.length > 1) {
+        await fusionarEnUnRubro(rubros, lineas);
+        showToast('El Cómputo quedó como una sola lista.');
+      }
+    } catch (_) {
+      check.checked = false;
+      showToast('Error al pasar la obra a lista plana.', 'error');
+    }
+  });
+}
+
+/* Mueve todas las líneas al primer rubro, respetando el orden en que se veían
+   (rubro por rubro), y borra los rubros que quedaron vacíos.
+
+   Un solo PATCH con rutas profundas ("lineaKey/rubroId"), que toca únicamente
+   esos dos campos de cada línea: nunca un PUT del árbol del cómputo, que
+   borraría todo lo que no vaya en el cuerpo. Los rubros se borran de a uno por
+   su clave, nunca la colección entera. */
+async function fusionarEnUnRubro(rubros, lineas) {
+  const destino = rubros[0].key;
+  const cambios = {};
+  let orden = 0;
+  rubros.forEach(r => {
+    Object.entries(lineas)
+      .filter(([, l]) => l.rubroId === r.key)
+      .sort((a, b) => (a[1].orden || 0) - (b[1].orden || 0))
+      .forEach(([key]) => {
+        orden++;
+        cambios[`${key}/rubroId`] = destino;
+        cambios[`${key}/orden`] = orden;
+      });
+  });
+
+  if (Object.keys(cambios).length) {
+    await _fbPatch(`/obras/${obraKey}/computo.json`, cambios);
+  }
+  for (const r of rubros.slice(1)) {
+    await _fbDel(`/obras/${obraKey}/rubrosComputo/${r.key}.json`);
+  }
+}
+
 async function loadAll() {
   if (!obraKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
@@ -246,6 +335,7 @@ async function loadAll() {
   setupDolar();
   setupPresupuestoOficial();
   setupNumeracion();
+  setupSinRubros();
   renderDolarVivo();
   listaEncabezado.render();
   listaDatosExtra.render();

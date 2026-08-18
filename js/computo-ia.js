@@ -290,7 +290,7 @@
 
     // El botón sólo está habilitado con el cómputo vacío, pero se re-chequea
     // acá por si se abrió una segunda pestaña o quedó una carga a medias.
-    if (rubros.length) {
+    if (computoCargado()) {
       errEl.textContent = 'El cómputo ya no está vacío — cerrá este modal, recargá la página e intentá de nuevo.';
       errEl.classList.remove('hidden');
       return;
@@ -313,19 +313,35 @@
     const fallos = [];
     let totalItems = 0;
     const writes = [];
-    rubrosValidos.forEach((r, i) => {
-      const rubroId = 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    // En una obra sin rubros los ítems extraídos van todos a una sola lista: el
+    // rubro que los contiene existe por el modelo, pero no se ve ni se imprime.
+    const plana = sinRubros();
+    const nuevoRubroId = () => 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    const rubroUnico = plana ? nuevoRubroId() : null;
+    if (plana) {
       writes.push(
-        _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroId}.json`, { nombre: r.nombre, orden: i + 1 })
-          .catch(() => fallos.push(`rubro "${r.nombre}"`))
+        _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroUnico}.json`, { nombre: '', orden: 1 })
+          .catch(() => fallos.push('la lista de ítems'))
       );
+    }
+    let ordenPlano = 0;
+
+    rubrosValidos.forEach((r, i) => {
+      const rubroId = plana ? rubroUnico : nuevoRubroId();
+      if (!plana) {
+        writes.push(
+          _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroId}.json`, { nombre: r.nombre, orden: i + 1 })
+            .catch(() => fallos.push(`rubro "${r.nombre}"`))
+        );
+      }
       r.items.forEach((it, j) => {
         const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
         totalItems++;
         writes.push(
           _fbPut(`/obras/${obraKey}/computo/${lineaKey}.json`, {
             rubroId, nombre: it.nombre.trim(), unidad: (it.unidad || '').trim(),
-            cantidad: it.cantidad, itemKey: null, orden: j + 1, creadoEn: Date.now(),
+            cantidad: it.cantidad, itemKey: null, orden: plana ? ++ordenPlano : j + 1,
+            creadoEn: Date.now(),
           }).catch(() => fallos.push(`"${it.nombre}" (${r.nombre})`))
         );
       });
@@ -338,7 +354,9 @@
     if (fallos.length) {
       showToast(`Cómputo creado con errores en: ${fallos.join(', ')}.`, 'warning');
     } else {
-      showToast(`Cómputo creado: ${rubrosValidos.length} rubro(s), ${totalItems} ítem(s).`, 'success');
+      showToast(plana
+        ? `Cómputo creado: ${totalItems} ítem(s).`
+        : `Cómputo creado: ${rubrosValidos.length} rubro(s), ${totalItems} ítem(s).`, 'success');
     }
     closeComputoIAModal();
     await loadAll();
