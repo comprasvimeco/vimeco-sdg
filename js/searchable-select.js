@@ -24,9 +24,15 @@ window.createSearchableSelect = function (container, opts) {
   let dropdown = null; // se crea al abrir y se saca del DOM al cerrar (evita huérfanos en body)
 
   let currentValue = value;
+  // Las opciones viven en una variable propia (no se usa el parámetro directo)
+  // porque el catálogo puede crecer con el combobox ya montado — p. ej. al dar
+  // de alta un material desde el propio dropdown. Sin esto el widget se
+  // quedaba con la lista vieja: setValue(keyNueva) no encontraba el label y el
+  // input se veía vacío, como si no se hubiera asignado nada.
+  let currentOptions = options;
 
   function labelFor(v) {
-    const opt = options.find(o => o.value === v);
+    const opt = currentOptions.find(o => o.value === v);
     return opt ? opt.label : '';
   }
 
@@ -57,7 +63,7 @@ window.createSearchableSelect = function (container, opts) {
     }
 
     const q = query.trim().toLowerCase();
-    const filtered = q ? options.filter(o => o.label.toLowerCase().includes(q)) : options;
+    const filtered = q ? currentOptions.filter(o => o.label.toLowerCase().includes(q)) : currentOptions;
 
     let html = filtered.map(o => `
       <div class="ss-option" data-value="${escHtml(o.value)}">
@@ -109,5 +115,11 @@ window.createSearchableSelect = function (container, opts) {
   return {
     setValue(v) { currentValue = v; input.value = labelFor(v); },
     getValue() { return currentValue; },
+    // Refresca el catálogo sin remontar el widget (y con él, el label del
+    // valor actual, que puede haber aparecido recién en la lista).
+    setOptions(nuevas) {
+      currentOptions = nuevas || [];
+      input.value = labelFor(currentValue);
+    },
   };
 };

@@ -183,6 +183,14 @@
     return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
   }
 
+  // Clave para comparar nombres de material al dar de alta: además de lo que
+  // hace normalizarTexto, se van los espacios y la puntuación, así "Rodillo
+  // lana 22cm" y "Rodillo Lana 22 cm" cuentan como el mismo material y no se
+  // crean dos entradas casi idénticas en la biblioteca.
+  function claveNombre(s) {
+    return normalizarTexto(s || '').replace(/[^a-z0-9]/g, '');
+  }
+
   // Puntaje 0-1: qué fracción de las palabras (≥3 letras) del nombre del
   // material del catálogo aparece dentro del texto detectado por la IA.
   // "Latex interior" vs. "revive latex interior base 18 l a" → 1.0 (las dos
@@ -221,6 +229,7 @@
 
   function crearLineaDesdeExtraccion(l) {
     const detalle = [l.unidad, l.cantidad != null ? `cant: ${l.cantidad}` : ''].filter(Boolean).join(' · ');
+    const materialKey = matchearMaterialPorNombre(l.material);
     // Gemini sólo detecta UNA moneda por línea — hay que resolver la otra acá
     // mismo (misma conversión que attachDualPrecioInputs), porque renderLineas
     // setea `.value` directo sin evento 'input', así que el auto-cálculo
@@ -232,7 +241,17 @@
     return {
       rowId: state.nextRowId++,
       textoDetectado: detalle ? `${l.material} (${detalle})` : (l.material || ''),
-      materialKey: matchearMaterialPorNombre(l.material),
+      materialKey,
+      // Cuando el matcheo no encuentra nada en el catálogo, la línea arranca
+      // como material nuevo con lo que detectó la IA ya precargado (nombre y
+      // unidad, editables) en vez de quedar vacía obligando a buscar a mano
+      // algo que no existe. El material recién se crea al aplicar precios:
+      // así el modal es la única fuente de verdad hasta el final y no hay
+      // listas que resincronizar en el medio.
+      materialNuevo: materialKey ? null : {
+        nombre: (l.material || '').trim(),
+        unidad: (l.unidad || '').trim(),
+      },
       precioUSD: dual ? dual.precioUSD : null,
       precioARS: dual ? dual.precioARS : null,
       precioFormula: null,
@@ -277,8 +296,10 @@
       if (extraido.fecha && /^\d{4}-\d{2}-\d{2}$/.test(extraido.fecha)) document.getElementById('cotiz-fecha').value = extraido.fecha;
       const detectadas = (extraido.lineas || []).filter(l => l && l.material);
       state.lineas = detectadas.map(crearLineaDesdeExtraccion);
+      const nuevos = state.lineas.filter(l => l.materialNuevo).length;
       hintEl.textContent = detectadas.length
         ? `Se detectaron ${detectadas.length} línea(s) con IA — revisá y corregí antes de confirmar.`
+          + (nuevos ? ` ${nuevos === 1 ? '1 material no está' : `${nuevos} materiales no están`} en la biblioteca: se ${nuevos === 1 ? 'va' : 'van'} a crear al aplicar los precios.` : '')
         : 'No se detectó ninguna línea automáticamente — cargalas a mano.';
     } else {
       hintEl.textContent = 'No se pudo leer el presupuesto con IA (sin conexión, sin cuota o formato ilegible) — el archivo sigue guardado; podés cargar los materiales a mano o cerrar y reintentar más tarde.';
@@ -294,6 +315,7 @@
       rowId: state.nextRowId++,
       textoDetectado: '',
       materialKey: null,
+      materialNuevo: null,
       precioUSD: null,
       precioARS: null,
       precioFormula: null,
@@ -318,6 +340,10 @@
       l.precioARS = isNaN(ars) ? null : ars;
       l.precioFormula = getCalcFormula(usdInput) || getCalcFormula(arsInput);
       l.aplicar = row.querySelector('.cl-aplicar').checked;
+      if (l.materialNuevo) {
+        l.materialNuevo.nombre = row.querySelector('.cl-nuevo-nombre').value.trim();
+        l.materialNuevo.unidad = row.querySelector('.cl-nuevo-unidad').value.trim();
+      }
       const envaseInput = row.querySelector('.cl-envase');
       if (envaseInput) {
         const contenido = parseFloat(envaseInput.value);
@@ -350,7 +376,13 @@
           <label class="cotiz-linea-aplicar"><input type="checkbox" class="cl-aplicar" ${l.aplicar ? 'checked' : ''}> Aplicar</label>
           <button class="cotiz-linea-del" type="button" title="Eliminar línea">${icSvg('x')}</button>
         </div>
-        <div class="linea-select-container cl-material"></div>
+        ${l.materialNuevo ? `
+        <div class="cotiz-material-nuevo">
+          <span class="cotiz-chip-nuevo">Nuevo</span>
+          <input type="text" class="form-control cl-nuevo-nombre" placeholder="Nombre del material" value="${escHtml(l.materialNuevo.nombre || '')}">
+          <input type="text" class="form-control cl-nuevo-unidad" placeholder="Unidad" value="${escHtml(l.materialNuevo.unidad || '')}">
+          <button type="button" class="cotiz-link-btn cl-buscar-existente">Buscar existente</button>
+        </div>` : '<div class="linea-select-container cl-material"></div>'}
         <div class="form-row">
           <div>
             <span class="cotiz-precio-label">Precio USD</span>
@@ -386,13 +418,23 @@
       attachMoneyInput(arsInput);
       attachDualPrecioInputs({ usdInput, arsInput });
 
-      l.select = createSearchableSelect(row.querySelector('.cl-material'), {
-        options: materialOptions(),
-        value: l.materialKey,
-        placeholder: 'Buscar material…',
-        onChange: key => { l.materialKey = key; },
-        onCreateNew: texto => openQuickMaterialInline(texto, l.rowId),
-      });
+      if (l.materialNuevo) {
+        l.select = null;
+        row.querySelector('.cl-buscar-existente').addEventListener('click', () => {
+          capturarValoresDom();
+          l.materialNuevo = null;
+          l.materialKey = null;
+          renderLineas();
+        });
+      } else {
+        l.select = createSearchableSelect(row.querySelector('.cl-material'), {
+          options: materialOptions(),
+          value: l.materialKey,
+          placeholder: 'Buscar material…',
+          onChange: key => { l.materialKey = key; },
+          onCreateNew: texto => openQuickMaterialInline(texto, l.rowId),
+        });
+      }
 
       const convertirBtn = row.querySelector('.cl-convertir');
       if (convertirBtn) {
@@ -447,9 +489,16 @@
       state.allMateriales.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
       document.getElementById('modal-cotiz-quick-material').classList.add('hidden');
       showToast('Material creado.');
+      // Todos los buscadores ya montados siguen con el catálogo viejo: sin
+      // este refresco, el material recién creado no aparecía en ninguna otra
+      // línea y en la propia el input quedaba en blanco (setValue no
+      // encontraba el label).
+      const opciones = materialOptions();
+      state.lineas.forEach(l => { if (l.select) l.select.setOptions(opciones); });
       const linea = state.lineas.find(l => l.rowId === pendingQuickRowId);
       if (linea) {
         linea.materialKey = key;
+        linea.materialNuevo = null;
         if (linea.select) linea.select.setValue(key);
       }
     } catch (_) {
@@ -466,28 +515,61 @@
     const proveedor = document.getElementById('cotiz-proveedor').value.trim();
     const fecha = document.getElementById('cotiz-fecha').value || todayIso();
 
+    document.querySelectorAll('.cotiz-linea.tiene-error').forEach(r => r.classList.remove('tiene-error'));
+
     const aLineas = [];
+    const problemas = [];
     for (const l of state.lineas) {
       const row = document.querySelector(`.cotiz-linea[data-row="${l.rowId}"]`);
       if (!row) continue;
       if (!row.querySelector('.cl-aplicar').checked) continue;
 
-      const materialKey = l.select ? l.select.getValue() : l.materialKey;
+      const materialKey = l.select ? l.select.getValue() : null;
+      const nuevoNombre = l.materialNuevo ? row.querySelector('.cl-nuevo-nombre').value.trim() : '';
+      const nuevaUnidad = l.materialNuevo ? row.querySelector('.cl-nuevo-unidad').value.trim() : '';
       const usdInput = row.querySelector('.cl-usd');
       const arsInput = row.querySelector('.cl-ars');
       if (usdInput.value.trim().startsWith('=')) usdInput.blur();
       if (arsInput.value.trim().startsWith('=')) arsInput.blur();
       const precioUSD = parseMoneyString(usdInput.value);
       const precioARS = parseMoneyString(arsInput.value);
-      if (!materialKey || isNaN(precioUSD) || precioUSD < 0 || isNaN(precioARS) || precioARS < 0) continue;
+      const precioOk = !isNaN(precioUSD) && precioUSD >= 0 && !isNaN(precioARS) && precioARS >= 0;
+      const materialOk = !!materialKey || (!!nuevoNombre && !!nuevaUnidad);
 
-      const material = state.allMateriales.find(m => m.key === materialKey);
+      // Una línea del todo vacía (típicamente la manual que se agrega sola
+      // cuando la IA no detectó nada) se ignora sin molestar; una empezada a
+      // medias sí se avisa, en vez de descartarse en silencio como antes.
+      if (!materialKey && !nuevoNombre && !precioOk) continue;
+      if (!materialOk || !precioOk) {
+        row.classList.add('tiene-error');
+        const falta = [];
+        if (!materialKey && !nuevoNombre) falta.push('el material');
+        else if (!materialKey && !nuevaUnidad) falta.push('la unidad del material nuevo');
+        if (!precioOk) falta.push('el precio');
+        problemas.push(`${nuevoNombre || l.textoDetectado || 'Una línea'}: falta ${falta.join(' y ')}.`);
+        continue;
+      }
+
+      const material = materialKey ? state.allMateriales.find(m => m.key === materialKey) : null;
       aLineas.push({
         materialKey,
-        materialNombre: material ? material.nombre : materialKey,
+        materialNuevo: materialKey ? null : { nombre: nuevoNombre, unidad: nuevaUnidad },
+        materialNombre: material ? material.nombre : nuevoNombre,
         precioUSD, precioARS,
         precioFormula: getCalcFormula(usdInput) || getCalcFormula(arsInput),
       });
+    }
+
+    if (problemas.length) {
+      errEl.textContent = problemas.length === 1
+        ? problemas[0]
+        : `Hay ${problemas.length} líneas incompletas — ${problemas.join(' ')}`;
+      errEl.classList.remove('hidden');
+      // La lista de líneas scrollea dentro del modal: sin esto, el error puede
+      // quedar fuera de la vista y parecer que el botón no hizo nada.
+      const primeraMala = document.querySelector('.cotiz-linea.tiene-error');
+      if (primeraMala) primeraMala.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      return;
     }
 
     const cotizacionKey = state.cotizacionKey;
@@ -522,7 +604,36 @@
     btn.textContent = 'Guardando…';
 
     const fallos = [];
+
+    // Los materiales nuevos se crean recién acá, con el dólar ya resuelto:
+    // así no queda basura en la biblioteca si la confirmación se aborta antes.
+    // Dos resguardos contra duplicados: si mientras tanto apareció uno con el
+    // mismo nombre en el catálogo se reusa ese, y dos líneas de esta misma
+    // cotización con el mismo nombre crean un solo material.
+    const creadosPorNombre = {};
+    let creados = 0;
     for (const l of aLineas) {
+      if (l.materialKey) continue;
+      const nombre = l.materialNuevo.nombre;
+      const norm = claveNombre(nombre);
+      if (creadosPorNombre[norm]) { l.materialKey = creadosPorNombre[norm]; continue; }
+      const existente = state.allMateriales.find(m => claveNombre(m.nombre) === norm);
+      if (existente) { l.materialKey = existente.key; creadosPorNombre[norm] = existente.key; continue; }
+
+      const key = slugKey(nombre);
+      try {
+        await _fbPut(`/materiales/${key}.json`, { nombre, unidad: l.materialNuevo.unidad, creadoEn: Date.now() });
+        l.materialKey = key;
+        creadosPorNombre[norm] = key;
+        state.allMateriales.push({ key, nombre, unidad: l.materialNuevo.unidad });
+        creados++;
+      } catch (_) {
+        fallos.push(nombre);
+      }
+    }
+
+    for (const l of aLineas) {
+      if (!l.materialKey) continue; // no se pudo crear el material: ya está en `fallos`
       try {
         await _fbPut(`/materiales/${l.materialKey}/precios/${state.obraKey}.json`, {
           precioUSD: l.precioUSD, precioARS: l.precioARS, precioFormula: l.precioFormula,
@@ -538,7 +649,7 @@
     try {
       await _fbPatch(`/obras/${state.obraKey}/cotizaciones/${cotizacionKey}.json`, {
         proveedor, fecha,
-        lineasAplicadas: aLineas.map(l => ({ materialKey: l.materialKey, materialNombre: l.materialNombre, precioUSD: l.precioUSD, precioARS: l.precioARS })),
+        lineasAplicadas: aLineas.filter(l => l.materialKey).map(l => ({ materialKey: l.materialKey, materialNombre: l.materialNombre, precioUSD: l.precioUSD, precioARS: l.precioARS })),
         estado: fallos.length ? 'aplicada_parcial' : 'aplicada',
         procesadoEn: Date.now(),
       });
@@ -547,9 +658,10 @@
       // es evidencia, no crítico para el cálculo — no reintentar acá.
     }
 
+    const detalleCreados = creados ? ` Se ${creados === 1 ? 'creó 1 material nuevo' : `crearon ${creados} materiales nuevos`}.` : '';
     showToast(fallos.length
-      ? `Precios aplicados. No se pudo aplicar el precio de: ${fallos.join(', ')}.`
-      : 'Precios aplicados.', fallos.length ? 'warning' : 'success');
+      ? `Precios aplicados.${detalleCreados} No se pudo aplicar el precio de: ${fallos.join(', ')}.`
+      : `Precios aplicados.${detalleCreados}`, fallos.length ? 'warning' : 'success');
 
     btn.disabled = false;
     btn.textContent = 'Aplicar precios';
