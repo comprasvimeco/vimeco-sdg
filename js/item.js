@@ -31,6 +31,7 @@ let lineas = {};       // { lineaKey: { tipo, refKey, cantidad } } — de la ver
 let rendimientoActivo = null;
 let rendimientoFormulaActiva = null;
 let sinSeguridadCapatazActivo = false;   // excluye el adicional de Seguridad y Capataz en ESTE AP puntual
+let baseUsadaActiva = null;   // { itemNombre, obraNombre, copiadoEn } — de qué AP se copió esta receta
 let detallePorLineaActivo = {};   // { lineaKey: { costoUnitario, costoTotal } } — sólo en pestañas de obra
 
 let materiales = [];
@@ -245,12 +246,54 @@ function opcionesUsarComoBase() {
   return opciones.sort((a, b) => a.label.localeCompare(b.label, 'es'));
 }
 
+// Botón + nota de procedencia de la receta. Se redibuja entero (y con él sus
+// listeners) porque cambia al copiar una base y al saltar de versión de obra.
+function renderUsarBase() {
+  const wrap = $('ap-usar-base-wrap');
+  const b = baseUsadaActiva;
+  wrap.innerHTML = b
+    ? `<div class="ap-base-nota">
+         ${icSvg('copy')}
+         <span class="ap-base-nota-texto">Se usó <strong>${escHtml(b.itemNombre || '(sin nombre)')}</strong>${b.obraNombre ? ` de <strong>${escHtml(b.obraNombre)}</strong>` : ''} como base${b.copiadoEn ? ` · ${fmtFechaCorta(b.copiadoEn)}` : ''}</span>
+         <button class="btn btn-sm btn-outline" id="btn-usar-como-base">Cambiar</button>
+         <button class="ap-base-nota-del" id="btn-quitar-base-nota" title="Quitar esta nota">${icSvg('x')}</button>
+       </div>`
+    : '<button class="btn btn-sm btn-outline" id="btn-usar-como-base">Usar otro AP como base</button>';
+
+  $('btn-usar-como-base').addEventListener('click', openUsarComoBaseModal);
+  const del = $('btn-quitar-base-nota');
+  if (del) del.addEventListener('click', quitarNotaBase);
+}
+
+function fmtFechaCorta(ts) {
+  const d = new Date(ts);
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+async function quitarNotaBase() {
+  const ok = await showConfirm('Quitar nota', '¿Quitar la nota de qué AP se usó como base? La receta copiada no se toca.');
+  if (!ok) return;
+  baseUsadaActiva = null;
+  if (versionesObra[activeVersion]) delete versionesObra[activeVersion].baseUsada;
+  renderUsarBase();
+  try {
+    await _fbPatch(`${basePath()}.json`, { baseUsada: null });
+  } catch (_) {
+    showToast('No se pudo quitar la nota. Intentá de nuevo.', 'error');
+  }
+}
+
 function openUsarComoBaseModal() {
   const opciones = opcionesUsarComoBase();
   createSearchableSelect($('usar-base-select'), {
     options: opciones,
     value: null,
-    placeholder: 'Buscar AP…',
+    placeholder: 'Buscar por análisis o por obra…',
+    // Los nombres de AP son largos ("EJECUCION DE BOCACALLES DE Hº SIMPLE…") y
+    // el sublabel es la obra: con el layout inline el nombre quedaba en una
+    // columna de una palabra por renglón, ilegible.
+    optionLayout: 'stacked',
+    minWidth: 460,
     onChange: v => seleccionarUsarComoBase(v, opciones),
   });
   $('modal-usar-base').classList.remove('hidden');
@@ -271,16 +314,28 @@ async function seleccionarUsarComoBase(value, opciones) {
   // Copia profunda: lineas acá abajo viene del caché de /items.json en
   // memoria (allItemsFull) — sin clonar, editar esta versión mutaría en
   // vivo el objeto cacheado de la versión de origen.
-  const data = { rendimiento: src.rendimiento || 1, rendimientoFormula: src.rendimientoFormula || null, lineas: JSON.parse(JSON.stringify(src.lineas || {})) };
+  const data = {
+    rendimiento: src.rendimiento || 1,
+    rendimientoFormula: src.rendimientoFormula || null,
+    lineas: JSON.parse(JSON.stringify(src.lineas || {})),
+    // Queda registrado de dónde salió la receta: se muestra como nota en la
+    // pantalla y sobrevive a la recarga. No condiciona ningún cálculo.
+    baseUsada: { itemNombre: opt.label, obraNombre: opt.sublabel, copiadoEn: Date.now() },
+  };
   try {
-    await _fbPut(`${basePath()}.json`, data);
-    versionesObra[activeVersion] = data;
+    // PATCH y no PUT: `lineas` se reemplaza entero igual (es un hijo nombrado)
+    // pero no se pierden los campos de la versión que no se están copiando,
+    // como sinSeguridadCapataz.
+    await _fbPatch(`${basePath()}.json`, data);
+    versionesObra[activeVersion] = { ...(versionesObra[activeVersion] || {}), ...data };
     versionExisteEnServidor = true;
     lineas = data.lineas;
     rendimientoActivo = data.rendimiento;
     rendimientoFormulaActiva = data.rendimientoFormula;
+    baseUsadaActiva = data.baseUsada;
     renderVersionTabs();
     renderVersionRendimiento();
+    renderUsarBase();
     renderTodasLasLineas();
     showToast(`Receta copiada desde "${opt.label}" (${opt.sublabel}).`);
   } catch (_) {
@@ -321,6 +376,7 @@ function activarVersion(key) {
     rendimientoActivo = v.rendimiento;
     rendimientoFormulaActiva = v.rendimientoFormula;
     sinSeguridadCapatazActivo = !!v.sinSeguridadCapataz;
+    baseUsadaActiva = v.baseUsada || null;
     versionExisteEnServidor = true;
   } else {
     // No existe todavía para esta obra: arranca vacía, con 1 como punto de
@@ -329,10 +385,12 @@ function activarVersion(key) {
     rendimientoActivo = 1;
     rendimientoFormulaActiva = null;
     sinSeguridadCapatazActivo = false;
+    baseUsadaActiva = null;
     versionExisteEnServidor = false;
   }
   renderVersionTabs();
   renderVersionRendimiento();
+  renderUsarBase();
   renderTodasLasLineas();
   calcularKObra(key).then(() => { if (activeVersion === key) renderTodasLasLineas(); });
 }
@@ -1022,7 +1080,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btn-ap-prev').addEventListener('click', () => irAApVecino(-1));
   $('btn-ap-next').addEventListener('click', () => irAApVecino(1));
 
-  $('btn-usar-como-base').addEventListener('click', openUsarComoBaseModal);
+  // El botón vive dentro de #ap-usar-base-wrap, que renderUsarBase() redibuja:
+  // su listener se engancha ahí, no acá.
   $('modal-usar-base-close').addEventListener('click', () => $('modal-usar-base').classList.add('hidden'));
 
   $('btn-editar-datos').addEventListener('click', openEditDatosModal);

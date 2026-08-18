@@ -191,6 +191,14 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .ss-option { display: flex; justify-content: space-between; gap: .5rem; padding: .5rem .7rem; font-size: .87rem; cursor: pointer; }
 .ss-option:hover { background: var(--gray-100); }
 .ss-option-sub { color: var(--gray-400); font-size: .78rem; white-space: nowrap; }
+/* Variante para catálogos de nombres largos (ej. Análisis de Precio de otras
+   obras): el sublabel baja a una segunda línea en vez de disputarle el ancho
+   al nombre, que en el layout inline quedaba aplastado en una columna angosta
+   de una palabra por renglón. */
+.ss-dropdown--stacked .ss-option { flex-direction: column; align-items: stretch; gap: .15rem; padding: .55rem .75rem; line-height: 1.35; }
+.ss-dropdown--stacked .ss-option + .ss-option { border-top: 1px solid var(--gray-100); }
+.ss-dropdown--stacked .ss-option-sub { white-space: normal; display: flex; align-items: center; gap: .3rem; }
+.ss-dropdown--stacked .ss-option-sub::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--gray-300); flex-shrink: 0; }
 .ss-empty { padding: .5rem .7rem; font-size: .82rem; color: var(--gray-400); }
 .ss-create { padding: .5rem .7rem; font-size: .85rem; color: var(--primary); font-weight: 600; cursor: pointer; border-top: 1px solid var(--gray-200); }
 .ss-create:hover { background: var(--gray-100); }

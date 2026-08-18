@@ -15,6 +15,12 @@ window.createSearchableSelect = function (container, opts) {
     placeholder = 'Buscar…',
     onChange = () => {},
     onCreateNew = null,     // (texto) => void — si se pasa, agrega "+ Crear ..."
+    // 'inline' (default): label a la izquierda y sublabel a la derecha, para
+    // catálogos de nombres cortos (materiales, equipos). 'stacked': sublabel
+    // debajo del label, en dos líneas — para nombres largos, donde el layout
+    // inline aplasta el label en una columna angosta e ilegible.
+    optionLayout = 'inline',
+    minWidth = 280,
   } = opts;
 
   container.innerHTML = `<div class="ss-wrap"><input type="text" class="form-control ss-input" placeholder="${escHtml(placeholder)}" autocomplete="off"></div>`;
@@ -39,8 +45,11 @@ window.createSearchableSelect = function (container, opts) {
   function positionDropdown() {
     if (!dropdown) return;
     const r = input.getBoundingClientRect();
-    const width = Math.max(r.width, 280);
-    dropdown.style.left = Math.min(r.left, window.innerWidth - width - 8) + 'px';
+    // El ancho mínimo nunca puede pasarse de la pantalla: en mobile, un
+    // minWidth pensado para desktop dejaba el dropdown colgando fuera del
+    // viewport (left negativo).
+    const width = Math.min(Math.max(r.width, minWidth), window.innerWidth - 16);
+    dropdown.style.left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8)) + 'px';
     dropdown.style.top = (r.bottom + 4) + 'px';
     dropdown.style.width = width + 'px';
   }
@@ -56,14 +65,19 @@ window.createSearchableSelect = function (container, opts) {
   function renderList(query) {
     if (!dropdown) {
       dropdown = document.createElement('div');
-      dropdown.className = 'ss-dropdown';
+      dropdown.className = 'ss-dropdown' + (optionLayout === 'stacked' ? ' ss-dropdown--stacked' : '');
       document.body.appendChild(dropdown);
       window.addEventListener('scroll', positionDropdown, true);
       window.addEventListener('resize', positionDropdown);
     }
 
     const q = query.trim().toLowerCase();
-    const filtered = q ? currentOptions.filter(o => o.label.toLowerCase().includes(q)) : currentOptions;
+    // Se busca también en el sublabel: en la lista de APs de otras obras es
+    // el nombre de la obra, y buscar "Rivera Indarte" es tan natural como
+    // buscar por el nombre del análisis.
+    const filtered = q
+      ? currentOptions.filter(o => `${o.label} ${o.sublabel || ''}`.toLowerCase().includes(q))
+      : currentOptions;
 
     let html = filtered.map(o => `
       <div class="ss-option" data-value="${escHtml(o.value)}">
