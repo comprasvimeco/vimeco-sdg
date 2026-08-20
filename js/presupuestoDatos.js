@@ -82,9 +82,13 @@
     const costoComputo = Object.values(lineas)
       .reduce((acc, l) => acc + costoUnitarioDe(l.itemKey) * num(l.cantidad), 0);
 
-    const gastosFijos = window.totalGastosFijosCargaFija(
-      cargaFijaLineas, costoComputo, obra.presupuestoOficial != null ? obra.presupuestoOficial : null);
-    const kDesglose = window.calcCoeficienteK(cargaFijaConfig, gastosFijos, costoComputo);
+    // calcCargaFija resuelve los gastos fijos y el K de una sola vez: los
+    // conceptos calculados sobre el presupuesto propio necesitan el K, y el K
+    // esos conceptos (ver el despeje en calcCostos.js). Trae además el monto ya
+    // resuelto de cada línea, para que los exportadores no recalculen nada.
+    const kDesglose = window.calcCargaFija(cargaFijaConfig, cargaFijaLineas, costoComputo,
+      obra.presupuestoOficial != null ? obra.presupuestoOficial : null);
+    const gastosFijos = kDesglose.gastosFijos;
     const k = kDesglose.k;
 
     // El total sale de TODAS las líneas del cómputo, incluidas las que
@@ -160,7 +164,11 @@
       encabezado: encabezadoData || {},
       catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra,
       computo: lineas,
-      cargaFija: { lineas: cargaFijaLineas, config: cargaFijaConfig, gastosFijos },
+      cargaFija: {
+        lineas: cargaFijaLineas, config: cargaFijaConfig, gastosFijos,
+        totalPorLinea: kDesglose.totalPorLinea,
+        precioSinIva: kDesglose.precioSinIva, precioConIva: kDesglose.precioConIva,
+      },
       costoUnitarioDe,
       costoComputo, k, kDesglose, total,
       numeracion: numeracion.cfg,

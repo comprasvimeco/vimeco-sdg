@@ -65,11 +65,11 @@ function costoTotalComputo() {
   return Object.values(lineas).reduce((acc, l) => acc + costoUnitarioDe(l.itemKey) * cantidadDe(l), 0);
 }
 
-// La fórmula del K vive en calcCostos.js (calcCoeficienteK), compartida con
-// Carga Fija, Presupuesto y el AP — acá sólo se usa el resultado.
+// El K vive en calcCostos.js (calcCargaFija), compartido con Carga Fija,
+// Presupuesto y el AP — acá sólo se usa el resultado.
 function calcularK(costoComputo) {
-  const gastosFijos = window.totalGastosFijosCargaFija(cargaFijaLineas, costoComputo, obra ? obra.presupuestoOficial : null);
-  return window.calcCoeficienteK(cargaFijaConfig, gastosFijos, costoComputo).k;
+  return window.calcCargaFija(cargaFijaConfig, cargaFijaLineas, costoComputo,
+    obra ? obra.presupuestoOficial : null).k;
 }
 
 /* ===== Períodos ===== */

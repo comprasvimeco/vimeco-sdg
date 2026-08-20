@@ -83,10 +83,11 @@ async function calcularKObra(obraKeyX) {
   ]);
   const costoComputo = costoComputoDeObra(obraKeyX, computoDataX);
   const config = { ...(cargaFijaConfigX || {}) };
-  const gastosFijos = window.totalGastosFijosCargaFija(cargaFijaLineasX || {}, costoComputo, (obrasFull[obraKeyX] || {}).presupuestoOficial);
-  // La fórmula del K vive en calcCostos.js (calcCoeficienteK), compartida con
-  // Carga Fija, Presupuesto y Plan de Avance.
-  const k = window.calcCoeficienteK(config, gastosFijos, costoComputo).k;
+  // El K vive en calcCostos.js (calcCargaFija), compartido con Carga Fija,
+  // Presupuesto y Plan de Avance. Los gastos fijos no se suman por separado:
+  // los que se calculan sobre el presupuesto propio salen del mismo despeje.
+  const k = window.calcCargaFija(config, cargaFijaLineasX || {}, costoComputo,
+    (obrasFull[obraKeyX] || {}).presupuestoOficial).k;
   kPorObra[obraKeyX] = k;
   return k;
 }

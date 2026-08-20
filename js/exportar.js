@@ -607,12 +607,15 @@ function seccionCargaFija() {
    destildada. Se imprime cuando hace falta tener el detalle en papel.
 
    Los mismos números y el mismo orden que la pantalla de Carga Fija: el total
-   de cada concepto sale de totalLineaCargaFija() y el orden de
-   lineasCargaFijaOrdenadas(), las dos en js/calcCostos.js. Acá no se recalcula
-   nada. */
+   de cada concepto viene resuelto en el modelo (cargaFija.totalPorLinea, que
+   arma calcCargaFija) y el orden de lineasCargaFijaOrdenadas(). Acá no se
+   recalcula nada — y no se podría: los conceptos calculados sobre el
+   presupuesto propio necesitan el K, que sale del mismo despeje. */
 
 const BASE_PCT_DOC = {
   pctComputo: 'del Costo del Cómputo',
+  pctPrecioSinIva: 'del Presupuesto s/IVA',
+  pctPrecioConIva: 'del Presupuesto c/IVA',
   pctOficial: 'del Presupuesto oficial',
 };
 
@@ -621,11 +624,10 @@ function seccionGastosFijos() {
   const total = cf.gastosFijos;
   const conceptos = window.lineasCargaFijaOrdenadas(cf.lineas);
 
-  const filas = conceptos.map(([, l]) => {
+  const filas = conceptos.map(([key, l]) => {
     const tipo = l.tipo || 'monto';
-    const esPct = tipo === 'pctComputo' || tipo === 'pctOficial';
-    const t = window.totalLineaCargaFija(l, modelo.costoComputo,
-      modelo.obra.presupuestoOficial != null ? modelo.obra.presupuestoOficial : null);
+    const esPct = window.tipoCargaFijaEsPorcentaje(tipo);
+    const t = cf.totalPorLinea[key];
     return `
       <tr>
         <td>${escHtml(l.concepto || '(sin nombre)')}</td>
@@ -648,6 +650,12 @@ function seccionGastosFijos() {
   ];
   if (modelo.obra.presupuestoOficial != null) {
     datos.push(['Presupuesto oficial', docARS(modelo.obra.presupuestoOficial)]);
+  }
+  // Las dos bases de presupuesto propio sólo se imprimen si algún concepto se
+  // calcula sobre ellas: son la referencia para poder controlar ese monto.
+  if (conceptos.some(([, l]) => window.tipoCargaFijaEsSobrePrecio(l.tipo)) && cf.precioConIva != null) {
+    datos.push(['Presupuesto s/IVA', docARS(cf.precioSinIva)]);
+    datos.push(['Presupuesto c/IVA', docARS(cf.precioConIva)]);
   }
 
   const gg = modelo.kDesglose;

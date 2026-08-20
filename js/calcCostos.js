@@ -166,30 +166,54 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
 // Carga Fija — usado por carga-fija.js (edición) y presupuesto.js (sólo
 // lectura, para el Coeficiente K): una sola fórmula para que las dos
 // pantallas no se desincronicen.
-// l.tipo: 'monto' (cantidad×precioUnitario×meses, default para líneas viejas
-// sin el campo) | 'pctComputo' (% del costo del Cómputo) | 'pctOficial' (%
-// del presupuesto oficial cargado a mano en Datos de la obra). No existe
-// "% de Presupuesto propio" porque ese presupuesto sale de aplicar el
-// Coeficiente K, que a su vez depende del total de Carga Fija — sería
-// circular.
-window.totalLineaCargaFija = function (l, costoComputo, presupuestoOficial) {
-  const tipo = l.tipo || 'monto';
-  if (tipo === 'pctComputo') {
-    if (l.porcentaje == null || isNaN(l.porcentaje) || costoComputo == null) return null;
-    return (l.porcentaje / 100) * costoComputo;
-  }
-  if (tipo === 'pctOficial') {
-    if (l.porcentaje == null || isNaN(l.porcentaje) || presupuestoOficial == null) return null;
-    return (l.porcentaje / 100) * presupuestoOficial;
+//
+// l.tipo:
+//   'monto'            cantidad × precioUnitario × meses (default de las líneas
+//                      viejas, que no tienen el campo)
+//   'pctComputo'       % del costo del Cómputo
+//   'pctOficial'       % del presupuesto oficial cargado a mano en Datos de la obra
+//   'pctPrecioSinIva'  % del presupuesto propio sin IVA
+//   'pctPrecioConIva'  % del presupuesto propio con IVA
+//
+// Los dos últimos son la base "presupuesto propio", que parece circular (el
+// precio sale del Coeficiente K y el K necesita estos gastos) pero no lo es:
+// la ecuación es lineal y se despeja de una en calcCargaFija() — ver el
+// comentario largo de esa función. Acá las bases ya llegan resueltas.
+//
+// bases: { costoComputo, presupuestoOficial, precioSinIva, precioConIva }
+const BASE_DE_TIPO = {
+  pctComputo: 'costoComputo',
+  pctOficial: 'presupuestoOficial',
+  pctPrecioSinIva: 'precioSinIva',
+  pctPrecioConIva: 'precioConIva',
+};
+
+window.tipoCargaFijaEsPorcentaje = function (tipo) {
+  return !!BASE_DE_TIPO[tipo || 'monto'];
+};
+
+// Los dos tipos cuya base depende del Coeficiente K (y que por eso entran al
+// despeje en vez de sumarse directo).
+window.tipoCargaFijaEsSobrePrecio = function (tipo) {
+  return tipo === 'pctPrecioSinIva' || tipo === 'pctPrecioConIva';
+};
+
+window.totalLineaCargaFija = function (l, bases) {
+  bases = bases || {};
+  const campoBase = BASE_DE_TIPO[l.tipo || 'monto'];
+  if (campoBase) {
+    const base = bases[campoBase];
+    if (l.porcentaje == null || isNaN(l.porcentaje) || base == null) return null;
+    return (l.porcentaje / 100) * base;
   }
   if (l.cantidad == null || l.precioUnitario == null || l.meses == null) return null;
   if (isNaN(l.cantidad) || isNaN(l.precioUnitario) || isNaN(l.meses)) return null;
   return l.cantidad * l.precioUnitario * l.meses;
 };
 
-window.totalGastosFijosCargaFija = function (lineas, costoComputo, presupuestoOficial) {
+window.totalGastosFijosCargaFija = function (lineas, bases) {
   return Object.values(lineas || {}).reduce((acc, l) => {
-    const t = window.totalLineaCargaFija(l, costoComputo, presupuestoOficial);
+    const t = window.totalLineaCargaFija(l, bases);
     return t == null ? acc : acc + t;
   }, 0);
 };
@@ -223,15 +247,26 @@ const IVA_POR_DEFECTO = 21;
 // mirar si existe el nodo `impuestos`, porque RTDB borra el nodo entero
 // cuando se elimina su último hijo — y "me quedé sin impuestos" volvería a
 // leerse como "obra vieja, ponele 21%".
+// `esIva` marca cuál de los impuestos de la lista es el IVA, para poder
+// separar el precio con IVA del precio sin IVA — que NO es "el precio antes de
+// los impuestos": una obra puede tener IIBB y percepciones municipales, que sí
+// integran el neto facturado. Mismo criterio de materialización que la lista
+// en sí: sin la marca `ivaMarcado` se infiere por el nombre, y la primera vez
+// que se toca un tilde se escribe la lista completa con el valor de cada uno.
+function inferirEsIva(nombre) { return /iva/i.test(nombre || ''); }
+
 window.impuestosDeConfig = function (config) {
   config = config || {};
   if (config.impuestosCargados) {
     return Object.entries(config.impuestos || {})
-      .map(([key, i]) => ({ key, nombre: i.nombre || '', porcentaje: i.porcentaje, orden: i.orden || 0 }))
+      .map(([key, i]) => ({
+        key, nombre: i.nombre || '', porcentaje: i.porcentaje, orden: i.orden || 0,
+        esIva: config.ivaMarcado ? !!i.esIva : inferirEsIva(i.nombre),
+      }))
       .sort((a, b) => a.orden - b.orden);
   }
   const pct = config.ivaPct != null ? config.ivaPct : IVA_POR_DEFECTO;
-  return [{ key: 'iva', nombre: 'IVA', porcentaje: pct, orden: 0 }];
+  return [{ key: 'iva', nombre: 'IVA', porcentaje: pct, orden: 0, esIva: true }];
 };
 
 // Coeficiente K de una obra — UNA sola implementación, usada por Carga Fija
@@ -291,5 +326,120 @@ window.calcCoeficienteK = function (config, gastosFijos, costoComputo) {
     subtotalConFinanciero,
     impuestos, aportePorImpuesto, impuestoFrac: k - subtotalConFinanciero,
     k,
+  };
+};
+
+/* ===== Carga Fija completa: gastos fijos + Coeficiente K =====
+
+   Entrada única de alto nivel, usada por Carga Fija, Presupuesto, Plan de
+   Avance, el AP y los dos exportadores. Existe porque las líneas con base
+   "presupuesto propio" (pctPrecioSinIva / pctPrecioConIva) no se pueden sumar
+   antes de tener el K, y el K sale de esa suma.
+
+   No es circular: es una ecuación lineal y se despeja. Con
+     C  = costo del Cómputo
+     G0 = gastos que NO dependen del precio (montos, % del Cómputo, % del oficial)
+     b  = beneficio,  f = costo financiero
+     t_iva / t_otros = impuestos marcados como IVA y el resto
+     q_s / q_c = suma de los % con base Precio s/IVA y Precio c/IVA
+     S  = 1 + %GG + b   (Subtotal Costo)
+
+     Precio s/IVA = C · S · (1+f) · (1 + t_otros)
+     Precio c/IVA = C · S · (1+f) · (1 + t_otros + t_iva)   = C · K
+     %GG = [ G0 + q_s·PrecioSinIva + q_c·PrecioConIva ] / C
+
+   Reemplazando los precios y juntando los S de los dos lados:
+
+                    1 + b + G0/C
+     S = ──────────────────────────────────────────────────
+         1 − (1+f)·[ q_s·(1+t_otros) + q_c·(1+t_otros+t_iva) ]
+
+   Ese divisor es lo que hace todo el trabajo: es el resultado exacto de
+   iterar infinitas veces "precio → gasto → precio". Sin líneas de este tipo
+   vale 1 y queda la cuenta de siempre, sin mover un decimal a las obras ya
+   cargadas.
+
+   Resuelto S se conocen las dos bases, se valoriza cada línea y recién ahí se
+   llama a calcCoeficienteK() con el total ya sumado: la fórmula del K sigue
+   siendo una sola y no cambió. El K que sale de esa suma y el del despeje
+   difieren en el último bit del punto flotante; manda el de la suma, que es la
+   columna que el usuario ve en pantalla. */
+
+// Debajo de este divisor los gastos porcentuales se comerían el precio entero
+// y la ecuación deja de tener sentido económico (con los % reales de una obra
+// ronda 0,97). No se devuelve un K disparatado: se devuelve null, como cuando
+// falta el Cómputo, y la pantalla avisa.
+const DIVISOR_MINIMO_CARGA_FIJA = 0.05;
+
+window.calcCargaFija = function (config, lineas, costoComputo, presupuestoOficial) {
+  config = config || {};
+  lineas = lineas || {};
+  if (presupuestoOficial === undefined) presupuestoOficial = null;
+
+  const bases = { costoComputo, presupuestoOficial, precioSinIva: null, precioConIva: null };
+
+  // 1. Lo que no depende del precio se suma ya; de lo que sí depende, por ahora
+  //    sólo se acumulan los porcentajes.
+  let gastosIndependientes = 0;
+  let qSinIva = 0, qConIva = 0, cantidadSobrePrecio = 0;
+  Object.values(lineas).forEach(l => {
+    const tipo = l.tipo || 'monto';
+    if (window.tipoCargaFijaEsSobrePrecio(tipo)) {
+      cantidadSobrePrecio++;
+      if (l.porcentaje == null || isNaN(l.porcentaje)) return;
+      if (tipo === 'pctPrecioSinIva') qSinIva += l.porcentaje / 100;
+      else qConIva += l.porcentaje / 100;
+      return;
+    }
+    const t = window.totalLineaCargaFija(l, bases);
+    if (t != null) gastosIndependientes += t;
+  });
+
+  // 2. Despeje.
+  const beneficioFrac = (config.beneficioPct || 0) / 100;
+  const costoFinancieroFrac = (config.costoFinancieroPct || 0) / 100;
+  const impuestos = window.impuestosDeConfig(config);
+  const ivaFrac = impuestos.reduce((acc, i) => acc + (i.esIva ? (i.porcentaje || 0) / 100 : 0), 0);
+  const otrosImpuestosFrac = impuestos.reduce((acc, i) => acc + (i.esIva ? 0 : (i.porcentaje || 0) / 100), 0);
+  // Del Subtotal Costo (S) a cada base de precio.
+  const factorSinIva = (1 + costoFinancieroFrac) * (1 + otrosImpuestosFrac);
+  const factorConIva = (1 + costoFinancieroFrac) * (1 + otrosImpuestosFrac + ivaFrac);
+  const divisor = 1 - (qSinIva * factorSinIva + qConIva * factorConIva);
+  const divergente = cantidadSobrePrecio > 0 && divisor < DIVISOR_MINIMO_CARGA_FIJA;
+
+  // Con %GG pisado a mano no hay nada que despejar: el subtotal está dado y las
+  // líneas porcentuales sólo se valorizan para mostrar su monto.
+  const ggManual = config.ggPct != null && !isNaN(config.ggPct) ? config.ggPct / 100 : null;
+  let subtotalCostoResuelto = null;
+  if (divergente) subtotalCostoResuelto = null;
+  else if (ggManual != null) subtotalCostoResuelto = 1 + ggManual + beneficioFrac;
+  else if (costoComputo > 0) subtotalCostoResuelto = (1 + beneficioFrac + gastosIndependientes / costoComputo) / divisor;
+
+  if (subtotalCostoResuelto != null && costoComputo != null) {
+    bases.precioSinIva = costoComputo * subtotalCostoResuelto * factorSinIva;
+    bases.precioConIva = costoComputo * subtotalCostoResuelto * factorConIva;
+  }
+
+  // 3. Ahora sí, todas las líneas valorizadas y sumadas.
+  const totalPorLinea = {};
+  let gastosFijos = 0;
+  Object.entries(lineas).forEach(([key, l]) => {
+    const t = window.totalLineaCargaFija(l, bases);
+    totalPorLinea[key] = t;
+    if (t != null) gastosFijos += t;
+  });
+
+  // 4. El K, con la fórmula de siempre.
+  const desglose = divergente
+    ? window.calcCoeficienteK(config, 0, 0)
+    : window.calcCoeficienteK(config, gastosFijos, costoComputo);
+
+  return {
+    ...desglose,
+    gastosFijos, totalPorLinea, bases,
+    precioSinIva: bases.precioSinIva, precioConIva: bases.precioConIva,
+    gastosIndependientes, qSinIva, qConIva, cantidadSobrePrecio,
+    ivaFrac, otrosImpuestosFrac, factorSinIva, factorConIva,
+    divisor, divergente,
   };
 };

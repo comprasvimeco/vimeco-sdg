@@ -49,6 +49,15 @@
     .cf-impuesto-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .25rem; line-height: 1; }
     .cf-impuesto-del .icon { width: 14px; height: 14px; }
     .cf-impuesto-add { margin: .4rem 0 .25rem; }
+    /* Tilde "IVA": separa el Presupuesto s/IVA del c/IVA. Los demás impuestos
+       (IIBB, percepciones) sí integran el neto que se factura. */
+    .cf-impuesto-iva { display: flex; align-items: center; gap: .25rem; font-size: .74rem; color: var(--gray-500); cursor: pointer; white-space: nowrap; }
+    .cf-impuesto-iva input { margin: 0; cursor: pointer; }
+    /* El presupuesto que sale de este K: es la base de los conceptos con tipo
+       "% Presup. s/IVA" y "% Presup. c/IVA". */
+    .cf-presupuesto-bloque { margin-top: .7rem; padding-top: .55rem; border-top: 1px solid var(--gray-200); }
+    .cf-fila-presupuesto { color: var(--gray-600); font-size: .88rem; }
+    .cf-fila-presupuesto span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
   </style>
 </head>
 <body>

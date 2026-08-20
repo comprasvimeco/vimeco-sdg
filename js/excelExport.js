@@ -314,6 +314,19 @@
     // gastos fijos / costo del Cómputo una vez que estén las dos hojas.
     ref.filaGG = rGG;
     ref.ggEsManual = d.ggEsManual;
+    // Piezas sueltas del coeficiente: la hoja Carga fija las necesita para
+    // armar el Presupuesto s/IVA (que no es "antes de los impuestos": IIBB y
+    // percepciones sí integran el neto que se factura) y, si hay conceptos
+    // calculados sobre el presupuesto propio, para despejar el % de Gastos
+    // Generales sin cerrar un círculo de referencias.
+    const sumaPct = filas => filas.length ? filas.map(n => `Datos!$C$${n}`).join('+') : '0';
+    ref.coef = {
+      beneficio: `Datos!$C$${rBen}`,
+      financiero: `Datos!$C$${rFin}`,
+      subtotalConFinanciero: `Datos!$D$${rSubF}`,
+      pctIva: sumaPct(filasImp.filter((_, idx) => d.impuestos[idx].esIva)),
+      pctOtrosImpuestos: sumaPct(filasImp.filter((_, idx) => !d.impuestos[idx].esIva)),
+    };
     bordear(ws, filaK0, 2, r, 4);
     r++;
   }
@@ -909,17 +922,41 @@
   /* ===== Hoja Carga fija =====
      Los gastos generales de la obra concepto por concepto. Cada uno se calcula
      según su tipo, igual que totalLineaCargaFija(): monto fijo
-     (cantidad × precio × meses) o un porcentaje del costo del Cómputo o del
-     presupuesto oficial.
+     (cantidad × precio × meses) o un porcentaje del costo del Cómputo, del
+     presupuesto propio (s/IVA o c/IVA) o del presupuesto oficial.
 
      El total de esta hoja es lo que la hoja Datos prorratea sobre el costo del
      Cómputo para sacar el % de Gastos Generales del Coeficiente K, así que
-     agregar un concepto acá mueve el K y con él todo el presupuesto. */
+     agregar un concepto acá mueve el K y con él todo el presupuesto.
+
+     Los conceptos calculados sobre el presupuesto propio necesitan un cuidado
+     extra: apuntan al total del presupuesto, que sale del K, que sale de estos
+     gastos. En la app eso se resuelve despejando (ver calcCargaFija en
+     calcCostos.js); acá hay que además evitar que Excel vea un círculo de
+     referencias, porque los rechaza aunque la cuenta tenga solución. Por eso el
+     % de Gastos Generales de la hoja Datos deja de ser "total / costo del
+     Cómputo" cuando existen esos conceptos y pasa a la fórmula despejada, que
+     no toca ninguna celda que dependa del K. */
 
   const BASE_PCT = {
     pctComputo: 'del costo del Cómputo',
+    pctPrecioSinIva: 'del presupuesto s/IVA',
+    pctPrecioConIva: 'del presupuesto c/IVA',
     pctOficial: 'del presupuesto oficial',
   };
+
+  // [5,6,8,9,10] → "H5:H6,H8:H10" — para sumar sólo ciertas filas sin tocar las
+  // que quedan en el medio (las que dependen del K y armarían el círculo).
+  function rangosDe(filas, col) {
+    const partes = [];
+    for (let i = 0; i < filas.length;) {
+      let j = i;
+      while (j + 1 < filas.length && filas[j + 1] === filas[j] + 1) j++;
+      partes.push(filas[i] === filas[j] ? `${col}${filas[i]}` : `${col}${filas[i]}:${col}${filas[j]}`);
+      i = j + 1;
+    }
+    return partes.join(',');
+  }
 
   function hojaCargaFija(ws, ctx, ref) {
     const m = ctx.modelo;
@@ -961,6 +998,20 @@
     const filaDuracion = dato('Duración de la obra', duracion, 'meses', '#,##0.##');
     const filaCosto = dato('Costo del Cómputo', f(`=${ref.cyp.costoComputo}`), '', FMT_ARS);
     const filaOficial = dato('Presupuesto oficial', num(m.obra.presupuestoOficial), '', FMT_ARS);
+
+    const conceptos = window.lineasCargaFijaOrdenadas(cf.lineas);
+    const hayCeldasSobrePrecio = conceptos.some(([, l]) => window.tipoCargaFijaEsSobrePrecio(l.tipo));
+
+    // El presupuesto que sale del K, sólo si algún concepto se calcula sobre
+    // él. El c/IVA es el total de la hoja CyP; el s/IVA se arma con el subtotal
+    // con gasto financiero y los impuestos que NO son IVA, que sí integran el
+    // neto facturado.
+    let filaPresupSinIva = null, filaPresupConIva = null;
+    if (hayCeldasSobrePrecio) {
+      filaPresupSinIva = dato('Presupuesto s/IVA',
+        f(`=${ref.cyp.costoComputo}*${ref.coef.subtotalConFinanciero}*(1+${ref.coef.pctOtrosImpuestos})`), '', FMT_ARS);
+      filaPresupConIva = dato('Presupuesto c/IVA', f(`=${ref.cyp.total}`), '', FMT_ARS);
+    }
     r++;
 
     const filaCab = r;
@@ -968,20 +1019,29 @@
     ws.getRow(r).height = 26;
     r++;
 
-    const conceptos = window.lineasCargaFijaOrdenadas(cf.lineas);
     const primera = r;
     const filaTotal = primera + Math.max(conceptos.length, 1) + 1;
+    const filaBase = {
+      pctComputo: () => filaCosto, pctOficial: () => filaOficial,
+      pctPrecioSinIva: () => filaPresupSinIva, pctPrecioConIva: () => filaPresupConIva,
+    };
+    // Filas que NO dependen del K: son las únicas que puede sumar el % de
+    // Gastos Generales de la hoja Datos sin cerrar el círculo.
+    const filasIndependientes = [], filasSinIva = [], filasConIva = [];
 
     conceptos.forEach(([, l]) => {
       const tipo = l.tipo || 'monto';
       ws.getCell(r, 2).value = l.concepto || '(sin nombre)';
       ws.getCell(r, 2).alignment = { wrapText: true, vertical: 'top' };
-      if (tipo === 'pctComputo' || tipo === 'pctOficial') {
+      if (tipo === 'pctPrecioSinIva') filasSinIva.push(r);
+      else if (tipo === 'pctPrecioConIva') filasConIva.push(r);
+      else filasIndependientes.push(r);
+      if (window.tipoCargaFijaEsPorcentaje(tipo)) {
         ws.getCell(r, 6).value = num(l.porcentaje) / 100;
         ws.getCell(r, 6).numFmt = FMT_PCT;
         ws.getCell(r, 7).value = BASE_PCT[tipo];
         ws.getCell(r, 7).font = { size: 9, color: { argb: GRIS_TEXTO } };
-        ws.getCell(r, 8).value = f(`=+F${r}*$C$${tipo === 'pctComputo' ? filaCosto : filaOficial}`);
+        ws.getCell(r, 8).value = f(`=+F${r}*$C$${filaBase[tipo]()}`);
       } else {
         ws.getCell(r, 3).value = num(l.cantidad);
         ws.getCell(r, 3).numFmt = FMT_CANT;
@@ -1015,9 +1075,40 @@
     bordear(ws, r, 2, r, 9, fuerteBorde);
     r += 2;
 
-    ws.getCell(r, 2).value = 'El % de Gastos Generales de la Carga Fija sale de este total dividido por el costo del Cómputo. Ver la hoja Datos.';
+    // Piezas del despeje. Van a la vista (no en celdas escondidas) porque son
+    // las que explican de dónde sale el % de Gastos Generales de la hoja Datos
+    // cuando hay conceptos calculados sobre el presupuesto propio.
+    const apoyo = {};
+    if (hayCeldasSobrePrecio) {
+      const filaApoyo = (etiqueta, formula, fmt) => {
+        ws.getCell(r, 2).value = etiqueta;
+        ws.getCell(r, 2).font = { size: 9, color: { argb: GRIS_TEXTO } };
+        ws.mergeCells(r, 2, r, 7);
+        ws.getCell(r, 8).value = f(formula);
+        ws.getCell(r, 8).numFmt = fmt;
+        return r++;
+      };
+      const fSub = filaApoyo('Subtotal de gastos que no dependen del presupuesto',
+        filasIndependientes.length ? `=SUM(${rangosDe(filasIndependientes, 'H')})` : '=0', FMT_ARS);
+      const fQs = filaApoyo('Suma de los % sobre el Presupuesto s/IVA',
+        filasSinIva.length ? `=SUM(${rangosDe(filasSinIva, 'F')})` : '=0', FMT_PCT);
+      const fQc = filaApoyo('Suma de los % sobre el Presupuesto c/IVA',
+        filasConIva.length ? `=SUM(${rangosDe(filasConIva, 'F')})` : '=0', FMT_PCT);
+      apoyo.gastosIndependientes = `'Carga fija'!$H$${fSub}`;
+      apoyo.qSinIva = `'Carga fija'!$H$${fQs}`;
+      apoyo.qConIva = `'Carga fija'!$H$${fQc}`;
+      r++;
+    }
+
+    ws.getCell(r, 2).value = hayCeldasSobrePrecio
+      ? 'Hay conceptos calculados sobre el presupuesto de esta misma obra, que sale del Coeficiente K, '
+        + 'que sale de estos gastos. No es un círculo sin salida: la ecuación se despeja, y por eso el % de '
+        + 'Gastos Generales de la hoja Datos usa las tres celdas de acá arriba en vez del total. Ver la hoja Datos.'
+      : 'El % de Gastos Generales de la Carga Fija sale de este total dividido por el costo del Cómputo. Ver la hoja Datos.';
     ws.getCell(r, 2).font = { size: 9, italic: true, color: { argb: GRIS_TEXTO } };
+    ws.getCell(r, 2).alignment = { wrapText: true, vertical: 'top' };
     ws.mergeCells(r, 2, r, 9);
+    if (hayCeldasSobrePrecio) ws.getRow(r).height = 30;
 
     ws.views = [{ state: 'frozen', ySplit: filaCab }];
     ws.pageSetup = {
@@ -1025,7 +1116,7 @@
       margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
     };
 
-    ref.cargaFija = { total: `'Carga fija'!$H$${filaTotal}` };
+    ref.cargaFija = { total: `'Carga fija'!$H$${filaTotal}`, hayCeldasSobrePrecio, ...apoyo };
   }
 
   /* ===== Hoja Resumen =====
@@ -1378,9 +1469,31 @@
     // hoja Carga fija prorrateado sobre el costo del Cómputo. Recién se puede
     // escribir cuando existen las dos hojas. No hay círculo: el costo del
     // Cómputo son los análisis de precio sin K.
+    //
+    // Salvo que haya conceptos calculados sobre el presupuesto propio: ahí ese
+    // total sí depende del K y Excel rechazaría la referencia circular. Se
+    // escribe entonces la misma cuenta ya despejada — el desarrollo está en
+    // calcCargaFija() (js/calcCostos.js):
+    //
+    //             1 + %Beneficio + GastosIndependientes/CostoCómputo
+    //   Subtotal = ─────────────────────────────────────────────────────
+    //              1 − (1+%Fin)·[ q_s·(1+%otros) + q_c·(1+%otros+%IVA) ]
+    //
+    //   %GG = Subtotal − 1 − %Beneficio
+    //
+    // Ninguna celda de esa fórmula depende del K, así que la cadena queda
+    // abierta: %GG → K → precios → los conceptos sobre el presupuesto.
     if (!ref.ggEsManual) {
       const celda = hojas.datos.getCell(ref.filaGG, 3);
-      celda.value = f(`=${ref.cargaFija.total}/${ref.cyp.costoComputo}`);
+      if (ref.cargaFija.hayCeldasSobrePrecio) {
+        const c = ref.coef;
+        const numerador = `(1+${c.beneficio}+${ref.cargaFija.gastosIndependientes}/${ref.cyp.costoComputo})`;
+        const divisor = `(1-(1+${c.financiero})*(${ref.cargaFija.qSinIva}*(1+${c.pctOtrosImpuestos})`
+          + `+${ref.cargaFija.qConIva}*(1+${c.pctOtrosImpuestos}+${c.pctIva})))`;
+        celda.value = f(`=${numerador}/${divisor}-1-${c.beneficio}`);
+      } else {
+        celda.value = f(`=${ref.cargaFija.total}/${ref.cyp.costoComputo}`);
+      }
       celda.numFmt = FMT_PCT;
     }
 

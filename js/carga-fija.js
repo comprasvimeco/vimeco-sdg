@@ -2,18 +2,23 @@
    Calcula el coeficiente K que en Presupuesto (presupuesto.js) convierte
    costo unitario en precio unitario:
 
-     K = (1 + %GastosGenerales + %Beneficio) × (1 + %CostoFinanciero) × (1 + %IVA)
+     K = (1 + %GastosGenerales + %Beneficio) × (1 + %CostoFinanciero) × (1 + Σ%Impuestos)
 
-   %GastosGenerales NO se carga a mano: sale de
+   %GastosGenerales sale de
      (suma de gastos fijos de esta obra) / (costo total del Cómputo de esta obra)
-   Beneficio, Costo Financiero e IVA sí son porcentajes directos por obra.
+   y se puede pisar a mano por obra. Beneficio, Costo Financiero e impuestos
+   son porcentajes directos.
    Fórmula verificada contra la hoja "Carga fija" de CyP Taller Río Cuarto.xlsx.
 
    Cada línea de gasto fijo puede ser un monto fijo (cantidad×precioUnitario×
-   meses) o un % de una base — Costo del Cómputo o Presupuesto oficial (campo
-   manual en Datos de la obra) — ver totalLineaCargaFija en calcCostos.js. No
-   existe "% de Presupuesto propio" porque ese valor sale de aplicar este
-   mismo K: sería circular. */
+   meses) o un % de una base: Costo del Cómputo, Presupuesto propio (s/IVA o
+   c/IVA) o Presupuesto oficial (campo manual en Datos de la obra) — ver
+   totalLineaCargaFija en calcCostos.js.
+
+   Las dos bases de presupuesto propio parecen circulares (el precio sale de
+   este mismo K) pero no lo son: la ecuación se despeja de una en
+   calcCargaFija(), que es la que hay que llamar desde acá — nunca sumar las
+   líneas por un lado y pedir el K por otro. */
 
 const $ = id => document.getElementById(id);
 
@@ -32,12 +37,12 @@ let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8
 let preciosObra = {};   // { materialKey: {precioUSD,...} } — resuelto de los precios por obra de esta obra
 let dolarObra = null;   // dólar propio de esta obra (/obras/{obraKey}/dolar)
 
-function totalLinea(l) {
-  return window.totalLineaCargaFija(l, costoComputo, obra ? obra.presupuestoOficial : null);
-}
-
-function totalGastosFijos() {
-  return window.totalGastosFijosCargaFija(lineas, costoComputo, obra ? obra.presupuestoOficial : null);
+// Gastos fijos + Coeficiente K de un saque: las líneas con base en el
+// presupuesto propio no se pueden valorizar sin el K, y el K sale de esa misma
+// suma (calcCargaFija despeja las dos cosas juntas). Se recalcula entero en
+// cada render — son decenas de líneas, no vale la pena cachearlo.
+function calcCF() {
+  return window.calcCargaFija(config, lineas, costoComputo, obra ? obra.presupuestoOficial : null);
 }
 
 /* ===== Orden de los conceptos =====
@@ -117,12 +122,22 @@ function engancharDuracion() {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
 }
 
-const TIPO_BASE_LABEL = { pctComputo: 'del Costo del Cómputo', pctOficial: 'del Presupuesto oficial' };
+const TIPO_BASE_LABEL = {
+  pctComputo: 'del Costo del Cómputo',
+  pctPrecioSinIva: 'del Presupuesto s/IVA',
+  pctPrecioConIva: 'del Presupuesto c/IVA',
+  pctOficial: 'del Presupuesto oficial',
+};
 
+// El presupuesto oficial va último: es la base de excepción (un número externo
+// cargado a mano), no la que corresponde a un gasto que se calcula sobre la
+// obra que se está presupuestando.
 function tipoSelectHtml(tipo) {
   const opciones = [
     ['monto', 'Monto fijo'],
     ['pctComputo', '% Costo Cómputo'],
+    ['pctPrecioSinIva', '% Presup. s/IVA'],
+    ['pctPrecioConIva', '% Presup. c/IVA'],
     ['pctOficial', '% Presup. oficial'],
   ];
   return `<select class="form-control cf-tipo">${opciones.map(([v, label]) =>
@@ -135,7 +150,7 @@ function camposLineaHtml(lineaKey, l, tipo) {
   const et = l.concepto || 'Concepto';
   const ref = (campo, label) =>
     ` data-calc-id="cargafija:linea:${escHtml(lineaKey)}:${campo}" data-calc-label="${escHtml(et + ' · ' + label)}"`;
-  if (tipo === 'pctComputo' || tipo === 'pctOficial') {
+  if (window.tipoCargaFijaEsPorcentaje(tipo)) {
     return `
       <input type="text" class="form-control cf-porcentaje" value="${l.porcentaje ?? ''}" placeholder="0"${ref('porcentaje', '%')}>
       <span class="cf-base-label">${TIPO_BASE_LABEL[tipo]}</span>
@@ -150,12 +165,13 @@ function camposLineaHtml(lineaKey, l, tipo) {
 function renderLineas() {
   const container = $('lineas-carga-fija');
   const entradas = lineasOrdenadas();
+  const cf = calcCF();
   if (!entradas.length) {
     container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Sin conceptos todavía.</p>';
   } else {
     container.innerHTML = entradas.map(([lineaKey, l], idx) => {
       const tipo = l.tipo || 'monto';
-      const total = totalLinea(l);
+      const total = cf.totalPorLinea[lineaKey];
       return `
         <div class="cf-linea" data-key="${escHtml(lineaKey)}">
           <input type="text" class="form-control cf-concepto" value="${escHtml(l.concepto || '')}" placeholder="Ej: Jefe de obra">
@@ -196,7 +212,7 @@ function renderLineas() {
       input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
     };
 
-    if (tipo === 'pctComputo' || tipo === 'pctOficial') {
+    if (window.tipoCargaFijaEsPorcentaje(tipo)) {
       const porcentaje = row.querySelector('.cf-porcentaje');
       attachCalcInput(porcentaje, l.porcentajeFormula);
       numField(porcentaje, 'porcentaje');
@@ -220,7 +236,7 @@ function renderLineas() {
     row.querySelector('.cf-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
   });
 
-  const totalFijos = totalGastosFijos();
+  const totalFijos = cf.gastosFijos;
   const totalEl = $('total-gastos-fijos');
   totalEl.textContent = fmtARS(totalFijos);
   totalEl.dataset.calcValor = totalFijos;
@@ -229,7 +245,7 @@ function renderLineas() {
 }
 
 function calcularK() {
-  return window.calcCoeficienteK(config, totalGastosFijos(), costoComputo);
+  return calcCF();
 }
 
 // Fila del bloque: etiqueta, el campo/valor del medio y el aporte al K en la
@@ -249,9 +265,35 @@ function pctInputHtml(id, valor, placeholder, calcId, calcLabel) {
   return `<input type="text" class="form-control cf-pct" id="${id}" value="${valor ?? ''}" placeholder="${placeholder}" data-calc-id="${calcId}" data-calc-label="${escHtml(calcLabel)}">`;
 }
 
+/* El presupuesto que sale de este K, en sus dos versiones. Es la base sobre la
+   que se calculan los conceptos con tipo "% Presup. s/IVA" y "% Presup. c/IVA",
+   así que se muestra acá: sin esto el usuario no tendría cómo controlar de
+   dónde salió el monto de esas líneas. El c/IVA es el total del Presupuesto de
+   la obra. */
+function filasPresupuesto(r) {
+  if (r.precioConIva == null) return '';
+  const fila = (label, valor, id) => `
+    <div class="ap-resumen-row cf-fila-presupuesto">
+      <span>${label}</span>
+      <span${calcAttrs(valor, id, label)}>${fmtARS(valor)}</span>
+    </div>`;
+  return `
+    <div class="cf-presupuesto-bloque">
+      ${fila('Presupuesto s/IVA', r.precioSinIva, 'cargafija:presupuestoSinIva')}
+      ${fila('Presupuesto c/IVA', r.precioConIva, 'cargafija:presupuestoConIva')}
+    </div>`;
+}
+
 function renderCoeficienteK() {
   const r = calcularK();
   const el = $('coeficiente-k');
+
+  // La ecuación no cierra: los conceptos calculados sobre el presupuesto propio
+  // se estarían comiendo el precio entero. No se muestra un K disparatado.
+  if (r.divergente) {
+    el.innerHTML = `<p class="form-hint">Los conceptos calculados sobre el Presupuesto propio suman <strong>${fmtPct(1 - r.divisor)}</strong> del precio de venta: a ese nivel el cálculo no tiene solución, porque cada peso que se agrega al presupuesto vuelve a agrandar el gasto. Bajá esos porcentajes para poder calcular la Carga Fija.</p>`;
+    return;
+  }
 
   if (r.ggFrac == null) {
     el.innerHTML = `<p class="form-hint">Esta obra todavía no tiene ítems cargados en el Cómputo — no se puede calcular el % de Gastos Generales hasta que haya un costo de obra sobre el cual prorratear los gastos fijos.</p>`;
@@ -264,9 +306,15 @@ function renderCoeficienteK() {
   const ggValorCelda = config.ggPct != null ? config.ggPct : window.roundLimpio(r.ggFracCalculado * 100);
   const ggCalculado = `<span class="cf-gg-calculado"${calcAttrs(r.ggFracCalculado * 100, 'cargafija:ggPctCalculado', '% Gastos Generales calculado')}>calculado ${fmtPct(r.ggFracCalculado)}</span>`;
 
+  // El tilde "IVA" es lo que separa el Presupuesto s/IVA del c/IVA: el neto que
+  // se factura incluye IIBB y percepciones, así que "sin IVA" no es lo mismo
+  // que "antes de los impuestos".
   const filasImpuestos = r.impuestos.map(i => filaK({
     label: `<input type="text" class="form-control cf-impuesto-nombre" data-key="${escHtml(i.key)}" value="${escHtml(i.nombre)}" placeholder="Nombre del impuesto">`,
-    medio: `${pctInputHtml('cf-imp-' + i.key, i.porcentaje, '0', `cargafija:impuesto:${i.key}`, i.nombre || 'Impuesto')}
+    medio: `<label class="cf-impuesto-iva" title="Marcalo si este impuesto es el IVA: el Presupuesto s/IVA lo deja afuera, el resto de los impuestos sí lo integran.">
+              <input type="checkbox" class="cf-impuesto-esiva" data-key="${escHtml(i.key)}" ${i.esIva ? 'checked' : ''}>IVA
+            </label>
+            ${pctInputHtml('cf-imp-' + i.key, i.porcentaje, '0', `cargafija:impuesto:${i.key}`, i.nombre || 'Impuesto')}
             <button class="cf-impuesto-del" data-key="${escHtml(i.key)}" title="Eliminar impuesto">${icSvg('x')}</button>`,
     aporte: r.aportePorImpuesto[i.key],
     clase: 'cf-fila-impuesto',
@@ -302,7 +350,9 @@ function renderCoeficienteK() {
     <button type="button" class="btn btn-sm btn-outline cf-impuesto-add" id="cf-add-impuesto">+ Agregar impuesto</button>
     ${filaK({ label: 'Impuesto', aporte: r.impuestoFrac, clase: 'cf-subtotal', id: 'cargafija:impuestoTotal', calcLabel: 'Impuesto (total)' })}
     ${filaK({ label: 'TOTAL (Carga Fija)', aporte: r.k, clase: 'total', id: 'cargafija:k', calcLabel: 'Carga Fija' })}
-    <p class="form-hint" style="margin-top:.5rem;">La Carga Fija se aplica al costo unitario de cada ítem en el Presupuesto de la obra para sacar el precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
+    ${filasPresupuesto(r)}
+    <p class="form-hint" style="margin-top:.5rem;">La Carga Fija se aplica al costo unitario de cada ítem en el Presupuesto de la obra para sacar el precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.${
+      r.cantidadSobrePrecio ? ' Los conceptos calculados sobre el Presupuesto propio no se calculan en rondas: la ecuación se resuelve de una, y por eso el total de gastos fijos cierra exacto con el % de Gastos Generales.' : ''}</p>`;
 
   // El TOTAL (K) no sigue el selector de decimales del header: siempre 4 como
   // mínimo (ver fmtK en moneda.js). Es la única excepción de la app.
@@ -372,6 +422,10 @@ function engancharCamposK(r) {
       updateImpuesto(input.dataset.key, { nombre: v });
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  });
+
+  $('coeficiente-k').querySelectorAll('.cf-impuesto-esiva').forEach(chk => {
+    chk.addEventListener('change', () => updateImpuesto(chk.dataset.key, { esIva: chk.checked }));
   });
 
   $('coeficiente-k').querySelectorAll('.cf-impuesto-del').forEach(btn => {
@@ -525,6 +579,7 @@ function impuestosComoObjeto() {
       nombre: i.nombre || '',
       porcentaje: i.porcentaje ?? null,
       porcentajeFormula: (config.impuestos && config.impuestos[i.key] || {}).porcentajeFormula || null,
+      esIva: !!i.esIva,
       orden: i.orden || idx,
     };
   });
@@ -533,12 +588,31 @@ function impuestosComoObjeto() {
 
 // Deja la obra con la lista ya materializada en `config` (en memoria) y
 // devuelve los cambios que hay que persistir junto con la edición.
+//
+// Son dos materializaciones distintas y una obra puede necesitar sólo la
+// segunda: `impuestosCargados` (la lista, que reemplazó al viejo `ivaPct`
+// único) e `ivaMarcado` (cuál de ellos es el IVA, que hasta que se escribe se
+// infiere del nombre). Las dos existen como marca propia y no se deducen de
+// que el nodo exista, porque RTDB borra el nodo entero al eliminar su último
+// hijo.
 function asegurarListaImpuestos() {
-  if (config.impuestosCargados) return {};
-  config.impuestos = impuestosComoObjeto();
-  config.impuestosCargados = true;
-  config.ivaPct = null;
-  return { impuestos: config.impuestos, impuestosCargados: true, ivaPct: null };
+  const cambios = {};
+  if (!config.impuestosCargados) {
+    config.impuestos = impuestosComoObjeto();
+    config.impuestosCargados = true;
+    config.ivaPct = null;
+    Object.assign(cambios, { impuestos: config.impuestos, impuestosCargados: true, ivaPct: null });
+  }
+  if (!config.ivaMarcado) {
+    // Los tildes que se están viendo (inferidos del nombre) pasan a ser dato
+    // guardado; de acá en adelante manda lo que el usuario deje marcado.
+    window.impuestosDeConfig(config).forEach(i => {
+      config.impuestos[i.key] = { ...config.impuestos[i.key], esIva: !!i.esIva };
+    });
+    config.ivaMarcado = true;
+    Object.assign(cambios, { impuestos: config.impuestos, ivaMarcado: true });
+  }
+  return cambios;
 }
 
 function updateImpuesto(key, cambios) {
@@ -560,7 +634,7 @@ function agregarImpuesto() {
   const base = asegurarListaImpuestos();
   const key = 'imp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   const orden = Object.values(config.impuestos || {}).reduce((max, i) => Math.max(max, i.orden || 0), -1) + 1;
-  const nuevo = { nombre: '', porcentaje: null, porcentajeFormula: null, orden };
+  const nuevo = { nombre: '', porcentaje: null, porcentajeFormula: null, esIva: false, orden };
   config.impuestos = { ...config.impuestos, [key]: nuevo };
   renderCoeficienteK();
   if (Object.keys(base).length) persistConfigCambios({ ...base, impuestos: config.impuestos });
