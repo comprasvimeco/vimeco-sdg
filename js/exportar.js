@@ -159,6 +159,17 @@ function notasAlPie() {
   return notas.trim() ? `<div class="doc-notas">${escHtml(notas)}</div>` : '';
 }
 
+/* Cierre de un cuadro de precios: importe en letras y notas al pie. Va en las
+   dos secciones que cotizan la obra entera (Resumen por rubro y Presupuesto
+   detallado), porque cualquiera de las dos puede ser la que se firma: una obra
+   con la lista plana prendida no tiene Resumen y ahí el único cuadro con el
+   total de la obra es el detallado. */
+function cierreCuadro() {
+  return `
+    <div class="doc-son-pesos">Son pesos: ${escHtml(importeEnLetras(modelo.total))}</div>
+    ${notasAlPie()}`;
+}
+
 function seccionResumen() {
   // Un renglón por rubro, como la hoja "Resumen" de la planilla: la unidad es
   // global (gl) y la cantidad 1, porque lo que se cotiza en este cuadro es el
@@ -197,8 +208,7 @@ function seccionResumen() {
         </tr>
       </tbody>
     </table>
-    <div class="doc-son-pesos">Son pesos: ${escHtml(importeEnLetras(modelo.total))}</div>
-    ${notasAlPie()}`;
+    ${cierreCuadro()}`;
 }
 
 function seccionPresupuesto() {
@@ -247,7 +257,8 @@ function seccionPresupuesto() {
           <td class="doc-num">100,00%</td>
         </tr>
       </tbody>
-    </table>`;
+    </table>
+    ${cierreCuadro()}`;
 }
 
 /* ===== Análisis de Precios ===== */
