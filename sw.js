@@ -8,6 +8,7 @@ const STATIC_ASSETS = [
   BASE + '/app.html',
   BASE + '/css/styles.css',
   BASE + '/js/config.js',
+  BASE + '/js/auth.js',
   BASE + '/js/firebase.js',
   BASE + '/manifest.json',
   BASE + '/icons/icon-192.png',
@@ -36,8 +37,12 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Network-only: Firebase y APIs de Google — nunca cachear.
-  if (url.hostname.endsWith('.googleapis.com') || url.hostname.endsWith('.firebaseio.com')) {
+  // Network-only: Firebase y APIs de Google — nunca cachear. Incluye el flujo de
+  // login: identitytoolkit/securetoken (.googleapis.com) y el iframe de auth que
+  // el SDK abre contra authDomain (.firebaseapp.com).
+  if (url.hostname.endsWith('.googleapis.com') ||
+      url.hostname.endsWith('.firebaseio.com') ||
+      url.hostname.endsWith('.firebaseapp.com')) {
     return;
   }
 

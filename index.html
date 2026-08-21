@@ -11,15 +11,113 @@
   <meta name="theme-color" content="#1a3a5c">
 </head>
 <body class="login-page">
-  <div>
-    <img src="assets/logo_claro.png" alt="VIMECO S.A." style="width:180px; margin-bottom:1rem;">
-    <h1>VIMECO — Sistema de Gestión</h1>
+  <div class="login-box">
+    <img src="assets/logo_claro.png" alt="VIMECO S.A." class="login-logo">
+    <h1>Sistema de Gestión</h1>
     <p>Presupuestos y seguimiento de costos de obra.</p>
-    <a class="btn btn-primary" href="app.html">Entrar</a>
+
+    <button class="btn btn-google hidden" id="btn-google" type="button">
+      <svg viewBox="0 0 18 18" width="18" height="18" aria-hidden="true">
+        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.91c1.7-1.57 2.69-3.88 2.69-6.62z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.91-2.26c-.81.54-1.84.86-3.05.86-2.34 0-4.33-1.58-5.04-3.71H.96v2.33A9 9 0 009 18z"/>
+        <path fill="#FBBC05" d="M3.96 10.71a5.41 5.41 0 010-3.42V4.96H.96a9 9 0 000 8.08l3-2.33z"/>
+        <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 00.96 4.96l3 2.33C4.67 5.16 6.66 3.58 9 3.58z"/>
+      </svg>
+      <span>Entrar con Google</span>
+    </button>
+
+    <div class="login-estado" id="login-estado">Verificando sesión…</div>
+    <div class="login-error hidden" id="login-error"></div>
   </div>
 
+  <script>window._AUTH_PAGINA_LOGIN = true;</script>
+  <script src="js/vendor/firebase-app-compat.js"></script>
+  <script src="js/vendor/firebase-auth-compat.js"></script>
   <script src="js/config.js"></script>
-  <script src="js/firebase.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+  (function () {
+    const btn    = document.getElementById('btn-google');
+    const estado = document.getElementById('login-estado');
+    const error  = document.getElementById('login-error');
+
+    function mostrarError(msg) {
+      error.textContent = msg;
+      error.classList.remove('hidden');
+    }
+    function mostrarBoton() {
+      estado.classList.add('hidden');
+      btn.classList.remove('hidden');
+    }
+
+    // Entra quien tenga mail del dominio de la empresa o esté cargado en /usuarios.
+    // Acá se consulta sólo para poder dar un mensaje claro en el momento del login;
+    // quien manda de verdad son las reglas de la base.
+    async function estaAutorizado(user) {
+      const token = await user.getIdToken();
+      const key   = window._mailKey(user.email);
+      const url   = FIREBASE_CONFIG.databaseURL + '/usuarios/' +
+                    encodeURIComponent(key) + '.json?auth=' + encodeURIComponent(token);
+      const resp = await fetch(url);
+      if (resp.status === 401 || resp.status === 403) return false;
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return window._authAutorizado(user.email, await resp.json());
+    }
+
+    async function entrar(user) {
+      estado.classList.remove('hidden');
+      estado.textContent = 'Verificando acceso…';
+      btn.classList.add('hidden');
+      let ok;
+      try {
+        ok = await estaAutorizado(user);
+      } catch (e) {
+        await window._authSalir();
+        return;
+      }
+      if (ok) {
+        location.replace(window._authDestino());
+        return;
+      }
+      const mail = user.email || 'esa cuenta';
+      await firebase.auth().signOut();
+      estado.classList.add('hidden');
+      mostrarError('La cuenta ' + mail + ' no tiene acceso al sistema. ' +
+                   'Pedí que la den de alta y volvé a intentar.');
+      btn.classList.remove('hidden');
+    }
+
+    btn.addEventListener('click', async () => {
+      error.classList.add('hidden');
+      btn.disabled = true;
+      try {
+        const cred = await window._authEntrarConGoogle();
+        if (cred && cred.user) await entrar(cred.user);
+      } catch (e) {
+        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request') {
+          mostrarError('No se pudo entrar: ' + (e.message || e.code || e));
+        }
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    (async function inicio() {
+      const motivo = window._authMotivo();
+      if (motivo) mostrarError(motivo);
+
+      // Vuelta del flujo por redirect (PWA instalada o popup bloqueado).
+      try {
+        const cred = await window._authResultadoRedirect();
+        if (cred && cred.user) { await entrar(cred.user); return; }
+      } catch (e) { /* sin redirect pendiente */ }
+
+      const user = await window._authSesionLista();
+      if (user) { await entrar(user); return; }
+      mostrarBoton();
+    })();
+  })();
+  </script>
   <script>
     if ('serviceWorker' in navigator) {
       const hadController = !!navigator.serviceWorker.controller;

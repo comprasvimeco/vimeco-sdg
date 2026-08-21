@@ -1,0 +1,48 @@
+// Reglas de la Realtime Database de vimeco-sdg.
+//
+// Esta es la copia versionada; la que manda es la pegada en la consola de Firebase
+// (Realtime Database → Reglas). Si se cambia una, cambiar la otra.
+// El editor de la consola y firebase-tools aceptan estos comentarios.
+//
+// QUIÉN ENTRA — dos caminos, alcanza con uno:
+//   1. Tener mail @vimeco.com.ar (con la cuenta de Google verificada). Sin mantenimiento:
+//      el alta y la baja las maneja el dominio de la empresa.
+//   2. Estar cargado a mano en /usuarios con activo:true. Para cuentas de afuera del
+//      dominio (las @gmail.com del equipo, un externo puntual).
+//
+// Y un portazo que gana sobre los dos: /usuarios/{mail}/activo === false bloquea a esa
+// cuenta aunque sea del dominio. Sirve para cortar el acceso a alguien sin tener que
+// tocar su cuenta de la empresa.
+//
+// La key de /usuarios es el mail en minúsculas con los puntos cambiados por comas (las
+// keys de RTDB no admiten puntos): tecnica@vimeco.com.ar → tecnica@vimeco,com,ar. Es
+// exactamente lo que hace window._mailKey() en js/auth.js.
+//
+// POR QUÉ NO VAN EN LA RAÍZ: en RTDB un permiso concedido arriba no se puede revocar
+// abajo, así que un .write en la raíz haría imposible dejar /usuarios de sólo lectura.
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    // Los datos de la app. La regex es la lista blanca de nodos raíz que pueden existir:
+    // evita repetir la condición en cada uno y, de paso, que alguien cree nodos sueltos
+    // en la raíz. sign_in_provider deja explícito que el único camino es Google.
+    "$coleccion": {
+      ".read":  "auth != null && auth.token.email_verified === true && auth.token.firebase.sign_in_provider === 'google.com' && $coleccion.matches(/^(obras|items|rubros|materiales|equipos|manoDeObra|config)$/) && ( (auth.token.email.toLowerCase().endsWith('@vimeco.com.ar') && root.child('usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('activo').val() !== false) || root.child('usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('activo').val() === true )",
+      ".write": "auth != null && auth.token.email_verified === true && auth.token.firebase.sign_in_provider === 'google.com' && $coleccion.matches(/^(obras|items|rubros|materiales|equipos|manoDeObra|config)$/) && ( (auth.token.email.toLowerCase().endsWith('@vimeco.com.ar') && root.child('usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('activo').val() !== false) || root.child('usuarios').child(auth.token.email.toLowerCase().replace('.', ',')).child('activo').val() === true )"
+    },
+
+    // La allowlist. Cada cuenta lee sólo su propia entrada: nadie puede listar quién
+    // tiene acceso. No hace falta estar autorizado para leerla — justamente sirve para
+    // que el login sepa si lo está y pueda decirlo con claridad en vez de fallar seco.
+    // Nadie escribe: dar y sacar acceso se hace desde la consola de Firebase, así una
+    // cuenta comprometida no puede darse permisos a sí misma.
+    "usuarios": {
+      "$mailKey": {
+        ".read":  "auth != null && $mailKey === auth.token.email.toLowerCase().replace('.', ',')",
+        ".write": false
+      }
+    }
+  }
+}

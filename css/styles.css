@@ -51,6 +51,27 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .login-page { display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 1rem; background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 60%, var(--primary-light) 100%); text-align: center; color: var(--white); }
 .login-page h1 { font-size: 1.75rem; font-weight: 800; margin-bottom: .5rem; }
 .login-page p { opacity: .85; margin-bottom: 1.5rem; }
+.login-box { width: 100%; max-width: 430px; }
+.login-logo { width: 180px; margin-bottom: 1.25rem; }
+.btn-google { width: 100%; padding: .7rem 1.25rem; background: var(--white); color: var(--gray-700); font-weight: 600; }
+.btn-google:hover { background: var(--gray-100); color: var(--gray-900); }
+.login-estado { margin-top: 1rem; font-size: .85rem; opacity: .8; }
+.login-error { margin-top: 1rem; padding: .7rem .9rem; border-radius: var(--radius); background: rgba(220,38,38,.22); border: 1px solid rgba(255,255,255,.28); font-size: .85rem; line-height: 1.45; text-align: left; }
+
+/* ===== AUTH — gate de acceso y chip de usuario en el header ===== */
+/* El overlay tapa la pantalla hasta que Firebase confirma la sesión: los scripts
+   están al final del body, así que sin esto se vería un instante de contenido
+   antes del redirect al login. */
+.auth-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 60%, var(--primary-light) 100%); color: var(--white); font-size: .95rem; }
+
+.auth-chip { position: relative; }
+.auth-avatar { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; padding: 0; flex-shrink: 0; overflow: hidden; border: 1.5px solid rgba(255,255,255,.45); border-radius: 50%; background: rgba(255,255,255,.15); color: var(--white); font-size: .8rem; font-weight: 700; cursor: pointer; transition: background .15s; }
+.auth-avatar:hover { background: rgba(255,255,255,.3); }
+.auth-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.auth-menu { position: absolute; top: calc(100% + .5rem); right: 0; z-index: 200; min-width: 215px; padding: .5rem; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.auth-menu-mail { padding: .3rem .4rem .5rem; margin-bottom: .4rem; border-bottom: 1px solid var(--gray-200); font-size: .78rem; color: var(--gray-500); word-break: break-all; }
+.auth-menu-salir { width: 100%; padding: .45rem .4rem; border: none; border-radius: 4px; background: none; font-size: .85rem; font-weight: 600; color: var(--danger); text-align: left; cursor: pointer; }
+.auth-menu-salir:hover { background: var(--gray-100); }
 
 /* ===== FORMS ===== */
 .form-group { margin-bottom: 1.1rem; }

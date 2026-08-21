@@ -44,6 +44,52 @@ que vimeco-oc en `js/firebase.js`.
 - `js/config.js` — `FIREBASE_CONFIG` (TODO: crear el proyecto Firebase y completar valores reales)
 - `sw.js` — network-first para código de la app, cache-first para assets pesados
 
+## Acceso (login con Google)
+
+El sitio es público — GitHub Pages no puede no serlo fuera de Enterprise Cloud. Lo que está
+protegido son los datos: las reglas de la RTDB exigen cuenta de Google autenticada y presente en
+la allowlist.
+
+- `js/auth.js` es el portero. `_authToken()` **no resuelve hasta que Firebase confirmó si hay
+  sesión**: como las pantallas llaman a `_fbGet` apenas cargan, quedan esperando solas. Por eso
+  ninguna de las 19 pantallas necesita saber que el login existe.
+- `js/firebase.js` cuelga ese token como `?auth=` en las cuatro funciones que hablan con la base.
+  Son el único camino a la RTDB: autenticar ahí autentica la app entera.
+- El SDK de Firebase entra **sólo para Auth** (`js/vendor/firebase-*-compat.js`, v12.18.0 pineada),
+  por el refresco del token y la persistencia de sesión. Los datos siguen por REST, sin SDK.
+- `database.rules.json` es la copia versionada de las reglas. La que manda es la de la consola de
+  Firebase: si se cambia una, cambiar la otra.
+
+### Quién entra
+
+Dos caminos, alcanza con uno:
+
+1. **Mail `@vimeco.com.ar`** — entra solo, sin carga previa. El alta y la baja las maneja el
+   dominio de la empresa: si se desactiva la cuenta ahí, deja de poder entrar.
+2. **Estar en `/usuarios` con `activo: true`** — para cuentas de afuera del dominio (las
+   `@gmail.com` del equipo, un externo puntual).
+
+Y un portazo que gana sobre los dos: `/usuarios/{mail}/activo: false` bloquea a esa cuenta aunque
+sea del dominio, sin tener que tocar su cuenta de la empresa.
+
+La lógica está escrita dos veces y **las dos tienen que coincidir**: `database.rules.json` (la que
+manda) y `_authAutorizado()` en `js/auth.js` (sólo para dar un mensaje claro en el login).
+
+### Dar o sacar acceso a alguien
+
+A mano, en la consola de Firebase → Realtime Database → `/usuarios`. La key es el mail en
+minúsculas con los puntos cambiados por comas (las keys de RTDB no admiten puntos):
+
+```
+/usuarios/alguien@gmail,com
+    activo: true          ← false saca el acceso al instante, también a los del dominio
+    rol:    "admin"       ← guardado desde el día uno; todavía no se usa
+    alta:   "2026-08-21"
+```
+
+No hay pantalla de administración de usuarios a propósito: `/usuarios` es de sólo lectura para la
+app, así una cuenta comprometida no puede darse permisos a sí misma.
+
 ## Dominio (a completar)
 
 Todavía no hay reglas de negocio definidas acá. Se documentan a medida que se acuerdan con el

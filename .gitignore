@@ -4,3 +4,7 @@
 # OS
 .DS_Store
 Thumbs.db
+
+# Planillas de referencia de la empresa (datos sensibles: sueldos, clientes)
+*.xlsx
+*.xlsm
