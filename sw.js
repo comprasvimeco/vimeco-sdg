@@ -9,7 +9,9 @@ const STATIC_ASSETS = [
   BASE + '/css/styles.css',
   BASE + '/js/config.js',
   BASE + '/js/firebase.js',
-  BASE + '/manifest.json'
+  BASE + '/manifest.json',
+  BASE + '/icons/icon-192.png',
+  BASE + '/icons/icon-512.png'
 ];
 
 self.addEventListener('install', event => {
