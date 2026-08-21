@@ -18,6 +18,7 @@
   const PAGINA_APP   = 'app.html';
   const CLAVE_DESTINO = 'vimeco_auth_destino';
   const CLAVE_MOTIVO  = 'vimeco_auth_motivo';
+  const CLAVE_SESION  = 'vimeco_auth_sesion';
   const esLogin = window._AUTH_PAGINA_LOGIN === true;
 
   firebase.initializeApp(FIREBASE_CONFIG);
@@ -29,6 +30,7 @@
 
   auth.onAuthStateChanged(u => {
     usuario = u;
+    if (u) recordarSesion(u); else olvidarSesion();
     if (resolver) {           // primer disparo: recién ahí se sabe si hay sesión
       resolver(u);
       resolver = null;
@@ -38,10 +40,40 @@
     }
   });
 
+  /* ===== Rastro de sesión =====
+     Restaurar la sesión desde IndexedDB tarda un par de cientos de ms, y como cada
+     pantalla es una navegación entera, eso pasa en cada click. Este rastro en
+     localStorage dice "esta máquina ya estuvo adentro", lo justo para no tapar la
+     pantalla mientras Firebase confirma. No es una credencial y no da acceso a
+     nada: quien decide sigue siendo el token, y los datos igual esperan porque
+     _authToken() no resuelve hasta que Firebase contesta. */
+  function recordarSesion(u) {
+    try {
+      localStorage.setItem(CLAVE_SESION, JSON.stringify({
+        email: u.email || '', displayName: u.displayName || '', photoURL: u.photoURL || ''
+      }));
+    } catch (e) { /* sin storage: se pierde el atajo, la app funciona igual */ }
+  }
+  function sesionRecordada() {
+    try { return JSON.parse(localStorage.getItem(CLAVE_SESION) || 'null'); } catch (e) { return null; }
+  }
+  function olvidarSesion() {
+    try { localStorage.removeItem(CLAVE_SESION); } catch (e) {}
+  }
+
   /* ===== Gate visual =====
      Los <script> están al final del body, así que el contenido de la pantalla ya
-     está parseado cuando corre esto. El overlay opaco lo tapa hasta saber si la
-     sesión es válida. */
+     está parseado cuando corre esto.
+
+     El overlay sólo aparece cuando de verdad no se sabe si hay sesión — típicamente
+     al entrar de cero, donde tapa el instante previo al redirect al login. Si la
+     máquina ya estuvo adentro, moverse entre pantallas no parpadea: se dibuja la
+     pantalla normal (vacía, con sus propios "Cargando…") y el overlay queda como
+     red de contención por si la confirmación tarda de más. */
+  const DEMORA_OVERLAY = 700;
+  const recordada = esLogin ? null : sesionRecordada();
+  let resuelta = false;
+
   function overlay(texto) {
     let el = document.getElementById('auth-overlay');
     if (!el) {
@@ -57,16 +89,27 @@
     const el = document.getElementById('auth-overlay');
     if (el) el.remove();
   }
-  if (!esLogin) overlay('Verificando acceso…');
+
+  if (!esLogin) {
+    if (recordada) {
+      montarChip(recordada);   // el header queda completo desde el arranque, sin saltos
+      setTimeout(() => { if (!resuelta) overlay('Verificando acceso…'); }, DEMORA_OVERLAY);
+    } else {
+      overlay('Verificando acceso…');
+    }
+  }
 
   function alResolverSesion(u) {
+    resuelta = true;
     if (esLogin) return;                       // index.html se maneja solo
     if (!u) { irAlLogin(); return; }
     sacarOverlay();
-    montarChip(u);
+    // Si venía del rastro, el chip ya está puesto; sólo se rehace si cambió la cuenta.
+    if (!recordada || recordada.email !== u.email) montarChip(u);
   }
 
   function irAlLogin() {
+    olvidarSesion();
     // Guardar a dónde se quería ir, para volver después de entrar (sirve cuando
     // alguien abre un link directo a una pantalla de obra).
     try {
@@ -112,6 +155,7 @@
   // `motivo` (opcional) se muestra después en la pantalla de login: sirve para
   // explicar por qué se cayó la sesión en vez de patear al usuario sin decirle nada.
   window._authSalir = async function (motivo) {
+    olvidarSesion();
     try {
       if (motivo) sessionStorage.setItem(CLAVE_MOTIVO, motivo);
       sessionStorage.removeItem(CLAVE_DESTINO);
@@ -167,6 +211,8 @@
   function montarChip(u) {
     const dolar = document.getElementById('header-dolar');
     if (!dolar || !dolar.parentElement) return;
+    const previo = dolar.parentElement.querySelector('.auth-chip');
+    if (previo) previo.remove();   // remonte por cambio de cuenta
 
     const mail   = u.email || '';
     const inicial = (u.displayName || mail || '?').trim().charAt(0).toUpperCase();
