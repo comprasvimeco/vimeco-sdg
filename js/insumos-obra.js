@@ -199,6 +199,7 @@ async function loadAll() {
   paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
   paramsMO = { ...paramsMO, ...(obra.paramsMO || {}) };
   dolarObra = obra.dolar ? obra.dolar.valor : null;
+  window.setCotizacionObra(dolarObra);
 
   $('header-obra-nombre').textContent = 'Insumos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'insumos');

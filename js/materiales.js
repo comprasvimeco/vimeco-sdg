@@ -88,7 +88,7 @@ function onFuenteChange(material, obraKey) {
   setCalcFormula($('material-precio-ars'), null);
   $('material-proveedor').value = p ? (p.proveedor || '') : '';
   $('material-fecha').value = p ? (p.fecha || todayIso()) : todayIso();
-  $('material-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARS(p.cotizacionUsada)}` : '';
+  $('material-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
 }
 
 // material: null en alta (sin precios todavía). En edición, muestra TODAS

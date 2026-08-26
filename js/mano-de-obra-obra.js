@@ -288,6 +288,7 @@ async function loadAll() {
     return;
   }
   obra = obraData;
+  window.setCotizacionObra(obra.dolar ? obra.dolar.valor : null);
 
   await seedSiHaceFalta();
   const paramsData = await _fbGet(`/obras/${obraKey}/paramsMO.json`);

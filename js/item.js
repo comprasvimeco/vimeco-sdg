@@ -370,6 +370,7 @@ function activarVersion(key) {
   paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS, ...((obraActiva && obraActiva.paramsEquipos) || {}) };
   paramsMO = { ...DEFAULT_PARAMS_MO, ...((obraActiva && obraActiva.paramsMO) || {}) };
   dolarObraActivo = (obraActiva && obraActiva.dolar) ? obraActiva.dolar.valor : null;
+  window.setCotizacionObra(dolarObraActivo);
   roles = Object.entries((obraActiva && obraActiva.roles) || {}).map(([k, r]) => ({ key: k, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
   const v = versionesObra[key];
   if (v) {
@@ -865,7 +866,7 @@ function loadMepPrecioFields(mat, obraKey) {
   setCalcFormula($('mep-precio-ars'), null);
   $('mep-proveedor').value = p ? (p.proveedor || '') : '';
   $('mep-fecha').value = p ? (p.fecha || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
-  $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARS(p.cotizacionUsada)}` : '';
+  $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
 }
 
 // Fuente acá es sólo para CONSULTAR el precio de otra obra como referencia —
@@ -953,7 +954,7 @@ async function saveEditarPrecioModal() {
 // Desglose de costo diario de un equipo — sólo lectura, mismos parámetros
 // generales (interés, % reparaciones, etc.) que se editan en Equipos.
 function filaDesglose(label, formula, valor) {
-  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span></span><span>${fmtARS(valor)} $/día</span></div>`;
+  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span></span><span>${fmtARS(valor)}/día</span></div>`;
 }
 
 function openDetalleEquipoModal(equipo) {
@@ -969,7 +970,7 @@ function openDetalleEquipoModal(equipo) {
       filaDesglose('Reparaciones y Repuestos', `${paramsEquipos.reparacionesPct}% de Amortización`, d.reparacionesDia),
       filaDesglose('Combustibles', `Consumo × potencia × jornada × precio`, d.combustibleDia),
       filaDesglose('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`, d.lubricantesDia),
-      `<div class="ap-resumen-row total"><span>Costo diario del equipo</span><span>${fmtARS(d.costoDiarioTotal)} $/día</span></div>`,
+      `<div class="ap-resumen-row total"><span>Costo diario del equipo</span><span>${fmtARS(d.costoDiarioTotal)}/día</span></div>`,
     ].join('');
   }
   $('modal-equipo-detalle').classList.remove('hidden');

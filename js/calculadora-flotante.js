@@ -365,4 +365,6 @@
     e.stopImmediatePropagation();
     agregarValor(el);
   }, true);
+
+  window.addEventListener('vimeco:moneda', () => { if (open) actualizarVista(); });
 })();

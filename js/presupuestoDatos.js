@@ -60,6 +60,7 @@
     const paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS, ...(obra.paramsEquipos || {}) };
     const paramsMO      = { ...DEFAULT_PARAMS_MO,      ...(obra.paramsMO      || {}) };
     const dolarObra     = obra.dolar ? obra.dolar.valor : null;
+    window.setCotizacionObra(dolarObra);
     const preciosObra   = window.resolverPreciosObra(catalogos.materiales, obraKey);
     const cargaFijaLineas = cfLineasData || {};
     const cargaFijaConfig = { beneficioPct: null, costoFinancieroPct: null, ...(cfConfigData || {}) };

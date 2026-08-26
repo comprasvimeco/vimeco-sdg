@@ -334,6 +334,13 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .hdr-decimales-btn { border: none; background: none; color: rgba(255,255,255,.8); font-size: .95rem; font-weight: 700; line-height: 1; cursor: pointer; padding: .18rem .38rem; border-radius: 999px; }
 .hdr-decimales-btn:hover { background: rgba(255,255,255,.2); color: var(--white); }
 
+/* Moneda con la que se leen los importes ($ / US$) — misma pastilla, dos segmentos */
+.hdr-moneda { display: inline-flex; align-items: center; gap: .1rem; background: rgba(255,255,255,.14); border-radius: 999px; padding: .12rem .2rem; }
+.hdr-moneda-btn { border: none; background: none; color: rgba(255,255,255,.7); font-size: .78rem; font-weight: 700; line-height: 1; cursor: pointer; padding: .28rem .5rem; border-radius: 999px; }
+.hdr-moneda-btn:hover:not(:disabled) { background: rgba(255,255,255,.2); color: var(--white); }
+.hdr-moneda-btn.active { background: var(--white); color: var(--primary, #1e3a5f); }
+.hdr-moneda-btn:disabled { opacity: .4; cursor: default; }
+
 /* ===== KEYFRAMES ===== */
 @keyframes fadeInUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
@@ -365,6 +372,7 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
   .subtab { font-size: .78rem; padding: .3rem .6rem; }
   .header-dolar { font-size: .72rem; padding: .25rem .5rem; }
   .hdr-decimales-valor { font-size: .72rem; }
+  .hdr-moneda-btn { font-size: .72rem; padding: .24rem .42rem; }
 }
 @media (max-width: 380px) {
   /* El dólar se puede mirar en Datos de la obra; los decimales, en cambio,

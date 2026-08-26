@@ -31,11 +31,14 @@
     window.dispatchEvent(new CustomEvent('vimeco:decimales', { detail: v }));
   };
 
-  // Cada pantalla pasa acá su render principal para redibujarse cuando
-  // cambian los decimales, sin tener que volver a pedir datos.
-  window.onDecimalesVista = function (render) {
+  // Cada pantalla pasa acá su render principal para redibujarse cuando cambia
+  // el formato de la vista, sin tener que volver a pedir datos: los decimales
+  // y también la moneda con la que se leen los importes.
+  window.onFormatoVista = function (render) {
     window.addEventListener('vimeco:decimales', () => render());
+    window.addEventListener('vimeco:moneda',    () => render());
   };
+  window.onDecimalesVista = window.onFormatoVista;   // nombre viejo, mismo efecto
 
   // Un valor que redondeado a los decimales que se muestran da cero, se
   // muestra como cero pelado — si no, un -0,000001 aparece como "-$ 0,00",
@@ -56,8 +59,24 @@
   // grilla de carga, una celda vacía se lee mejor que un "0,00" inventado.
   window.fmtNum  = n => vacio(n) ? '' : fmt(n);
   window.fmtCoef = n => vacio(n) ? '' : fmt(n);
-  window.fmtARS  = n => vacio(n) ? '' : fmt(n, { style: 'currency', currency: 'ARS' });
   window.fmtUSD  = n => vacio(n) ? '' : fmt(n, { style: 'currency', currency: 'USD' });
+
+  // Pesos SIEMPRE, sin importar el toggle de moneda: para mostrar una
+  // COTIZACIÓN (que es un $/USD, no un importe) y para el equivalente en
+  // pesos de un precio en dólares. Pasar esos por el toggle daría "USD 1".
+  window.fmtARSFijo = n => vacio(n) ? '' : fmt(n, { style: 'currency', currency: 'ARS' });
+
+  // Todo importe se guarda y se calcula en pesos; el toggle del header sólo
+  // cambia en qué moneda se LEE. Si todavía no hay cotización (sin red y sin
+  // caché) se muestra en pesos, en vez de inventar un número.
+  window.fmtARS = function (n) {
+    if (vacio(n)) return '';
+    if (window.monedaVista() === 'USD') {
+      const c = window.cotizacionVista();
+      if (c) return fmt(n / c, { style: 'currency', currency: 'USD' });
+    }
+    return fmt(n, { style: 'currency', currency: 'ARS' });
+  };
 
   // Recibe la FRACCIÓN (0.25), muestra el porcentaje (25%).
   window.fmtPct = frac => vacio(frac) ? '—' : fmt(frac * 100) + '%';
@@ -105,6 +124,91 @@
         window.setDecimalesVista(window.decimalesVista() + parseInt(btn.dataset.paso, 10)));
     });
   };
+
+  /* ===== Moneda de la vista (pesos / dólares) ===== */
+  // Preferencia del navegador, igual que los decimales: no viaja a Firebase y
+  // no toca ni un dato. Todo se sigue guardando y calculando en pesos; esto
+  // sólo elige en qué moneda se LEEN los importes ya calculados.
+  const KEY_MON = 'vimeco-moneda';
+  let monedaCache = null;
+  let cotizObra   = null;   // dólar de la obra abierta, si la pantalla lo registró
+
+  window.monedaVista = function () {
+    if (monedaCache == null) {
+      let guardado = null;
+      try { guardado = localStorage.getItem(KEY_MON); } catch (_) {}
+      monedaCache = guardado === 'USD' ? 'USD' : 'ARS';
+    }
+    return monedaCache;
+  };
+
+  // Con qué cotización se leen los dólares. Dentro de una obra es el dólar de
+  // esa obra: es el mismo con el que el motor pasó a pesos los costos que ya
+  // venían en USD (equipos), así que dividir por él los devuelve exactos a su
+  // valor original. Sin obra en contexto (Materiales, Equipos, Mano de Obra
+  // generales) se usa el oficial del día.
+  window.cotizacionVista = function () {
+    return cotizObra || window.dolarOficialVenta();
+  };
+  window.cotizacionVistaEsDeObra = () => cotizObra != null;
+
+  // Para las etiquetas que llevan el símbolo escrito (en Plan de Avance
+  // distingue la fila en plata de la fila en %).
+  window.simboloVista = function () {
+    return (window.monedaVista() === 'USD' && window.cotizacionVista()) ? 'US$' : '$';
+  };
+
+  // La pantalla que trabaja dentro de una obra registra acá su obra.dolar al
+  // cargarla. No dispara re-render: la pantalla dibuja igual enseguida.
+  window.setCotizacionObra = function (valor) {
+    const n = Number(valor);
+    cotizObra = (valor != null && valor !== '' && !isNaN(n) && n > 0) ? n : null;
+    if (window.pintarHeaderDolar) window.pintarHeaderDolar();
+    renderControlMoneda();
+  };
+
+  window.setMonedaVista = function (m) {
+    const v = m === 'USD' ? 'USD' : 'ARS';
+    if (v === window.monedaVista()) return;
+    if (v === 'USD' && !window.cotizacionVista()) return;   // sin cotización no hay a qué convertir
+    monedaCache = v;
+    try { localStorage.setItem(KEY_MON, v); } catch (_) {}
+    if (window.pintarHeaderDolar) window.pintarHeaderDolar();
+    renderControlMoneda();
+    window.dispatchEvent(new CustomEvent('vimeco:moneda', { detail: v }));
+  };
+
+  function renderControlMoneda() {
+    const cont = document.querySelector('.hdr-moneda');
+    if (!cont) return;
+    const modo = window.monedaVista();
+    const hayCotiz = !!window.cotizacionVista();
+    cont.querySelectorAll('.hdr-moneda-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.moneda === modo);
+      btn.disabled = btn.dataset.moneda === 'USD' && !hayCotiz;
+    });
+    cont.title = hayCotiz
+      ? 'Moneda con la que se leen los importes. No cambia ningún dato: todo se guarda y se calcula en pesos.'
+      : 'Todavía no hay cotización del dólar disponible.';
+  }
+  window.refrescarControlMoneda = renderControlMoneda;
+
+  window.montarControlMoneda = function () {
+    const dolarEl = document.getElementById('header-dolar');
+    if (!dolarEl || document.querySelector('.hdr-moneda')) return;
+    if (document.body.dataset.monedaFija) return;   // pantallas que siempre van en pesos (Exportar)
+
+    const cont = document.createElement('div');
+    cont.className = 'hdr-moneda';
+    cont.innerHTML = `
+      <button type="button" class="hdr-moneda-btn" data-moneda="ARS" title="Ver los importes en pesos">$</button>
+      <button type="button" class="hdr-moneda-btn" data-moneda="USD" title="Ver los importes en dólares">US$</button>`;
+    (document.querySelector('.hdr-decimales') || dolarEl).insertAdjacentElement('afterend', cont);
+
+    cont.querySelectorAll('.hdr-moneda-btn').forEach(btn =>
+      btn.addEventListener('click', () => window.setMonedaVista(btn.dataset.moneda)));
+    renderControlMoneda();
+  };
 })();
 
 // Cotización oficial (venta) cacheada, sincrónica. null si todavía no se cargó ninguna vez.
@@ -119,7 +223,7 @@ window.dolarOficialVenta = function () {
 window.fmtUSDConEquivalente = function (usd) {
   const venta = window.dolarOficialVenta();
   if (!venta) return fmtUSD(usd);
-  return `${fmtUSD(usd)} · ≈ ${fmtARS(usd * venta)}`;
+  return `${fmtUSD(usd)} · ≈ ${fmtARSFijo(usd * venta)}`;
 };
 
 // Un precio se carga en ARS o en USD (lo que el usuario tenga a mano) y se
@@ -310,7 +414,7 @@ window.attachDualPrecioInputs = function ({ usdInput, arsInput, notaEl }) {
   function actualizarNota() {
     if (!notaEl) return;
     const venta = window.dolarOficialVenta();
-    notaEl.textContent = venta ? `Cotización usada: USD = ${fmtARS(venta)}` : '';
+    notaEl.textContent = venta ? `Cotización usada: USD = ${fmtARSFijo(venta)}` : '';
   }
 
   function recalcular(origen) {
@@ -335,24 +439,44 @@ window.attachDualPrecioInputs = function ({ usdInput, arsInput, notaEl }) {
   actualizarNota();
 };
 
-// Pinta "USD = $1.520,00" en el <span id="header-dolar"> del header, si existe
-// en la página. Se auto-ejecuta al cargar cualquier página que tenga ese
-// elemento y este script — así el valor queda visible en todas partes sin
-// que cada pantalla lo tenga que llamar a mano.
+// Pinta "USD = $1.520,00" en el <span id="header-dolar"> del header, con lo
+// que haya cacheado. En modo pesos muestra el oficial del día (el de
+// siempre); en modo dólares, la cotización con la que se están leyendo los
+// importes — que dentro de una obra es la de la obra.
+window.pintarHeaderDolar = function () {
+  const el = document.getElementById('header-dolar');
+  if (!el) return;
+  if (window.monedaVista() === 'USD') {
+    const c = window.cotizacionVista();
+    el.textContent = c
+      ? 'USD = ' + fmtARSFijo(c) + (window.cotizacionVistaEsDeObra() ? ' (obra)' : '')
+      : 'USD = —';
+    return;
+  }
+  const venta = window.dolarOficialVenta();
+  el.textContent = venta ? 'USD = ' + fmtARSFijo(venta) : 'USD = —';
+};
+
+// Se auto-ejecuta al cargar cualquier página que tenga ese elemento y este
+// script — así el valor queda visible en todas partes sin que cada pantalla lo
+// tenga que llamar a mano.
 window.renderHeaderDolar = async function () {
   const el = document.getElementById('header-dolar');
   if (!el) return;
-  const cached = window.dolarOficialVenta();
-  if (cached) el.textContent = 'USD = ' + fmtARS(cached);
-  try {
-    await window.getDolarSnapshot();
-    const v = window.dolarOficialVenta();
-    if (v) el.textContent = 'USD = ' + fmtARS(v);
-  } catch (_) {}
+  const habiaCotiz = !!window.cotizacionVista();
+  window.pintarHeaderDolar();
+  try { await window.getDolarSnapshot(); } catch (_) {}
+  window.pintarHeaderDolar();
+  window.refrescarControlMoneda();
+  // Si la preferencia guardada era "dólares" pero al abrir todavía no había
+  // cotización, los importes salieron en pesos: ahora que llegó, se redibujan.
+  if (!habiaCotiz && window.cotizacionVista() && window.monedaVista() === 'USD')
+    window.dispatchEvent(new CustomEvent('vimeco:moneda', { detail: 'USD' }));
 };
 
 document.addEventListener('DOMContentLoaded', () => {
   if (!document.getElementById('header-dolar')) return;
   window.montarControlDecimales();
+  window.montarControlMoneda();
   window.renderHeaderDolar();
 });

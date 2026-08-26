@@ -291,9 +291,9 @@ function renderTabla(d) {
     <tfoot>
       ${filaTotal('Certificación parcial %', d.parcialPct, '', v => fmtPct(v), comoPct)}
       ${filaTotal('Certificación acumulada %', d.acumPct, 'pa-acum', v => fmtPct(v), comoPct)}
-      ${filaTotal('Certificación parcial $', d.parcialMonto, '', v => fmtARS(limpiarCero(v)), comoMonto)}
-      ${filaTotal('Certificación acumulada $', d.acumMonto, 'pa-acum', v => fmtARS(limpiarCero(v)), comoMonto)}
-      ${filaTotal('Remanente $', d.remanenteMonto, '', v => fmtARS(limpiarCero(v)), comoMonto)}
+      ${filaTotal('Certificación parcial ' + simboloVista(), d.parcialMonto, '', v => fmtARS(limpiarCero(v)), comoMonto)}
+      ${filaTotal('Certificación acumulada ' + simboloVista(), d.acumMonto, 'pa-acum', v => fmtARS(limpiarCero(v)), comoMonto)}
+      ${filaTotal('Remanente ' + simboloVista(), d.remanenteMonto, '', v => fmtARS(limpiarCero(v)), comoMonto)}
       ${filaTotal('Remanente %', d.remanentePct, '', v => fmtPct(v), comoPct)}
     </tfoot>`;
 
@@ -637,6 +637,7 @@ async function loadAll() {
   paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
   paramsMO = { ...paramsMO, ...(obra.paramsMO || {}) };
   dolarObra = obra.dolar ? obra.dolar.valor : null;
+  window.setCotizacionObra(dolarObra);
   preciosObra = window.resolverPreciosObra(materiales, obraKey);
   cargaFijaLineas = cfLineasData || {};
   if (cfConfigData) cargaFijaConfig = { ...cargaFijaConfig, ...cfConfigData };

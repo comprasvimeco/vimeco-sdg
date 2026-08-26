@@ -96,6 +96,7 @@ async function loadAll() {
   if (cfgMO && cfgMO.jornadaHoras) jornadaHoras = cfgMO.jornadaHoras;
   paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
   dolarObra = obra.dolar ? obra.dolar.valor : null;
+  window.setCotizacionObra(dolarObra);
 
   $('header-obra-nombre').textContent = 'Equipos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'equipos');

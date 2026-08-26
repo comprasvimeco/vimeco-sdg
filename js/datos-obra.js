@@ -131,7 +131,7 @@ async function sembrarEncabezadoSiHaceFalta() {
 
 function renderDolarVivo() {
   const venta = window.dolarOficialVenta();
-  $('dolar-vivo-txt').textContent = venta ? `Dólar oficial en vivo: ${fmtARS(venta)}` : 'Dólar oficial en vivo: —';
+  $('dolar-vivo-txt').textContent = venta ? `Dólar oficial en vivo: ${fmtARSFijo(venta)}` : 'Dólar oficial en vivo: —';
   $('btn-usar-dolar-vivo').disabled = !venta;
 }
 
@@ -145,6 +145,7 @@ function setupDolar() {
     const n = parseMoneyString(input.value);
     if (isNaN(n)) return;
     dolarObra = { valor: n, fecha: todayIso() };
+    window.setCotizacionObra(n);
     try {
       await _fbPut(`/obras/${obraKey}/dolar.json`, dolarObra);
     } catch (_) {
@@ -326,6 +327,7 @@ async function loadAll() {
   }
   obra = obraData;
   dolarObra = dolarData || { valor: null, fecha: null };
+  window.setCotizacionObra(dolarObra.valor);
   encabezado = encabezadoData || {};
   datosExtra = datosExtraData || {};
   await sembrarEncabezadoSiHaceFalta();

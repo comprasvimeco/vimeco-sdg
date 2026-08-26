@@ -713,6 +713,7 @@ async function loadAll() {
   paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
   paramsMO = { ...paramsMO, ...(obra.paramsMO || {}) };
   dolarObra = obra.dolar ? obra.dolar.valor : null;
+  window.setCotizacionObra(dolarObra);
   preciosObra = window.resolverPreciosObra(materiales, obraKey);
 
   await migrarARubrosEntidad(rubrosComputoData, computoRubrosViejo || {});
