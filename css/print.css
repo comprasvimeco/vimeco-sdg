@@ -138,6 +138,13 @@
   border-color: var(--doc-linea-fuerte);
 }
 
+/* ===== Amortización de equipos ===== */
+
+/* A diferencia del AP (uno por hoja), el desglose de un equipo es corto: varios
+   entran en la misma página. Sólo se evita partir un equipo entre dos hojas. */
+.doc-equipo { break-inside: avoid; margin-bottom: 4mm; }
+.doc-formula { font-size: 6.5pt; color: #6b7280; }
+
 /* ===== Plan de trabajos ===== */
 
 /* El cronograma es la única sección que sale apaisada: aun cortado en bloques

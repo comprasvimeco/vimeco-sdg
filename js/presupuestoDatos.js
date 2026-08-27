@@ -250,4 +250,31 @@
     };
   };
 
+  // Equipos que efectivamente aparecen en algún análisis de precio de esta
+  // obra —presupuesto o auxiliar—, con su desglose de costo diario. No es el
+  // catálogo global de equipos: sólo los que un A.P de esta obra referencia,
+  // que es el mismo criterio con el que la hoja A.P (y A.P auxiliares) del
+  // Excel arma sus bloques. Usado para la sección "Amortización de equipos"
+  // de la exportación (PDF y Excel), ver [[project_desglose_amortizacion_equipos]].
+  window.equiposUsadosEnObra = function (modelo) {
+    const itemKeys = new Set();
+    modelo.rubros.forEach(r => r.lineas.forEach(l => { if (l.itemKey) itemKeys.add(l.itemKey); }));
+    modelo.auxiliares.forEach(a => { if (a.itemKey) itemKeys.add(a.itemKey); });
+
+    const refKeys = new Set();
+    itemKeys.forEach(itemKey => {
+      const ap = window.analisisDePrecioDe(modelo, itemKey);
+      if (!ap) return;
+      ap.equipos.forEach(e => { if (e.refKey) refKeys.add(e.refKey); });
+    });
+
+    return modelo.catalogos.equipos
+      .filter(e => refKeys.has(e.key))
+      .sort((a, b) => `${a.tipo || ''} ${a.codigo || ''}`.localeCompare(`${b.tipo || ''} ${b.codigo || ''}`, 'es'))
+      .map(equipo => ({
+        equipo,
+        desglose: window.calcDesgloseCostoEquipo(equipo, modelo.paramsEquipos, modelo.paramsMO.jornadaHoras, modelo.dolarObra),
+      }));
+  };
+
 })();

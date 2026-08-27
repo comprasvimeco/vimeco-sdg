@@ -34,20 +34,23 @@ const SECCIONES = [
   { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas },
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
   { id: 'gastosfijos', label: 'Gastos fijos de la obra', render: seccionGastosFijos },
+  { id: 'equipos',     label: 'Amortización de equipos', render: seccionEquipos },
 ];
 
 // Secciones internas de la empresa: existen para poder imprimirlas cuando uno
 // quiere, pero arrancan destildadas para que no se vayan sin querer en un
 // presupuesto que se manda al comitente.
-const SECCIONES_INTERNAS = ['auxiliares', 'gastosfijos'];
+const SECCIONES_INTERNAS = ['auxiliares', 'gastosfijos', 'equipos'];
 
 /* Secciones que no siempre hay para emitir: una obra sin rubros (ver
-   js/numeracion.js) no tiene Resumen por rubro, y una obra sin análisis
-   auxiliares no tiene nada que poner en esa sección. */
+   js/numeracion.js) no tiene Resumen por rubro, una obra sin análisis
+   auxiliares no tiene nada que poner en esa sección, y una obra sin equipos
+   en ningún A.P no tiene nada que desglosar en "Amortización de equipos". */
 function seccionesDisponibles() {
   return SECCIONES.filter(s => {
     if (s.id === 'resumen') return !modelo.numeracion.sinRubros;
     if (s.id === 'auxiliares') return modelo.auxiliares.length > 0;
+    if (s.id === 'equipos') return window.equiposUsadosEnObra(modelo).length > 0;
     return true;
   });
 }
@@ -380,6 +383,62 @@ function seccionAnalisisPrecios() {
    la pide, no se va sola en un presupuesto que va al comitente. */
 function seccionAuxiliares() {
   return `${membrete('Análisis auxiliares')}${modelo.auxiliares.map(a => analisisDeLinea(a, true)).join('')}`;
+}
+
+/* ===== Amortización de equipos =====
+   Interna de la empresa (SECCIONES_INTERNAS): la fórmula de cada término del
+   costo diario de un equipo, término por término — la misma cuenta que
+   calcDesgloseCostoEquipo y que el modal de detalle del AP (js/item.js), pero
+   para todos los equipos que aparecen en algún análisis de precio de esta
+   obra (window.equiposUsadosEnObra), no el catálogo global. */
+function filaDesgloseDoc(label, formula, valor) {
+  return `
+    <tr>
+      <td>${escHtml(label)}<br><span class="doc-formula">${escHtml(formula)}</span></td>
+      <td class="doc-num">${docARS(valor)}/día</td>
+    </tr>`;
+}
+
+function bloqueEquipo(equipo, desglose) {
+  const nombre = `${equipo.tipo || ''} ${equipo.codigo || ''}`.trim();
+  const meta = [
+    equipo.potencia ? `${docCant(equipo.potencia)} HP` : '',
+    equipo.usoAnual ? `${docCant(equipo.usoAnual)} hs/año` : '',
+    equipo.vidaUtil ? `vida útil ${docCant(equipo.vidaUtil)} hs` : '',
+    equipo.costoUSD ? `Costo actual: ${docARS(desglose ? desglose.costoActual : null)}` : '',
+  ].filter(Boolean).join('  ·  ');
+
+  if (!desglose) {
+    return `
+      <article class="doc-equipo">
+        <div class="doc-ap-titulo">${escHtml(nombre)}</div>
+        <p class="doc-centro">Faltan datos de costo para este equipo (costo, vida útil o uso anual).</p>
+      </article>`;
+  }
+
+  return `
+    <article class="doc-equipo">
+      <div class="doc-ap-titulo">${escHtml(nombre)}</div>
+      <div class="doc-ap-meta">${escHtml(meta)}</div>
+      <table class="doc-tabla">
+        <tbody>
+          ${filaDesgloseDoc('Amortización', 'Costo actual × jornada ÷ vida útil', desglose.amortizacionDia)}
+          ${filaDesgloseDoc('Intereses', 'Costo actual × tasa ÷ 2 ÷ uso anual × jornada', desglose.interesesDia)}
+          ${filaDesgloseDoc('Reparaciones y Repuestos', `${docCant(modelo.paramsEquipos.reparacionesPct)}% de Amortización`, desglose.reparacionesDia)}
+          ${filaDesgloseDoc('Combustibles', 'Consumo × potencia × jornada × precio', desglose.combustibleDia)}
+          ${filaDesgloseDoc('Lubricantes', `${docCant(modelo.paramsEquipos.lubricantesPct)}% de Combustibles`, desglose.lubricantesDia)}
+          <tr class="doc-fila-total"><td>Costo diario del equipo</td><td class="doc-num">${docARS(desglose.costoDiarioTotal)}/día</td></tr>
+        </tbody>
+      </table>
+    </article>`;
+}
+
+function seccionEquipos() {
+  const usados = window.equiposUsadosEnObra(modelo);
+  if (!usados.length) {
+    return `${membrete('Amortización de equipos')}<p class="doc-centro">Esta obra no tiene equipos cargados en ningún análisis de precio.</p>`;
+  }
+  return `${membrete('Amortización de equipos')}${usados.map(u => bloqueEquipo(u.equipo, u.desglose)).join('')}`;
 }
 
 /* ===== Plan de trabajos y curva de inversión ===== */

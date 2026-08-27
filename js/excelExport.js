@@ -406,6 +406,12 @@
      la cuenta de calcDesgloseCostoEquipo escrita en fórmulas contra los
      parámetros de la hoja Datos. El A.P después sólo busca el costo diario.
 
+     A diferencia de Materiales (catálogo entero, es de consulta general), acá
+     sólo van los equipos que window.equiposUsadosEnObra encuentra en algún A.P
+     de esta obra —presupuesto o auxiliar—: el mismo criterio con el que se
+     arma la sección "Amortización de equipos" del PDF. El dominio de VLOOKUP
+     de la hoja A.P nunca busca otra cosa, así que no faltan filas.
+
      Un equipo al que le falte costo, vida útil o uso anual no cuesta nada en
      el sistema (la línea del análisis se descarta), así que acá va en cero y
      sin desglose: poner las fórmulas daría #¡DIV/0! y ensuciaría todo el libro. */
@@ -428,8 +434,7 @@
     ws.getRow(r).height = 32;
     r++;
 
-    const equipos = m.catalogos.equipos.slice()
-      .sort((a, b) => `${a.tipo || ''} ${a.codigo || ''}`.localeCompare(`${b.tipo || ''} ${b.codigo || ''}`, 'es'));
+    const equipos = window.equiposUsadosEnObra(m).map(u => u.equipo);
     const nombres = nombresUnicos(equipos, e => `${e.tipo || ''} ${e.codigo || ''}`.trim());
 
     const primera = r;
@@ -458,7 +463,7 @@
       r++;
     });
 
-    if (r === primera) { ws.getCell(r, 2).value = 'Sin equipos en la Biblioteca.'; r++; }
+    if (r === primera) { ws.getCell(r, 2).value = 'Esta obra no usa equipos en ningún análisis de precio.'; r++; }
     const ultima = r - 1;
     bordear(ws, primera, 2, ultima, 13);
 
