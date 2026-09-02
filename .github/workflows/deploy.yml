@@ -30,12 +30,21 @@ jobs:
         run: node build.js
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      # El bump se guarda en el repo por comodidad (el hook de commit lo lee),
+      # pero no es lo que se publica: eso sale del working tree, que ya quedó
+      # bumpeado por el Build. Por eso este paso NO puede tumbar el deploy —
+      # pasó con la v105: el push se rechazó y el sitio se quedó en la v104.
       - name: Commit version bump
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add app.html sw.js
-          git diff --cached --quiet || git commit -m "ci: bump version [skip ci]"
+          git diff --cached --quiet && exit 0
+          git commit -m "ci: bump version [skip ci]"
+          # main puede haber avanzado mientras corría el build, o este puede ser
+          # el re-run de un run cuyo bump ya se pusheó.
+          git pull --rebase origin main
           git push
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
