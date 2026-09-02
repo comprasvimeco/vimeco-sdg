@@ -86,13 +86,55 @@ async function saveParams() {
   }
 }
 
-function renderRoles(list) {
+/* ===== Orden de los roles =====
+   Los roles se muestran por su campo `orden` (flechas ↑/↓), y ese mismo orden
+   es el que sale en los A.P y en la exportación (window.rolesOrdenados). Las
+   obras cargadas antes de que existiera `orden` no lo tienen guardado: se
+   siguen viendo alfabéticas y recién se les escribe el orden a todas juntas
+   cuando se mueve algo, en un solo PATCH que sólo toca ese campo. */
+function ultimoOrden() {
+  return allRoles.reduce((max, r) => (r.orden != null && r.orden > max ? r.orden : max), 0);
+}
+
+// Para poder decir "este rol nuevo va último" todos los de arriba tienen que
+// tener `orden`; si la obra viene de antes y no lo tiene, se lo asigna a todos
+// en el orden en el que se están viendo. Una sola vez, al agregar o importar.
+async function asegurarOrden() {
+  if (allRoles.every(r => r.orden != null)) return;
+  const cambios = {};
+  allRoles.forEach((r, i) => { r.orden = i + 1; cambios[`${r.key}/orden`] = i + 1; });
+  await _fbPatch(`/obras/${obraKey}/roles.json`, cambios);
+}
+
+function moverRol(rolKey, dir) {
+  const idx = allRoles.findIndex(r => r.key === rolKey);
+  const otroIdx = idx + dir;
+  if (idx < 0 || otroIdx < 0 || otroIdx >= allRoles.length) return;
+  const tmp = allRoles[idx];
+  allRoles[idx] = allRoles[otroIdx];
+  allRoles[otroIdx] = tmp;
+
+  // PATCH multi-path sobre el árbol de roles: sólo escribe `orden` en cada
+  // uno, sin reescribir los nodos (que tienen básico, fórmulas, creadoEn).
+  const cambios = {};
+  allRoles.forEach((r, i) => {
+    r.orden = i + 1;
+    cambios[`${r.key}/orden`] = i + 1;
+  });
+  applyFilter();
+  _fbPatch(`/obras/${obraKey}/roles.json`, cambios)
+    .catch(() => showToast('Error al guardar el orden de los roles.', 'error'));
+}
+
+// `ordenable` es false mientras hay una búsqueda activa: la lista filtrada no
+// muestra el orden real, así que mover ahí adentro sería a ciegas.
+function renderRoles(list, ordenable) {
   const container = $('mo-list');
   if (!list.length) {
     container.innerHTML = '<div class="list-empty">No hay roles cargados todavía.</div>';
     return;
   }
-  container.innerHTML = list.map(r => {
+  container.innerHTML = list.map((r, idx) => {
     let meta;
     if (r.basico) {
       const c = calcCosto(r.basico, r.noRemunerativoMensual, r.extraPct);
@@ -113,6 +155,9 @@ function renderRoles(list) {
           <span class="item-card-meta">${escHtml(meta)}</span>
         </div>
         <div class="item-card-actions">
+          ${ordenable ? `
+          <button class="btn btn-sm btn-outline btn-icon btn-mover-rol" data-dir="-1" title="Subir" ${idx === 0 ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+          <button class="btn btn-sm btn-outline btn-icon btn-mover-rol" data-dir="1" title="Bajar" ${idx === list.length - 1 ? 'disabled' : ''}>${icSvg('arrowDown')}</button>` : ''}
           <button class="btn btn-sm btn-outline btn-edit-rol">Editar</button>
           <button class="btn btn-sm btn-danger btn-del-rol">Eliminar</button>
         </div>
@@ -122,6 +167,9 @@ function renderRoles(list) {
   container.querySelectorAll('.item-card').forEach(card => {
     const key = card.dataset.key;
     const rol = allRoles.find(r => r.key === key);
+    card.querySelectorAll('.btn-mover-rol').forEach(btn => {
+      btn.addEventListener('click', () => moverRol(key, parseInt(btn.dataset.dir, 10)));
+    });
     card.querySelector('.btn-edit-rol').addEventListener('click', () => openEditModal(rol));
     card.querySelector('.btn-del-rol').addEventListener('click', () => deleteRol(rol));
   });
@@ -132,13 +180,12 @@ function applyFilter() {
   const filtered = q
     ? allRoles.filter(r => r.nombre.toLowerCase().includes(q))
     : allRoles;
-  renderRoles(filtered);
+  renderRoles(filtered, !q);
 }
 
 async function loadRoles() {
   const data = await _fbGet(`/obras/${obraKey}/roles.json`);
-  allRoles = Object.entries(data || {}).map(([key, r]) => ({ key, ...r }))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  allRoles = window.rolesOrdenados(Object.entries(data || {}).map(([key, r]) => ({ key, ...r })));
   applyFilter();
 }
 
@@ -261,8 +308,9 @@ async function saveRolModal() {
     if (editingKey) {
       await _fbPatch(`/obras/${obraKey}/roles/${editingKey}.json`, data);
     } else {
+      await asegurarOrden();
       const key = keyDeRol(nombre);
-      await _fbPut(`/obras/${obraKey}/roles/${key}.json`, { ...data, creadoEn: Date.now() });
+      await _fbPut(`/obras/${obraKey}/roles/${key}.json`, { ...data, creadoEn: Date.now(), orden: ultimoOrden() + 1 });
     }
     $('modal-rol').classList.add('hidden');
     showToast(editingKey ? 'Rol actualizado.' : 'Rol creado.');
@@ -398,30 +446,38 @@ async function confirmarImportarMo() {
   }
 
   let cuantosRoles = 0;
-  if (traerRoles) {
-    const porNombre = {};
-    allRoles.forEach(r => { porNombre[normNombre(r.nombre)] = r.key; });
-    Object.values(rolesOrigen).forEach(r => {
-      const data = {
-        nombre: r.nombre,
-        basico: r.basico ?? null,
-        extraPct: r.extraPct ?? 0,
-        noRemunerativoMensual: r.noRemunerativoMensual ?? null,
-        fecha: r.fecha || todayIso(),
-        basicoFormula: r.basicoFormula ?? null,
-        extraPctFormula: r.extraPctFormula ?? null,
-        noRemunerativoMensualFormula: r.noRemunerativoMensualFormula ?? null,
-      };
-      const existente = porNombre[normNombre(r.nombre)];
-      cuantosRoles++;
-      // PATCH por rol (no PUT del árbol de roles): el nodo de un rol que ya
-      // está acá tiene campos propios — creadoEn — que no hay que perder.
-      if (existente) tareas.push(_fbPatch(`/obras/${obraKey}/roles/${existente}.json`, data));
-      else tareas.push(_fbPut(`/obras/${obraKey}/roles/${keyDeRol(r.nombre)}.json`, { ...data, creadoEn: Date.now() }));
-    });
-  }
 
   try {
+    if (traerRoles) {
+      // Los que se agregan van al final, en el orden que tienen en la obra
+      // origen. A los que ya están acá no se les toca el orden: el de esta
+      // obra manda.
+      await asegurarOrden();
+      let orden = ultimoOrden();
+      const porNombre = {};
+      allRoles.forEach(r => { porNombre[normNombre(r.nombre)] = r.key; });
+      const listaOrigen = window.rolesOrdenados(
+        Object.entries(rolesOrigen).map(([key, r]) => ({ key, ...r })));
+
+      listaOrigen.forEach(r => {
+        const data = {
+          nombre: r.nombre,
+          basico: r.basico ?? null,
+          extraPct: r.extraPct ?? 0,
+          noRemunerativoMensual: r.noRemunerativoMensual ?? null,
+          fecha: r.fecha || todayIso(),
+          basicoFormula: r.basicoFormula ?? null,
+          extraPctFormula: r.extraPctFormula ?? null,
+          noRemunerativoMensualFormula: r.noRemunerativoMensualFormula ?? null,
+        };
+        const existente = porNombre[normNombre(r.nombre)];
+        cuantosRoles++;
+        // PATCH por rol (no PUT del árbol de roles): el nodo de un rol que ya
+        // está acá tiene campos propios — creadoEn, orden — que no hay que perder.
+        if (existente) tareas.push(_fbPatch(`/obras/${obraKey}/roles/${existente}.json`, data));
+        else tareas.push(_fbPut(`/obras/${obraKey}/roles/${keyDeRol(r.nombre)}.json`, { ...data, creadoEn: Date.now(), orden: ++orden }));
+      });
+    }
     await Promise.all(tareas);
     if (nuevosParams) {
       paramsMO = nuevosParams;

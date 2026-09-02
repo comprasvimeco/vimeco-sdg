@@ -371,7 +371,7 @@ function activarVersion(key) {
   paramsMO = { ...DEFAULT_PARAMS_MO, ...((obraActiva && obraActiva.paramsMO) || {}) };
   dolarObraActivo = (obraActiva && obraActiva.dolar) ? obraActiva.dolar.valor : null;
   window.setCotizacionObra(dolarObraActivo);
-  roles = Object.entries((obraActiva && obraActiva.roles) || {}).map(([k, r]) => ({ key: k, ...r })).sort((a, b) => b.nombre.localeCompare(a.nombre, 'es'));
+  roles = window.rolesOrdenados(Object.entries((obraActiva && obraActiva.roles) || {}).map(([k, r]) => ({ key: k, ...r })));
   const v = versionesObra[key];
   if (v) {
     lineas = v.lineas || {};

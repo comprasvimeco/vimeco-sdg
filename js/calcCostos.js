@@ -234,6 +234,21 @@ window.lineasCargaFijaOrdenadas = function (lineas) {
   });
 };
 
+// Roles de mano de obra en el orden que les dio el usuario en la pantalla de
+// Mano de Obra de la obra (flechas ↑/↓). Los que todavía no tienen `orden`
+// —obras cargadas antes de que existiera— van al final por nombre, que es
+// como se venían viendo. Lo usan Mano de Obra, el A.P y la exportación: la
+// lista de categorías tiene que salir igual en las tres.
+window.rolesOrdenados = function (roles) {
+  return (roles || []).slice().sort((a, b) => {
+    const oa = a.orden, ob = b.orden;
+    if (oa != null && ob != null && oa !== ob) return oa - ob;
+    if (oa != null && ob == null) return -1;
+    if (oa == null && ob != null) return 1;
+    return (a.nombre || '').localeCompare(b.nombre || '', 'es');
+  });
+};
+
 // IVA por defecto de una obra que nunca tocó sus impuestos. Estaba repetido
 // como `ivaPct: 21` en las cuatro pantallas que calculaban el K; vive acá
 // porque sacarlo cambiaría de golpe el K de las obras que hoy no tienen

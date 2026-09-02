@@ -55,7 +55,7 @@
       items:      Object.entries(itemsData      || {}).map(([key, i]) => ({ key, ...i })),
       materiales: Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })),
       equipos:    Object.entries(equiposData    || {}).map(([key, e]) => ({ key, ...e })),
-      roles:      Object.entries(rolesData      || {}).map(([key, r]) => ({ key, ...r })),
+      roles:      window.rolesOrdenados(Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r }))),
     };
     const paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS, ...(obra.paramsEquipos || {}) };
     const paramsMO      = { ...DEFAULT_PARAMS_MO,      ...(obra.paramsMO      || {}) };
@@ -223,8 +223,8 @@
         });
     }
 
-    // Mano de Obra sale en el orden del catálogo de roles de la obra, que es
-    // como se carga y se lee en pantalla (oficial especializado → ayudante).
+    // Mano de Obra sale en el orden que el usuario les dio a los roles en la
+    // pantalla de Mano de Obra de la obra — el mismo que se ve en el A.P.
     const ordenRol = {};
     modelo.catalogos.roles.forEach((rol, i) => { ordenRol[rol.nombre] = i; });
     const manoDeObra = filas('manoDeObra')
