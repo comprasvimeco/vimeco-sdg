@@ -75,6 +75,89 @@ function applyFilter() {
   renderEquipos(filtered);
 }
 
+/* ===== Importar de otra obra =====
+   Sólo los parámetros: reemplazan a los de esta obra. El catálogo de equipos
+   (código, potencia, vida útil, costo) es global y no se toca. */
+
+let obrasParaImportar = null;   // cache: [{key, nombre}] — todas menos la actual
+let importarEqSelect = null;
+let paramsOrigen = null;        // paramsEquipos de la obra elegida, o null
+
+function resumenParamsEquipos(p) {
+  return [
+    `Interés ${p.tasaInteresPct ?? 0}%`,
+    `Reparaciones ${p.reparacionesPct ?? 0}%`,
+    `Lubricantes ${p.lubricantesPct ?? 0}%`,
+    `Consumo ${p.combustibleLtsPorHp ?? 0} lts/HP.h`,
+    `Combustible ${fmtARS(p.precioCombustibleLitro || 0)}/lt`,
+  ].join(' · ');
+}
+
+async function abrirModalImportarEq() {
+  $('importar-eq-confirmar').disabled = true;
+  paramsOrigen = null;
+  $('importar-eq-info').textContent = 'Elegí la obra origen.';
+
+  if (!obrasParaImportar) {
+    const data = await _fbGet('/obras.json');
+    obrasParaImportar = Object.entries(data || {})
+      .filter(([key]) => key !== obraKey)
+      .map(([key, o]) => ({ key, nombre: o.nombre || key }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  importarEqSelect = createSearchableSelect($('importar-eq-select'), {
+    options: obrasParaImportar.map(o => ({ value: o.key, label: o.nombre })),
+    placeholder: 'Buscar obra…',
+    onChange: onElegirObraOrigenEq,
+  });
+
+  $('modal-importar-eq').classList.remove('hidden');
+}
+
+function cerrarModalImportarEq() {
+  $('modal-importar-eq').classList.add('hidden');
+}
+
+async function onElegirObraOrigenEq(obraOrigenKey) {
+  $('importar-eq-confirmar').disabled = true;
+  paramsOrigen = null;
+  $('importar-eq-info').textContent = 'Buscando…';
+
+  const data = await _fbGet(`/obras/${obraOrigenKey}/paramsEquipos.json`);
+  if (!data) {
+    $('importar-eq-info').textContent = 'Esa obra no tiene parámetros de equipos propios cargados.';
+    return;
+  }
+  paramsOrigen = data;
+  $('importar-eq-info').textContent = resumenParamsEquipos(data);
+  $('importar-eq-confirmar').disabled = false;
+}
+
+async function confirmarImportarEq() {
+  if (!paramsOrigen) return;
+  const btn = $('importar-eq-confirmar');
+  btn.disabled = true;
+  btn.textContent = 'Importando…';
+
+  // Merge sobre los actuales: una obra vieja puede no tener todos los campos,
+  // y así el nodo guardado nunca queda incompleto.
+  const nuevos = { ...paramsEquipos, ...paramsOrigen };
+  try {
+    await _fbPut(`/obras/${obraKey}/paramsEquipos.json`, nuevos);
+    paramsEquipos = nuevos;
+    fillParamsForm();
+    applyFilter();
+    cerrarModalImportarEq();
+    showToast('Parámetros importados.');
+  } catch (_) {
+    showToast('Error al importar los parámetros.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Importar';
+  }
+}
+
 async function loadAll() {
   if (!obraKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
@@ -112,6 +195,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   ['param-interes', 'param-reparaciones', 'param-lubricantes', 'param-consumo', 'param-combustible']
     .forEach(id => $(id).addEventListener('blur', saveParams));
   $('equipos-search').addEventListener('input', applyFilter);
+
+  $('btn-importar-eq').addEventListener('click', abrirModalImportarEq);
+  $('importar-eq-close').addEventListener('click', cerrarModalImportarEq);
+  $('importar-eq-cancelar').addEventListener('click', cerrarModalImportarEq);
+  $('importar-eq-confirmar').addEventListener('click', confirmarImportarEq);
 
   await loadAll();
   await getDolarSnapshot().catch(() => {});

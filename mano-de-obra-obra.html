@@ -28,6 +28,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Parámetros generales de esta obra</span>
+        <button class="btn btn-sm btn-outline" id="btn-importar-mo">Importar de otra obra</button>
       </div>
       <div class="card-body">
         <div class="form-row">
@@ -88,6 +89,37 @@
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando roles…</div></div>
+
+  <!-- Modal: Importar parámetros y roles de otra obra -->
+  <div class="modal-overlay hidden" id="modal-importar-mo">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Importar de otra obra</span>
+        <button class="modal-close" id="importar-mo-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Obra origen</label>
+          <div id="importar-mo-select"></div>
+        </div>
+        <div class="form-group u-mb-0" style="display:flex;align-items:center;gap:.5rem;">
+          <input type="checkbox" id="importar-mo-params" style="width:auto;" checked disabled>
+          <label for="importar-mo-params" style="margin:0;">Parámetros generales</label>
+        </div>
+        <p class="form-hint" id="importar-mo-params-info">Elegí la obra origen.</p>
+        <div class="form-group u-mb-0" style="display:flex;align-items:center;gap:.5rem;margin-top:.75rem;">
+          <input type="checkbox" id="importar-mo-roles" style="width:auto;" checked disabled>
+          <label for="importar-mo-roles" style="margin:0;">Roles y básicos</label>
+        </div>
+        <p class="form-hint" id="importar-mo-roles-info">Elegí la obra origen.</p>
+        <p class="form-hint" style="margin-top:.75rem;">Los parámetros reemplazan a los de esta obra. Un rol que ya exista acá con el mismo nombre se actualiza con el básico de la obra origen — no se duplica la categoría.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="importar-mo-cancelar">Cancelar</button>
+        <button class="btn btn-primary" id="importar-mo-confirmar" disabled>Importar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Modal: Agregar / Editar rol -->
   <div class="modal-overlay hidden" id="modal-rol">
@@ -158,6 +190,7 @@
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
   <script src="js/calcCostos.js"></script>
+  <script src="js/searchable-select.js"></script>
   <script src="js/vendor/firebase-app-compat.js"></script>
   <script src="js/vendor/firebase-auth-compat.js"></script>
   <script src="js/config.js"></script>

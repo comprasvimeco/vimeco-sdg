@@ -19,6 +19,20 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
+// Key de un rol nuevo: el nombre normalizado + timestamp, así dos obras que
+// crean "Oficial" por separado no comparten key.
+function keyDeRol(nombre) {
+  return nombre.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+    + '_' + Date.now();
+}
+
+// Para cruzar roles entre obras: las keys no sirven (cada obra genera la suya),
+// el nombre sí — "Oficial" es el mismo rol en las dos.
+const normNombre = s => (s || '').trim().toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
 
@@ -247,10 +261,7 @@ async function saveRolModal() {
     if (editingKey) {
       await _fbPatch(`/obras/${obraKey}/roles/${editingKey}.json`, data);
     } else {
-      const key = nombre.toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
-        .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
-        + '_' + Date.now();
+      const key = keyDeRol(nombre);
       await _fbPut(`/obras/${obraKey}/roles/${key}.json`, { ...data, creadoEn: Date.now() });
     }
     $('modal-rol').classList.add('hidden');
@@ -274,6 +285,160 @@ async function deleteRol(rol) {
     await loadRoles();
   } catch (_) {
     showToast('Error al eliminar el rol.', 'error');
+  }
+}
+
+/* ===== Importar de otra obra =====
+   Dos cosas independientes, cada una con su casilla: los parámetros generales
+   (reemplazan a los de esta obra) y los roles con sus básicos. Un rol que ya
+   existe acá con el mismo nombre se actualiza con los valores de la obra
+   origen — no se duplica la categoría. */
+
+let obrasParaImportar = null;   // cache: [{key, nombre}] — todas menos la actual
+let importarMoSelect = null;
+let paramsOrigen = null;        // paramsMO de la obra elegida, o null
+let rolesOrigen = null;         // { key: rol } de la obra elegida, o null
+
+function resumenParams(p) {
+  const partes = [
+    `Asistencia ${p.asistenciaPct ?? 0}%`,
+    `Cargas ${p.cargasPct ?? 0}%`,
+    `${p.diasMes ?? 0} días/mes`,
+    `Jornada ${p.jornadaHoras ?? 0} hs`,
+  ];
+  if (p.seguridadCapatazActivo) partes.push(`Seg. y capataz ${p.seguridadCapatazPct || 0}%`);
+  if (p.comidaActivo) partes.push(`Comida ${fmtARS(p.comidaMonto || 0)}/día`);
+  return partes.join(' · ');
+}
+
+async function abrirModalImportarMo() {
+  $('importar-mo-confirmar').disabled = true;
+  paramsOrigen = null;
+  rolesOrigen = null;
+  ['importar-mo-params', 'importar-mo-roles'].forEach(id => {
+    $(id).checked = true;
+    $(id).disabled = true;
+  });
+  $('importar-mo-params-info').textContent = 'Elegí la obra origen.';
+  $('importar-mo-roles-info').textContent = 'Elegí la obra origen.';
+
+  if (!obrasParaImportar) {
+    const data = await _fbGet('/obras.json');
+    obrasParaImportar = Object.entries(data || {})
+      .filter(([key]) => key !== obraKey)
+      .map(([key, o]) => ({ key, nombre: o.nombre || key }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  }
+
+  importarMoSelect = createSearchableSelect($('importar-mo-select'), {
+    options: obrasParaImportar.map(o => ({ value: o.key, label: o.nombre })),
+    placeholder: 'Buscar obra…',
+    onChange: onElegirObraOrigenMo,
+  });
+
+  $('modal-importar-mo').classList.remove('hidden');
+}
+
+function cerrarModalImportarMo() {
+  $('modal-importar-mo').classList.add('hidden');
+}
+
+async function onElegirObraOrigenMo(obraOrigenKey) {
+  $('importar-mo-confirmar').disabled = true;
+  $('importar-mo-params-info').textContent = 'Buscando…';
+  $('importar-mo-roles-info').textContent = '';
+
+  const [pData, rData] = await Promise.all([
+    _fbGet(`/obras/${obraOrigenKey}/paramsMO.json`),
+    _fbGet(`/obras/${obraOrigenKey}/roles.json`),
+  ]);
+
+  paramsOrigen = pData || null;
+  $('importar-mo-params').disabled = !paramsOrigen;
+  $('importar-mo-params').checked = !!paramsOrigen;
+  $('importar-mo-params-info').textContent = paramsOrigen
+    ? resumenParams(paramsOrigen)
+    : 'Esa obra no tiene parámetros propios cargados.';
+
+  const listaOrigen = Object.entries(rData || {});
+  rolesOrigen = listaOrigen.length ? rData : null;
+  $('importar-mo-roles').disabled = !rolesOrigen;
+  $('importar-mo-roles').checked = !!rolesOrigen;
+  if (rolesOrigen) {
+    const existentes = new Set(allRoles.map(r => normNombre(r.nombre)));
+    const pisan = listaOrigen.filter(([, r]) => existentes.has(normNombre(r.nombre))).length;
+    const nuevos = listaOrigen.length - pisan;
+    const partes = [];
+    if (nuevos) partes.push(`${nuevos} se agrega${nuevos === 1 ? '' : 'n'}`);
+    if (pisan)  partes.push(`${pisan} pisa${pisan === 1 ? '' : 'n'} al rol que ya tiene esta obra`);
+    $('importar-mo-roles-info').textContent = `${listaOrigen.length} rol${listaOrigen.length === 1 ? '' : 'es'}: ${partes.join(', ')}.`;
+  } else {
+    $('importar-mo-roles-info').textContent = 'Esa obra no tiene roles cargados.';
+  }
+
+  $('importar-mo-confirmar').disabled = !paramsOrigen && !rolesOrigen;
+}
+
+async function confirmarImportarMo() {
+  const traerParams = paramsOrigen && $('importar-mo-params').checked;
+  const traerRoles  = rolesOrigen  && $('importar-mo-roles').checked;
+  if (!traerParams && !traerRoles) return;
+
+  const btn = $('importar-mo-confirmar');
+  btn.disabled = true;
+  btn.textContent = 'Importando…';
+
+  const tareas = [];
+  let nuevosParams = null;
+  if (traerParams) {
+    // Merge sobre los actuales: una obra vieja puede no tener todos los
+    // campos, y así el nodo guardado nunca queda incompleto.
+    nuevosParams = { ...paramsMO, ...paramsOrigen };
+    tareas.push(_fbPut(`/obras/${obraKey}/paramsMO.json`, nuevosParams));
+  }
+
+  let cuantosRoles = 0;
+  if (traerRoles) {
+    const porNombre = {};
+    allRoles.forEach(r => { porNombre[normNombre(r.nombre)] = r.key; });
+    Object.values(rolesOrigen).forEach(r => {
+      const data = {
+        nombre: r.nombre,
+        basico: r.basico ?? null,
+        extraPct: r.extraPct ?? 0,
+        noRemunerativoMensual: r.noRemunerativoMensual ?? null,
+        fecha: r.fecha || todayIso(),
+        basicoFormula: r.basicoFormula ?? null,
+        extraPctFormula: r.extraPctFormula ?? null,
+        noRemunerativoMensualFormula: r.noRemunerativoMensualFormula ?? null,
+      };
+      const existente = porNombre[normNombre(r.nombre)];
+      cuantosRoles++;
+      // PATCH por rol (no PUT del árbol de roles): el nodo de un rol que ya
+      // está acá tiene campos propios — creadoEn — que no hay que perder.
+      if (existente) tareas.push(_fbPatch(`/obras/${obraKey}/roles/${existente}.json`, data));
+      else tareas.push(_fbPut(`/obras/${obraKey}/roles/${keyDeRol(r.nombre)}.json`, { ...data, creadoEn: Date.now() }));
+    });
+  }
+
+  try {
+    await Promise.all(tareas);
+    if (nuevosParams) {
+      paramsMO = nuevosParams;
+      fillParamsForm();
+    }
+    if (traerRoles) await loadRoles(); else applyFilter();
+    cerrarModalImportarMo();
+    const que = [
+      traerParams ? 'Parámetros' : '',
+      cuantosRoles ? `${cuantosRoles} rol${cuantosRoles === 1 ? '' : 'es'}` : '',
+    ].filter(Boolean).join(' y ');
+    showToast(`${que} importado${traerParams && cuantosRoles ? 's' : ''}.`);
+  } catch (_) {
+    showToast('Error al importar.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Importar';
   }
 }
 
@@ -330,6 +495,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('param-comida-monto').disabled = !$('param-comida-activo').checked;
     saveParams();
   });
+
+  $('btn-importar-mo').addEventListener('click', abrirModalImportarMo);
+  $('importar-mo-close').addEventListener('click', cerrarModalImportarMo);
+  $('importar-mo-cancelar').addEventListener('click', cerrarModalImportarMo);
+  $('importar-mo-confirmar').addEventListener('click', confirmarImportarMo);
 
   $('btn-add-rol').addEventListener('click', openAddModal);
   $('modal-rol-close').addEventListener('click',  () => $('modal-rol').classList.add('hidden'));
