@@ -42,7 +42,9 @@ let dolarObra = null;   // dólar propio de esta obra (/obras/{obraKey}/dolar)
 // suma (calcCargaFija despeja las dos cosas juntas). Se recalcula entero en
 // cada render — son decenas de líneas, no vale la pena cachearlo.
 function calcCF() {
-  return window.calcCargaFija(config, lineas, costoComputo, obra ? obra.presupuestoOficial : null);
+  const cf = window.calcCargaFija(config, lineas, costoComputo, obra ? obra.presupuestoOficial : null);
+  window.setRefK(cf.k); // referenciable como "k" en cualquier fórmula "=..." (ver calc.js)
+  return cf;
 }
 
 /* ===== Orden de los conceptos =====

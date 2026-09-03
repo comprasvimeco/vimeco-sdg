@@ -1118,6 +1118,10 @@ async function loadAll() {
   allItemsFull = allItemsData || {};
   populateRubroSelect();
 
+  // K de la obra abierta, referenciable como "k" en la calculadora flotante
+  // (ver calc.js) — no bloquea el resto de la carga, se resuelve aparte.
+  if (obraParam) calcularKObra(obraParam).then(k => window.setRefK(k)).catch(() => {});
+
   if (obraParam) ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData);
   renderDatos();
   renderApNav();

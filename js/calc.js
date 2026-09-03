@@ -21,6 +21,17 @@ window.roundLimpio = function (n) {
 };
 
 (function () {
+  // Coeficiente K (Carga Fija) de la obra abierta — referenciable como "k" en
+  // cualquier fórmula "=..." de la app (mismo mecanismo que "pi"). Lo registra
+  // cada pantalla que ya lo calcula para lo suyo (Carga Fija, Presupuesto,
+  // A.P., Plan de Avance); en las que no lo calculan (Cómputo, Insumos) queda
+  // null y "k" tira error, como una referencia rota.
+  let refKValor = null;
+  window.setRefK = function (valor) {
+    const n = Number(valor);
+    refKValor = (valor != null && valor !== '' && !isNaN(n)) ? n : null;
+  };
+
   function evalFormula(expr) {
     let i = 0;
 
@@ -49,12 +60,29 @@ window.roundLimpio = function (n) {
       return n;
     }
 
-    // Número, constante "pi", función "raiz(...)" o subexpresión entre paréntesis.
+    // Número, constante "pi"/"k"/"us", función "raiz(...)" o subexpresión
+    // entre paréntesis.
     function parseAtom() {
       skipWs();
       if (expr.slice(i, i + 2).toLowerCase() === 'pi' && !/[a-zA-Z]/.test(expr[i + 2] || '')) {
         i += 2;
         return Math.PI;
+      }
+      // "us": cotización de dólar de la obra abierta (la misma que usa el
+      // motor de costos, no la del toggle de vista $/US$).
+      if (expr.slice(i, i + 2).toLowerCase() === 'us' && !/[a-zA-Z]/.test(expr[i + 2] || '')) {
+        i += 2;
+        const v = window.cotizacionVista ? window.cotizacionVista() : null;
+        if (v == null) throw new Error('Sin cotización de dólar de la obra');
+        return v;
+      }
+      // "k": Coeficiente K (Carga Fija) de la obra abierta — ver setRefK más
+      // arriba. Sólo esta letra sola: "k" no colisiona con nada más de la
+      // gramática (no hay más identificadores de una letra).
+      if (expr[i] && expr[i].toLowerCase() === 'k' && !/[a-zA-Z]/.test(expr[i + 1] || '')) {
+        i += 1;
+        if (refKValor == null) throw new Error('Sin Coeficiente K de esta obra');
+        return refKValor;
       }
       if (expr.slice(i, i + 4).toLowerCase() === 'raiz') {
         i += 4;

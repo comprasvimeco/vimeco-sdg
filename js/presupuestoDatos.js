@@ -91,6 +91,9 @@
       obra.presupuestoOficial != null ? obra.presupuestoOficial : null);
     const gastosFijos = kDesglose.gastosFijos;
     const k = kDesglose.k;
+    // Referenciable como "k" en la calculadora flotante (ver calc.js) — no
+    // existe en exportar.html, que también usa este módulo pero no la carga.
+    if (window.setRefK) window.setRefK(k);
 
     // El total sale de TODAS las líneas del cómputo, incluidas las que
     // apuntan a un rubro que ya no existe: son plata cargada en la obra

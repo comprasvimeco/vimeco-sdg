@@ -68,8 +68,10 @@ function costoTotalComputo() {
 // El K vive en calcCostos.js (calcCargaFija), compartido con Carga Fija,
 // Presupuesto y el AP — acá sólo se usa el resultado.
 function calcularK(costoComputo) {
-  return window.calcCargaFija(cargaFijaConfig, cargaFijaLineas, costoComputo,
+  const k = window.calcCargaFija(cargaFijaConfig, cargaFijaLineas, costoComputo,
     obra ? obra.presupuestoOficial : null).k;
+  window.setRefK(k); // referenciable como "k" en cualquier fórmula "=..." (ver calc.js)
+  return k;
 }
 
 /* ===== Períodos ===== */

@@ -10,7 +10,12 @@
 
    Dentro del campo se puede escribir directo: dígitos, + - * / ^,
    paréntesis; "p" inserta "pi", "r" inserta "raiz(" (mismo motor que
-   evalFormula en calc.js). "Copiar" (o Enter) copia "=" + la fórmula, con
+   evalFormula en calc.js). "k" y "us" se escriben tal cual (sin atajo) y son
+   referencias VIVAS a la obra abierta — Coeficiente K (Carga Fija) y su
+   cotización de dólar — se recalculan solas si esos datos cambian después
+   (ver setRefK en calc.js; "k" sólo está disponible en Carga Fija,
+   Presupuesto, A.P. y Plan de Avance, no en Cómputo ni Insumos). "Copiar" (o
+   Enter) copia "=" + la fórmula, con
    punto decimal y sin separador de miles, lista para pegar en cualquier
    campo "=..." de la app — y le saca el foco al campo de fórmula, para que
    el próximo click en la pantalla sea un click normal. Esc cierra. */
@@ -206,7 +211,7 @@
     if (titulo) titulo.textContent = modo === 'completa' ? 'Calculadora' : 'Selección de suma';
     const hint = panelEl.querySelector('.calc-flotante-hint');
     if (hint) hint.textContent = modo === 'completa'
-      ? 'Clickeá números en pantalla o escribí acá la fórmula (+ − × ÷ ^, "p"=pi, "r"=raíz).'
+      ? 'Clickeá números en pantalla o escribí acá la fórmula (+ − × ÷ ^, "p"=pi, "r"=raíz, "k"=Carga Fija, "us"=dólar de la obra).'
       : 'Clickeá números en pantalla para sumarlos. Apretá "+" de nuevo para más operaciones.';
   }
 
@@ -227,7 +232,7 @@
         <span class="calc-flotante-titulo">Calculadora</span>
         <button type="button" class="calc-flotante-close" title="Cerrar (Esc)">${window.icSvg ? icSvg('x') : '×'}</button>
       </div>
-      <p class="calc-flotante-hint">Clickeá números en pantalla o escribí acá la fórmula (+ − × ÷ ^, "p"=pi, "r"=raíz). Click afuera del campo para pegar en otro lado.</p>
+      <p class="calc-flotante-hint">Clickeá números en pantalla o escribí acá la fórmula (+ − × ÷ ^, "p"=pi, "r"=raíz, "k"=Carga Fija, "us"=dólar de la obra). Click afuera del campo para pegar en otro lado.</p>
       <input type="text" class="calc-flotante-expr-input" spellcheck="false" autocomplete="off" placeholder="Escribí o clickeá números…">
       <div class="calc-flotante-resultado">= <span class="calc-flotante-vacio">—</span></div>
       <div class="calc-flotante-ops">
@@ -349,11 +354,19 @@
   // foco — si no, el click en la pantalla es un click normal (permite
   // pegar/editar otro campo después de copiar, sin que la calculadora lo
   // siga interceptando).
+  //
+  // Mientras tiene el foco, un click que no caiga sobre un campo realmente
+  // editable NO se lo saca — así clickear apenas afuera de una celda (o
+  // cualquier relleno/etiqueta de la tabla) no corta la suma a mitad de
+  // camino. Clickear un campo editable de verdad (para pegar la fórmula
+  // copiada en otro lado) sigue robando el foco con normalidad.
   document.addEventListener('mousedown', e => {
     if (!inputTieneFoco()) return;
-    const el = e.target.closest(SELECTOR);
-    if (!el) return;
-    e.preventDefault(); // evita que el click le robe el foco al campo de fórmula
+    if (panelEl && panelEl.contains(e.target)) return; // el panel maneja sus propios clicks
+    const esValor = !!e.target.closest(SELECTOR);
+    if (esValor || !esEditable(e.target)) {
+      e.preventDefault(); // evita que el click le robe el foco al campo de fórmula
+    }
   }, true);
 
   document.addEventListener('click', e => {

@@ -57,7 +57,13 @@
 
   window.refsRegistro = registro;
 
-  window.formulaTieneRefs = f => !!f && /@\{/.test(f);
+  // "Tiene referencias" = hay que recalcularla sola cuando cambia algo, sin
+  // esperar a que alguien la retoque a mano: además de "@{id}" (celda de esta
+  // pantalla), cuenta una "k" o "us" sueltas (Coeficiente K / dólar de la
+  // obra — ver setRefK y cotizacionVista en calc.js), que no dependen de
+  // ninguna celda de ESTA pantalla en particular.
+  const RE_K_US = /(^|[^a-zA-Z])(k|us)([^a-zA-Z]|$)/i;
+  window.formulaTieneRefs = f => !!f && (/@\{/.test(f) || RE_K_US.test(f));
 
   /* ===== Las tres formas del texto ===== */
 
