@@ -184,7 +184,7 @@
     if (resEl) {
       if (!expresion) { resEl.innerHTML = '= <span class="calc-flotante-vacio">—</span>'; }
       else {
-        try { resEl.textContent = '= ' + fmtARS(calcularResultado()); }
+        try { resEl.textContent = '= ' + fmtNum(calcularResultado()); }
         catch (_) { resEl.innerHTML = '= <span class="calc-flotante-vacio">…</span>'; }
       }
     }
@@ -366,5 +366,5 @@
     agregarValor(el);
   }, true);
 
-  window.addEventListener('vimeco:moneda', () => { if (open) actualizarVista(); });
+  window.onFormatoVista(() => { if (open) actualizarVista(); });
 })();

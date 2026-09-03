@@ -624,7 +624,7 @@ function renderLineasSeccion(tipo, r) {
             ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}">
-          <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
+          <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d && d.costoTotal != null ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d && d.costoTotal != null ? fmtARS(d.costoTotal) : '—'}</span>
           <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
         </div>`;
     }).join('');
