@@ -390,8 +390,6 @@ function aplicarSnapshotRemoto(dataCruda) {
   const seccionEnEdicion = seccionDeElemento(foco);
   const editandoRendimiento = foco && foco.id === 'rend-obra-input';
 
-  const anterior = JSON.stringify({ lineas, rendimientoActivo, rendimientoFormulaActiva, sinSeguridadCapatazActivo, baseUsadaActiva });
-
   if (!editandoRendimiento) {
     rendimientoActivo = data.rendimiento ?? 1;
     rendimientoFormulaActiva = data.rendimientoFormula || null;
@@ -418,9 +416,6 @@ function aplicarSnapshotRemoto(dataCruda) {
   if (!editandoRendimiento) renderVersionRendimiento();
   renderUsarBase();
   renderTodasLasLineas(seccionEnEdicion ? [seccionEnEdicion] : []);
-
-  const nuevo = JSON.stringify({ lineas, rendimientoActivo, rendimientoFormulaActiva, sinSeguridadCapatazActivo, baseUsadaActiva });
-  if (nuevo !== anterior) showToast('Se actualizó con cambios de otra sesión.');
 }
 
 function activarVersion(key) {

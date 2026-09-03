@@ -679,6 +679,71 @@ async function migrarARubrosEntidad(rubrosComputoData, computoRubrosViejo) {
 
 let rubrosMapBiblioteca = {};
 
+// -- Tiempo real ------------------------------------------------------------
+// Cada escritura ya es PATCH/PUT/DELETE por línea o por rubro (ver
+// persistLineaCambios/persistRubroCambios/etc. arriba) — no hay ningún PUT del
+// árbol completo acá. Falta la otra mitad: enterarse solo de un cambio ajeno.
+// #lineas-computo mezcla cabeceras de rubro y líneas en un solo innerHTML, y
+// #lineas-auxiliares es aparte: son las dos unidades naturales para pausar el
+// render sin romper el input que se está escribiendo en este momento — el
+// dato igual se mezcla en memoria y se termina de pintar solo en el próximo
+// blur de ese mismo campo (que ya dispara su propio render).
+function focoDentroDeComputo() {
+  const el = document.activeElement;
+  return !!(el && el.closest && el.closest('#lineas-computo'));
+}
+function focoDentroDeAuxiliares() {
+  const el = document.activeElement;
+  return !!(el && el.closest && el.closest('#lineas-auxiliares'));
+}
+function lineaKeyEnFocoDentroDe(selectorContenedor) {
+  const el = document.activeElement;
+  if (!el || !el.closest || !el.closest(selectorContenedor)) return null;
+  const row = el.closest('.computo-linea[data-key]');
+  return row ? row.dataset.key : null;
+}
+function rubroIdEnFoco() {
+  const el = document.activeElement;
+  if (!el || !el.classList) return null;
+  if (el.classList.contains('computo-rubro-nombre-input')) return el.dataset.rubroId;
+  if (el.classList.contains('computo-codigo-input') && el.dataset.codigoTipo === 'rubro') return el.dataset.codigoKey;
+  return null;
+}
+
+function aplicarLineasRemotas(dataCruda) {
+  const remoto = dataCruda || {};
+  const key = lineaKeyEnFocoDentroDe('#lineas-computo');
+  const anterior = JSON.stringify(lineas);
+  lineas = (key && lineas[key]) ? { ...remoto, [key]: lineas[key] } : remoto;
+  if (JSON.stringify(lineas) === anterior) return;
+  if (focoDentroDeComputo()) return;
+  renderTodo();
+}
+
+function aplicarRubrosRemotos(dataCruda) {
+  const remoto = dataCruda || {};
+  const rubroIdFoco = rubroIdEnFoco();
+  const anterior = JSON.stringify(rubros);
+  const mapaActual = Object.fromEntries(rubros.map(r => [r.key, r]));
+  const mapaNuevo = Object.fromEntries(Object.entries(remoto).map(([key, r]) => [key, { key, ...r }]));
+  const mapaFinal = (rubroIdFoco && mapaActual[rubroIdFoco]) ? { ...mapaNuevo, [rubroIdFoco]: mapaActual[rubroIdFoco] } : mapaNuevo;
+  rubros = Object.values(mapaFinal);
+  ordenarRubros();
+  if (JSON.stringify(rubros) === anterior) return;
+  if (focoDentroDeComputo()) return;
+  renderTodo();
+}
+
+function aplicarAuxiliaresRemotos(dataCruda) {
+  const remoto = dataCruda || {};
+  const key = lineaKeyEnFocoDentroDe('#lineas-auxiliares');
+  const anterior = JSON.stringify(auxiliares);
+  auxiliares = (key && auxiliares[key]) ? { ...remoto, [key]: auxiliares[key] } : remoto;
+  if (JSON.stringify(auxiliares) === anterior) return;
+  if (focoDentroDeAuxiliares()) return;
+  renderAuxiliares();
+}
+
 async function loadAll() {
   if (!obraKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
@@ -724,6 +789,10 @@ async function loadAll() {
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
+
+  window._fbListen(`/obras/${obraKey}/computo`, aplicarLineasRemotas);
+  window._fbListen(`/obras/${obraKey}/rubrosComputo`, aplicarRubrosRemotos);
+  window._fbListen(`/obras/${obraKey}/auxiliares`, aplicarAuxiliaresRemotos);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
