@@ -36,13 +36,37 @@ function renderLineaRow(linea) {
     </div>`;
 }
 
+function renderComparacionOficial() {
+  const cmp = $('comparacion-oficial');
+  const oficial = modelo.obra.presupuestoOficial;
+
+  if (oficial == null || isNaN(oficial)) {
+    cmp.innerHTML = '<p class="text-muted" style="font-size:.85rem;">No se cargó un presupuesto oficial para esta obra — se carga en Datos de obra.</p>';
+    return;
+  }
+  if (modelo.total == null) {
+    cmp.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Todavía no se puede calcular el Presupuesto propio para compararlo.</p>';
+    return;
+  }
+
+  const diferencia = modelo.total - oficial;
+  const diferenciaPct = oficial ? diferencia / oficial : null;
+
+  cmp.innerHTML = `
+    <div class="ap-resumen-row"><span>Presupuesto oficial</span><span${calcAttrs(oficial, 'presupuesto:oficial', 'Presupuesto oficial')}>${fmtARS(oficial)}</span></div>
+    <div class="ap-resumen-row"><span>Total del Presupuesto (propio)</span><span${calcAttrs(modelo.total, 'presupuesto:totalPropio', 'Total del Presupuesto (propio)')}>${fmtARS(modelo.total)}</span></div>
+    <div class="ap-resumen-row total"><span>Diferencia</span><span${calcAttrs(diferencia, 'presupuesto:diferenciaOficial', 'Diferencia con el presupuesto oficial')}>${fmtARS(diferencia)} (${fmtPct(diferenciaPct)})</span></div>`;
+}
+
 function renderTodo() {
   const container = $('lineas-presupuesto');
   const resumen = $('resumen');
+  const cmp = $('comparacion-oficial');
 
   if (modelo.k == null) {
     container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Esta obra todavía no tiene ítems cargados en el Cómputo — no se puede calcular el Presupuesto hasta que haya un costo de obra sobre el cual aplicar la Carga Fija.</p>';
     resumen.innerHTML = '';
+    cmp.innerHTML = '';
     return;
   }
 
@@ -80,6 +104,8 @@ function renderTodo() {
     <div class="ap-resumen-row"><span>Carga Fija</span><span${calcAttrs(modelo.k, 'presupuesto:k', 'Carga Fija')}>${fmtK(modelo.k)}</span></div>
     <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span${calcAttrs(modelo.total, 'presupuesto:total', 'Total del Presupuesto')}>${fmtARS(modelo.total)}</span></div>
     <p class="form-hint" style="margin-top:.5rem;">La Carga Fija se recalcula en vivo a partir de su pantalla — no se cachea.</p>`;
+
+  renderComparacionOficial();
 }
 
 async function loadAll() {
