@@ -171,7 +171,8 @@ async function saveMaterialModal() {
       errEl.classList.remove('hidden');
       return;
     }
-    precioData = { precioUSD, precioARS, precioFormula: getCalcFormula(usdInput) || getCalcFormula(arsInput), proveedor, fecha, cotizacionUsada };
+    const fc = getCalcFormulaConMoneda(usdInput, arsInput);
+    precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada };
   }
 
   const saveBtn = $('modal-material-save');

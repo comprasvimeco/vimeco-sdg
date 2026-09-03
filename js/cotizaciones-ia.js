@@ -551,12 +551,13 @@
       }
 
       const material = materialKey ? state.allMateriales.find(m => m.key === materialKey) : null;
+      const fc = getCalcFormulaConMoneda(usdInput, arsInput);
       aLineas.push({
         materialKey,
         materialNuevo: materialKey ? null : { nombre: nuevoNombre, unidad: nuevaUnidad },
         materialNombre: material ? material.nombre : nuevoNombre,
         precioUSD, precioARS,
-        precioFormula: getCalcFormula(usdInput) || getCalcFormula(arsInput),
+        precioFormula: fc.formula, precioFormulaMoneda: fc.moneda,
       });
     }
 
@@ -636,7 +637,8 @@
       if (!l.materialKey) continue; // no se pudo crear el material: ya está en `fallos`
       try {
         await _fbPut(`/materiales/${l.materialKey}/precios/${state.obraKey}.json`, {
-          precioUSD: l.precioUSD, precioARS: l.precioARS, precioFormula: l.precioFormula,
+          precioUSD: l.precioUSD, precioARS: l.precioARS,
+          precioFormula: l.precioFormula, precioFormulaMoneda: l.precioFormulaMoneda,
           proveedor, fecha, cotizacionUsada, origenCotizacionKey: cotizacionKey,
         });
       } catch (_) {

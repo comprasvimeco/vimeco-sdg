@@ -781,7 +781,8 @@ function calcularCostoComputo(computoLineas, itemsList) {
     if (!it || l.cantidad == null || isNaN(l.cantidad)) return acc;
     const version = versionDe(it);
     if (!version.lineas || !Object.keys(version.lineas).length) return acc;
-    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra);
+    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra,
+      { preciosCongelados: true }); // este costoComputo alimenta el propio K — ver calcCostos.js
     return acc + r.costoUnitario * l.cantidad;
   }, 0);
 }

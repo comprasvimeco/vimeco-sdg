@@ -439,6 +439,21 @@ window.attachDualPrecioInputs = function ({ usdInput, arsInput, notaEl }) {
   actualizarNota();
 };
 
+// De los dos campos de un precio dual, cuál lleva la fórmula "=..." (nunca
+// los dos: attachDualPrecioInputs borra la del campo que no se tocó) y en QUÉ
+// MONEDA está escrita — hace falta guardar la moneda aparte porque
+// precioFormula sola es ambigua (el mismo texto "=100*k" da un número
+// distinto si es USD que si es ARS). Se usa al guardar el precio de un
+// material, para que una referencia viva ("k"/"us", ver calc.js) se pueda
+// reevaluar más adelante sabiendo a qué se convierte el resultado.
+window.getCalcFormulaConMoneda = function (usdInput, arsInput) {
+  const fUsd = window.getCalcFormula ? getCalcFormula(usdInput) : null;
+  if (fUsd) return { formula: fUsd, moneda: 'USD' };
+  const fArs = window.getCalcFormula ? getCalcFormula(arsInput) : null;
+  if (fArs) return { formula: fArs, moneda: 'ARS' };
+  return { formula: null, moneda: null };
+};
+
 // Pinta "USD = $1.520,00" en el <span id="header-dolar"> del header, con lo
 // que haya cacheado. En modo pesos muestra el oficial del día (el de
 // siempre); en modo dólares, la cotización con la que se están leyendo los

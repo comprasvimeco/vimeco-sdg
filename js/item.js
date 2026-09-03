@@ -68,7 +68,8 @@ function costoComputoDeObra(obraKeyX, computoDataX) {
     if (!it) return acc;
     const version = (it.versionesObra && it.versionesObra[obraKeyX]) || it;
     if (!version.lineas || !Object.keys(version.lineas).length) return acc;
-    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEq, paramsMoX, preciosObraX, dolarX);
+    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEq, paramsMoX, preciosObraX, dolarX,
+      { preciosCongelados: true }); // este costoComputo alimenta el propio K de la obra — ver calcCostos.js
     const cantidad = l.cantidad != null && !isNaN(l.cantidad) ? l.cantidad : 0;
     return acc + r.costoUnitario * cantidad;
   }, 0);
@@ -90,6 +91,29 @@ async function calcularKObra(obraKeyX) {
     (obrasFull[obraKeyX] || {}).presupuestoOficial).k;
   kPorObra[obraKeyX] = k;
   return k;
+}
+
+// K de la obra abierta (?obra=), en vivo: escucha Carga Fija de ESA obra
+// (mismos dos nodos que carga-fija.js) y recalcula "k" cada vez que cambia,
+// sin esperar a recargar la pantalla. calcularKObra() ya cachea por obra
+// (kPorObra) — acá se fuerza a tirar ese caché para traer el número de hoy.
+async function actualizarKObraEnVivo(obraKeyX) {
+  delete kPorObra[obraKeyX];
+  try {
+    const k = await calcularKObra(obraKeyX);
+    window.setRefK(k);
+    refrescarFormulasVivas();
+    // refrescarFormulasVivas() sólo redibuja si alguna CANTIDAD usaba "k"; un
+    // material con PRECIO en "k" (ver precioUnitarioMaterial en calcCostos.js)
+    // no pasa por ahí, así que se redibuja aparte para que el costo unitario
+    // en pantalla quede al día igual.
+    renderTodasLasLineas();
+  } catch (_) { /* sin red: se queda con el último K conocido */ }
+}
+
+function escucharKObraEnVivo(obraKeyX) {
+  window._fbListen(`/obras/${obraKeyX}/cargaFija/lineas`, () => actualizarKObraEnVivo(obraKeyX));
+  window._fbListen(`/obras/${obraKeyX}/cargaFija/config`, () => actualizarKObraEnVivo(obraKeyX));
 }
 
 const HINTS = {
@@ -892,7 +916,8 @@ async function saveQuickMaterial() {
       errEl.classList.remove('hidden');
       return;
     }
-    precioData = { precioUSD, precioARS, precioFormula: getCalcFormula(usdInput) || getCalcFormula(arsInput), proveedor, fecha, cotizacionUsada };
+    const fc = getCalcFormulaConMoneda(usdInput, arsInput);
+    precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada };
   }
 
   const key = nombre.toLowerCase()
@@ -991,7 +1016,8 @@ async function saveEditarPrecioModal() {
   }
 
   const targetObraKey = activeVersion;
-  const precioData = { precioUSD, precioARS, precioFormula: getCalcFormula(usdInput) || getCalcFormula(arsInput), proveedor, fecha, cotizacionUsada };
+  const fc = getCalcFormulaConMoneda(usdInput, arsInput);
+  const precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada };
 
   try {
     await Promise.all([
@@ -1119,8 +1145,11 @@ async function loadAll() {
   populateRubroSelect();
 
   // K de la obra abierta, referenciable como "k" en la calculadora flotante
-  // (ver calc.js) — no bloquea el resto de la carga, se resuelve aparte.
-  if (obraParam) calcularKObra(obraParam).then(k => window.setRefK(k)).catch(() => {});
+  // (ver calc.js) — escucha Carga Fija de esa obra en vivo, así que si
+  // alguien la cambia mientras este A.P. está abierto, "k" se actualiza solo
+  // (recalcula y vuelve a evaluar cualquier cantidad que lo use, ver
+  // refrescarFormulasVivas). No bloquea el resto de la carga.
+  if (obraParam) escucharKObraEnVivo(obraParam);
 
   if (obraParam) ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData);
   renderDatos();

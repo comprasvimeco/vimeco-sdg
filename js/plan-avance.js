@@ -47,14 +47,17 @@ function versionDe(it) {
   return propia || it;
 }
 
-function costoUnitarioDe(itemKey) {
+// opts.preciosCongelados: ver calcCostos.js — obligatorio al sumar el
+// costoComputo que alimenta el propio K (costoTotalComputo más abajo), para
+// no crear una referencia circular con un material cuyo precio dependa de K.
+function costoUnitarioDe(itemKey, opts) {
   if (!itemKey) return 0;
   const it = items.find(i => i.key === itemKey);
   if (!it) return 0;
   const version = versionDe(it);
   if (!version.lineas || !Object.keys(version.lineas).length) return 0;
   const catalogos = { materiales, equipos, roles };
-  return window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra).costoUnitario;
+  return window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra, opts).costoUnitario;
 }
 
 function cantidadDe(linea) {
@@ -62,7 +65,8 @@ function cantidadDe(linea) {
 }
 
 function costoTotalComputo() {
-  return Object.values(lineas).reduce((acc, l) => acc + costoUnitarioDe(l.itemKey) * cantidadDe(l), 0);
+  return Object.values(lineas).reduce((acc, l) =>
+    acc + costoUnitarioDe(l.itemKey, { preciosCongelados: true }) * cantidadDe(l), 0);
 }
 
 // El K vive en calcCostos.js (calcCargaFija), compartido con Carga Fija,

@@ -67,6 +67,25 @@
 
     /* ---- Costeo ---- */
 
+    // costoComputo alimenta el propio K (calcCargaFija más abajo): tiene que
+    // costear con el precio CONGELADO de los materiales, nunca el que
+    // dependa de "k" — si no, el K se estaría mirando al espejo (ver el
+    // comentario largo en precioUnitarioMaterial, calcCostos.js). El resto
+    // de la pantalla (cada línea, el total) sí usa el precio en vivo, con el
+    // K ya resuelto — por eso son dos memos separados.
+    const costoPorItemCongelado = {};
+    function costoUnitarioCongeladoDe(itemKey) {
+      if (!itemKey) return 0;
+      if (costoPorItemCongelado[itemKey] != null) return costoPorItemCongelado[itemKey];
+      const it = catalogos.items.find(i => i.key === itemKey);
+      if (!it) return (costoPorItemCongelado[itemKey] = 0);
+      const version = versionDe(it, obraKey);
+      if (!version.lineas || !Object.keys(version.lineas).length) return (costoPorItemCongelado[itemKey] = 0);
+      const r = window.calcCostoUnitarioItem(
+        version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra, { preciosCongelados: true });
+      return (costoPorItemCongelado[itemKey] = r.costoUnitario);
+    }
+
     const costoPorItem = {};   // memo: un mismo ítem puede repetirse en varias líneas
     function costoUnitarioDe(itemKey) {
       if (!itemKey) return 0;
@@ -81,7 +100,7 @@
     }
 
     const costoComputo = Object.values(lineas)
-      .reduce((acc, l) => acc + costoUnitarioDe(l.itemKey) * num(l.cantidad), 0);
+      .reduce((acc, l) => acc + costoUnitarioCongeladoDe(l.itemKey) * num(l.cantidad), 0);
 
     // calcCargaFija resuelve los gastos fijos y el K de una sola vez: los
     // conceptos calculados sobre el presupuesto propio necesitan el K, y el K
