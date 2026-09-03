@@ -1,14 +1,18 @@
-/* global FIREBASE_CONFIG */
-/* Firebase RTDB — REST API, sin SDK (mismo patrón que vimeco-oc).
+/* global FIREBASE_CONFIG, firebase */
+/* Firebase RTDB — lectura/escritura por REST, sin SDK (mismo patrón que vimeco-oc).
 
    El token de sesión lo aporta js/auth.js y se cuelga como ?auth= en cada
-   request. Estas cuatro funciones son el único punto por el que la app habla con
+   request. Estas funciones son el único punto por el que la app habla con
    la base, así que autenticar acá autentica la app entera: ninguna pantalla
    necesita saber que existe el login.
 
    _authToken() no resuelve hasta que Firebase confirmó si hay sesión, así que
    una llamada disparada al cargar la página espera sola hasta tener con qué
-   firmarse. */
+   firmarse.
+
+   _fbListen es la única excepción: usa el SDK de Database (no REST) para
+   tiempo real, sobre la misma app que js/auth.js ya autenticó — sólo la
+   cargan las pantallas que lo necesitan (item.html de momento). */
 
 (function () {
   const _base = () => FIREBASE_CONFIG.databaseURL;
@@ -57,8 +61,20 @@
     _chequear(resp);
   }
 
-  window._fbGet   = _get;
-  window._fbPut   = _put;
-  window._fbPatch = _patch;
-  window._fbDel   = _del;
+  // Suscripción en tiempo real (SDK de Database, no REST). Reusa la sesión que
+  // js/auth.js ya dejó activa en firebase.auth() sobre la misma app — no hace
+  // falta repetir el manejo de token. Devuelve una función para cortar la
+  // suscripción; llamarla siempre al cambiar de path o al salir de la pantalla.
+  function _listen(path, cb) {
+    const ref = firebase.database().ref(path);
+    const handler = snap => cb(snap.val());
+    ref.on('value', handler);
+    return () => ref.off('value', handler);
+  }
+
+  window._fbGet    = _get;
+  window._fbPut    = _put;
+  window._fbPatch  = _patch;
+  window._fbDel    = _del;
+  window._fbListen = _listen;
 })();

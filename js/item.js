@@ -364,7 +364,67 @@ function resolverVersionInicial() {
   }, keys[0]);
 }
 
+// Tiempo real: un listener sobre el nodo completo de la versión activa
+// (basePath()), para que otra persona editando el mismo AP desde otra
+// pestaña/dispositivo se vea reflejada sin recargar. `detenerListenerVersion`
+// corta la suscripción anterior antes de abrir la de la versión recién
+// activada — sin esto quedarían escuchando obras viejas al cambiar de pestaña.
+let detenerListenerVersion = null;
+
+function seccionDeElemento(el) {
+  if (!el || !el.closest) return null;
+  if (el.closest('#lineas-material')) return 'material';
+  if (el.closest('#lineas-equipo')) return 'equipo';
+  if (el.closest('#lineas-manoDeObra')) return 'manoDeObra';
+  return null;
+}
+
+// Mezcla lo que llega del listener con el estado local sin pisar lo que se
+// está escribiendo en este mismo momento: si hay foco en un input de una
+// sección de líneas, esa sección se deja como está (se actualiza sola en el
+// próximo blur, que ya dispara su propio render); si hay foco en el input de
+// rendimiento, se deja ese campo como está. El resto sí se actualiza en vivo.
+function aplicarSnapshotRemoto(dataCruda) {
+  const data = dataCruda || {};
+  const foco = document.activeElement;
+  const seccionEnEdicion = seccionDeElemento(foco);
+  const editandoRendimiento = foco && foco.id === 'rend-obra-input';
+
+  const anterior = JSON.stringify({ lineas, rendimientoActivo, rendimientoFormulaActiva, sinSeguridadCapatazActivo, baseUsadaActiva });
+
+  if (!editandoRendimiento) {
+    rendimientoActivo = data.rendimiento ?? 1;
+    rendimientoFormulaActiva = data.rendimientoFormula || null;
+  }
+  sinSeguridadCapatazActivo = !!data.sinSeguridadCapataz;
+  baseUsadaActiva = data.baseUsada || null;
+
+  const lineasRemotas = data.lineas || {};
+  if (seccionEnEdicion) {
+    const propias = Object.fromEntries(Object.entries(lineas).filter(([, l]) => l.tipo === seccionEnEdicion));
+    const ajenas = Object.fromEntries(Object.entries(lineasRemotas).filter(([, l]) => l.tipo !== seccionEnEdicion));
+    lineas = { ...ajenas, ...propias };
+  } else {
+    lineas = lineasRemotas;
+  }
+
+  versionesObra[activeVersion] = { ...(versionesObra[activeVersion] || {}), ...data };
+  // Si el nodo todavía no existe en el servidor (dataCruda === null), no se toca
+  // versionExisteEnServidor: sigue en false hasta que ensureVersionExists() lo
+  // cree entero con el primer guardado (rendimiento + lineas juntos).
+  if (dataCruda) versionExisteEnServidor = true;
+
+  renderVersionTabs();
+  if (!editandoRendimiento) renderVersionRendimiento();
+  renderUsarBase();
+  renderTodasLasLineas(seccionEnEdicion ? [seccionEnEdicion] : []);
+
+  const nuevo = JSON.stringify({ lineas, rendimientoActivo, rendimientoFormulaActiva, sinSeguridadCapatazActivo, baseUsadaActiva });
+  if (nuevo !== anterior) showToast('Se actualizó con cambios de otra sesión.');
+}
+
 function activarVersion(key) {
+  if (detenerListenerVersion) { detenerListenerVersion(); detenerListenerVersion = null; }
   activeVersion = key;
   const obraActiva = obrasFull[key];
   paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS, ...((obraActiva && obraActiva.paramsEquipos) || {}) };
@@ -395,6 +455,10 @@ function activarVersion(key) {
   renderUsarBase();
   renderTodasLasLineas();
   calcularKObra(key).then(() => { if (activeVersion === key) renderTodasLasLineas(); });
+  detenerListenerVersion = window._fbListen(basePath(), snap => {
+    if (activeVersion !== key) return;
+    aplicarSnapshotRemoto(snap);
+  });
 }
 
 // Sólo se muestran pestañas cuando el ítem tiene versión en más de una obra
@@ -744,11 +808,12 @@ function refrescarFormulasVivas() {
   renderTodasLasLineas();
 }
 
-function renderTodasLasLineas() {
+function renderTodasLasLineas(seccionesOmitidas) {
+  const omitir = seccionesOmitidas || [];
   const r = calcularDetalleActivo();
-  renderLineasSeccion('material', r);
-  renderLineasSeccion('equipo', r);
-  renderManoDeObraSeccion(r);
+  if (!omitir.includes('material')) renderLineasSeccion('material', r);
+  if (!omitir.includes('equipo')) renderLineasSeccion('equipo', r);
+  if (!omitir.includes('manoDeObra')) renderManoDeObraSeccion(r);
   renderResumenCosto(r);
   refrescarFormulasVivas();
 }
