@@ -784,6 +784,74 @@ function calcularCostoComputo(computoLineas, itemsList) {
   }, 0);
 }
 
+// -- Tiempo real ------------------------------------------------------------
+// Mismo problema que en el A.P. y el Cómputo (ya en producción): las
+// escrituras acá ya son PATCH/PUT por línea o por campo (ver
+// persistLineaCambios/persistConfigCambios/etc. arriba), sólo falta
+// enterarse en vivo de un cambio ajeno. Particularidad de esta pantalla:
+// renderLineas() y renderCoeficienteK() comparten el mismo cálculo
+// (calcCF()), así que un cambio en gastos fijos puede mover el número del
+// panel de K y viceversa — por eso hay una sola función de render que decide
+// contenedor por contenedor, sin importar cuál de los dos listeners la
+// disparó.
+function focoDentroDeLineasCF() {
+  const el = document.activeElement;
+  return !!(el && el.closest && el.closest('#lineas-carga-fija'));
+}
+function focoDentroDeConfigCF() {
+  const el = document.activeElement;
+  return !!(el && (el.id === 'cf-duracion' || (el.closest && el.closest('#coeficiente-k'))));
+}
+function lineaKeyEnFocoCF() {
+  const el = document.activeElement;
+  if (!el || !el.closest) return null;
+  const row = el.closest('.cf-linea[data-key]');
+  return row ? row.dataset.key : null;
+}
+function impuestoKeyEnFoco() {
+  const el = document.activeElement;
+  if (!el) return null;
+  if (el.dataset && el.dataset.key && el.classList && (el.classList.contains('cf-impuesto-nombre') || el.classList.contains('cf-impuesto-esiva'))) return el.dataset.key;
+  if (el.id && el.id.startsWith('cf-imp-')) return el.id.slice('cf-imp-'.length);
+  return null;
+}
+
+// #cf-duracion no corre riesgo de perder foco (engancharDuracion() se llama
+// una sola vez en loadAll(), no en cada render, y su guardado lee el input
+// vivo al hacer blur) — se lo incluye en la guarda igual, por si el día de
+// mañana pasa a formar parte de un render.
+function renderCFSegunFoco() {
+  if (!focoDentroDeLineasCF()) renderLineas();
+  if (!focoDentroDeConfigCF()) renderCoeficienteK();
+  refrescarFormulasVivas();
+}
+
+function aplicarLineasCFRemotas(dataCruda) {
+  const remoto = dataCruda || {};
+  const key = lineaKeyEnFocoCF();
+  const anterior = JSON.stringify(lineas);
+  lineas = (key && lineas[key]) ? { ...remoto, [key]: lineas[key] } : remoto;
+  // Obras viejas sin `orden` guardado: la normalización que se hizo en memoria
+  // al cargar no está en el servidor todavía — sin esto, el primer eco del
+  // listener la pisaría con las keys sin ordenar.
+  normalizarOrdenLineas();
+  if (JSON.stringify(lineas) === anterior) return;
+  renderCFSegunFoco();
+}
+
+function aplicarConfigCFRemotas(dataCruda) {
+  const remoto = dataCruda || {};
+  const impKey = impuestoKeyEnFoco();
+  const anterior = JSON.stringify(config);
+  const nuevo = { ...remoto };
+  if (impKey && config.impuestos && config.impuestos[impKey]) {
+    nuevo.impuestos = { ...(nuevo.impuestos || {}), [impKey]: config.impuestos[impKey] };
+  }
+  config = nuevo;
+  if (JSON.stringify(config) === anterior) return;
+  renderCFSegunFoco();
+}
+
 async function loadAll() {
   if (!obraKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
@@ -829,6 +897,9 @@ async function loadAll() {
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
+
+  window._fbListen(`/obras/${obraKey}/cargaFija/lineas`, aplicarLineasCFRemotas);
+  window._fbListen(`/obras/${obraKey}/cargaFija/config`, aplicarConfigCFRemotas);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
