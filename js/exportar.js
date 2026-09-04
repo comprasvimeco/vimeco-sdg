@@ -35,12 +35,13 @@ const SECCIONES = [
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
   { id: 'gastosfijos', label: 'Gastos fijos de la obra', render: seccionGastosFijos },
   { id: 'equipos',     label: 'Amortización de equipos', render: seccionEquipos },
+  { id: 'insumos',     label: 'Insumos (materiales, equipos, mano de obra)', render: seccionInsumos },
 ];
 
 // Secciones internas de la empresa: existen para poder imprimirlas cuando uno
 // quiere, pero arrancan destildadas para que no se vayan sin querer en un
 // presupuesto que se manda al comitente.
-const SECCIONES_INTERNAS = ['auxiliares', 'gastosfijos', 'equipos'];
+const SECCIONES_INTERNAS = ['auxiliares', 'gastosfijos', 'equipos', 'insumos'];
 
 /* Secciones que no siempre hay para emitir: una obra sin rubros (ver
    js/numeracion.js) no tiene Resumen por rubro, una obra sin análisis
@@ -433,6 +434,64 @@ function seccionEquipos() {
     return `${membrete('Amortización de equipos')}<p class="doc-centro">Esta obra no tiene equipos cargados en ningún análisis de precio.</p>`;
   }
   return `${membrete('Amortización de equipos')}${usados.map(u => bloqueEquipo(u.equipo, u.desglose)).join('')}`;
+}
+
+/* ===== Insumos =====
+   Interna de la empresa (SECCIONES_INTERNAS): consolida para toda la obra
+   qué materiales, equipos y mano de obra hacen falta, con su costo estimado
+   — la misma cuenta que la pantalla Insumos (insumos-obra.html), a través
+   del módulo compartido js/insumosDatos.js, para que pantalla y PDF salgan
+   iguales. Sirve como base de pedido de compra/acopio, no para el
+   comitente. */
+function filaInsumoDoc(f) {
+  const usadosTexto = f.usados.map(u => u.nombre).join(', ');
+  return `
+    <tr>
+      <td>${escHtml(f.nombre)}</td>
+      <td class="doc-centro">${escHtml(f.unidad)}</td>
+      <td class="doc-num">${docCant(f.cantidad)}</td>
+      <td>${escHtml(usadosTexto)}</td>
+      <td class="doc-num">${f.costoTotal != null ? docARS(f.costoTotal) : '—'}</td>
+    </tr>`;
+}
+
+function tablaInsumos(titulo, colCantidad, resultado, vacio, avisoSinPrecio) {
+  if (!resultado.filas.length) {
+    return `<h3 class="doc-grafico-titulo">${escHtml(titulo)}</h3><p class="doc-centro">${escHtml(vacio)}</p>`;
+  }
+  return `
+    <h3 class="doc-grafico-titulo">${escHtml(titulo)}</h3>
+    <table class="doc-tabla">
+      <thead>
+        <tr>
+          <th>Denominación</th>
+          <th style="width:16mm;">Unidad</th>
+          <th style="width:24mm;">${escHtml(colCantidad)}</th>
+          <th>Usado en</th>
+          <th style="width:30mm;">Costo estimado</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${resultado.filas.map(filaInsumoDoc).join('')}
+        <tr class="doc-fila-total"><td colspan="4">Total estimado</td><td class="doc-num">${docARS(resultado.costoTotal)}</td></tr>
+      </tbody>
+    </table>
+    ${resultado.faltaPrecio ? `<p class="doc-notas">${escHtml(avisoSinPrecio)}</p>` : ''}`;
+}
+
+function seccionInsumos() {
+  const insumos = window.calcularInsumosObra(modelo);
+  return `
+    ${membrete('Insumos de la obra')}
+    ${tablaInsumos('Materiales necesarios', 'Cantidad necesaria', insumos.materiales,
+      'Sin materiales para mostrar.',
+      'Algunos materiales no tienen precio cargado para esta obra — no se incluyen en el total estimado.')}
+    ${tablaInsumos('Equipos necesarios', 'Días de uso', insumos.equipos,
+      'Sin equipos para mostrar.',
+      'Algunos equipos no tienen costo calculable en esta obra — no se incluyen en el total estimado.')}
+    ${tablaInsumos('Mano de obra necesaria', 'Días necesarios', insumos.manoDeObra,
+      'Sin mano de obra para mostrar.',
+      'Algunas categorías no tienen básico cargado en esta obra — no se incluyen en el total estimado.')}`;
 }
 
 /* ===== Plan de trabajos y curva de inversión ===== */

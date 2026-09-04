@@ -6,24 +6,10 @@
    Cómputo sin ítem vinculado (texto libre, sin receta) no aportan insumos y
    no aparecen acá.
 
-   Materiales: la cantidad de la receta es por unidad de ítem, no se divide
-   por rendimiento (mismo criterio que calcCostoUnitarioItem en
-   calcCostos.js). Sirve como base de pedido de compra/acopio.
-
-   Equipos: la cantidad de la receta es "cuántas máquinas" y su costo es por
-   día, dividido por el rendimiento — así que lo que se consolida son
-   días-equipo: cantidad del Cómputo × cantidad de la receta ÷ rendimiento.
-   Es exactamente lo que alimenta el costo de equipos del AP, y el costo
-   estimado sale de esos días × el costo diario del equipo en esta obra
-   (parámetros y dólar propios de la obra, pestaña Datos).
-
-   Mano de obra: mismo criterio que Equipos pero por categoría (rol) — la
-   cantidad de la receta es "cuántos trabajadores por jornada", se consolidan
-   días-hombre (cantidad del Cómputo × cantidad de la receta ÷ rendimiento) y
-   el costo estimado sale de esos días × el jornal del rol en esta obra
-   (roles y parámetros propios de la obra, pestaña Mano de Obra). No incluye
-   el adicional de Seguridad y Capataz (ese es un ajuste por AP, no por
-   categoría). */
+   La consolidación en sí (materiales, equipos, mano de obra) vive en
+   js/insumosDatos.js — la comparte con la sección "Insumos" de la
+   exportación (js/exportar.js), para que pantalla y PDF salgan iguales. Acá
+   sólo se junta lo que necesita ese módulo y se pinta. */
 
 const $ = id => document.getElementById(id);
 
@@ -31,93 +17,17 @@ const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
 
 let obra = null;
-let lineas = {};   // { lineaKey: { rubroId, nombre, unidad, cantidad, itemKey, orden } }
-let items = [];
-let materiales = [];
-let equipos = [];
-let roles = [];
-let preciosObra = {};
-let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
-let paramsMO = {
-  asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8,
-  seguridadCapatazActivo: false, seguridadCapatazPct: 0,
-  comidaActivo: false, comidaMonto: 0,
-};
-let dolarObra = null;
+let modeloIns = null;   // forma de presupuestoDatos.js: ver js/insumosDatos.js
 let ordenPorCosto = false;   // false: orden natural de cada tabla (nombre/código/orden); true: costo estimado, mayor a menor
 
-function versionDe(it) {
-  const propia = it.versionesObra && it.versionesObra[obraKey];
-  return propia || it;
-}
-
-function precioUnitarioMaterial(mat) {
-  const precio = preciosObra[mat.key];
-  if (!precio) return null;
-  // El precio en pesos cargado es la fuente de verdad; el dólar es sólo
-  // ayuda de cálculo. Se reconvierte desde USD sólo si el material no
-  // tiene precioARS guardado (datos viejos, antes del campo dual).
-  if (precio.precioARS != null) return precio.precioARS;
-  const venta = window.dolarOficialVenta();
-  if (!precio.precioUSD || !venta) return null;
-  return precio.precioUSD * venta;
-}
-
-/* Recorre el Cómputo y consolida las líneas de receta de un tipo
-   ('material' | 'equipo') sobre su catálogo. `cantidadDe` traduce una línea
-   de receta a la magnitud que se consolida (unidades para materiales,
-   días-equipo para equipos). Devuelve
-   { entidadKey: { entidad, cantidadTotal, usados: [{ nombre, cantidad }] } }
-   ordenado por nombre. */
-function consolidar(tipo, catalogo, cantidadDe) {
-  const mapa = {};
-  Object.values(lineas).forEach(linea => {
-    if (!linea.itemKey || linea.cantidad == null || isNaN(linea.cantidad)) return;
-    const item = items.find(i => i.key === linea.itemKey);
-    if (!item) return;
-    const version = versionDe(item);
-    if (!version.lineas) return;
-    Object.values(version.lineas).forEach(rl => {
-      if (rl.tipo !== tipo || rl.cantidad == null || isNaN(rl.cantidad)) return;
-      const entidad = catalogo.find(c => c.key === rl.refKey);
-      if (!entidad) return;
-      const cantidadNecesaria = cantidadDe(linea, rl, version);
-      if (!mapa[entidad.key]) mapa[entidad.key] = { entidad, cantidadTotal: 0, usados: [] };
-      mapa[entidad.key].cantidadTotal += cantidadNecesaria;
-      mapa[entidad.key].usados.push({ nombre: linea.nombre || '(sin nombre)', cantidad: cantidadNecesaria });
-    });
-  });
-  return Object.values(mapa);
-}
-
-function calcularMateriales() {
-  return consolidar('material', materiales, (linea, rl) => linea.cantidad * rl.cantidad)
-    .sort((a, b) => a.entidad.nombre.localeCompare(b.entidad.nombre, 'es'));
-}
-
-function calcularEquipos() {
-  return consolidar('equipo', equipos, (linea, rl, version) =>
-    linea.cantidad * rl.cantidad / (version.rendimiento || 1))
-    .sort((a, b) => (a.entidad.codigo || '').localeCompare(b.entidad.codigo || '', 'es'));
-}
-
-function calcularManoDeObra() {
-  return consolidar('manoDeObra', roles, (linea, rl, version) =>
-    linea.cantidad * rl.cantidad / (version.rendimiento || 1))
-    .sort((a, b) => (a.entidad.orden || 0) - (b.entidad.orden || 0));
-}
-
-function nombreEquipo(e) {
-  return [e.tipo || '', e.codigo || ''].filter(Boolean).join(' · ') || '(sin nombre)';
-}
-
-/* Pinta una de las dos tablas. `cols` describe cada grupo consolidado:
-   { nombre, unidad, costoUnitario (null si no se puede calcular) }. */
-function renderTabla(containerId, resumenId, grupos, opts) {
+/* Pinta una de las tres tablas. `resultado` viene de calcularInsumosObra
+   (js/insumosDatos.js): { filas: [{ key, nombre, unidad, cantidad,
+   costoUnitario, costoTotal, usados }], costoTotal, faltaPrecio }. */
+function renderTabla(containerId, resumenId, resultado, opts) {
   const container = $(containerId);
   const resumen = $(resumenId);
 
-  if (!grupos.length) {
+  if (!resultado.filas.length) {
     container.innerHTML = `<p class="text-muted" style="font-size:.85rem;">${opts.vacio}</p>`;
     resumen.innerHTML = '';
     return;
@@ -128,90 +38,61 @@ function renderTabla(containerId, resumenId, grupos, opts) {
       <span>${opts.colNombre}</span><span>Unidad</span><span>${opts.colCantidad}</span><span>Usado en</span><span>Costo estimado</span>
     </div>`;
 
-  let costoTotalObra = 0;
-  let faltaPrecio = false;
+  const filas = ordenPorCosto
+    ? [...resultado.filas].sort((a, b) => (b.costoTotal || 0) - (a.costoTotal || 0))
+    : resultado.filas;
 
-  // El costo de cada fila hace falta antes de pintar (para poder ordenar por
-  // él si está activo "Ordenar por costo"), así que se calcula todo primero
-  // y recién después se arma el HTML — sin duplicar la cuenta.
-  const conCosto = grupos.map(g => {
-    const datos = opts.datosDe(g);
-    let costo = null;
-    if (datos.costoUnitario != null) {
-      costo = datos.costoUnitario * g.cantidadTotal;
-    } else {
-      faltaPrecio = true;
-    }
-    return { g, datos, costo };
-  });
-
-  if (ordenPorCosto) conCosto.sort((a, b) => (b.costo || 0) - (a.costo || 0));
-
-  const filas = conCosto.map(({ g, datos, costo }) => {
-    if (costo != null) costoTotalObra += costo;
-    const costoStr = costo != null ? fmtARS(costo) : '—';
-    const usadosTexto = g.usados.map(u => u.nombre).join(', ');
-    const usadosTitle = g.usados
-      .map(u => `${u.nombre}: ${fmtNum(u.cantidad)} ${datos.unidad}`)
+  const filasHtml = filas.map(f => {
+    const costoStr = f.costoTotal != null ? fmtARS(f.costoTotal) : '—';
+    const usadosTexto = f.usados.map(u => u.nombre).join(', ');
+    const usadosTitle = f.usados
+      .map(u => `${u.nombre}: ${fmtNum(u.cantidad)} ${f.unidad}`)
       .join('\n');
     return `
       <div class="materiales-linea">
-        <span>${escHtml(datos.nombre)}</span>
-        <span>${escHtml(datos.unidad)}</span>
-        <span class="materiales-cantidad"${calcAttrs(g.cantidadTotal, `${opts.calcNs}:${g.entidad.key}:cantidad`, `${datos.nombre} · ${opts.colCantidad}`)}>${fmtNum(g.cantidadTotal)}</span>
+        <span>${escHtml(f.nombre)}</span>
+        <span>${escHtml(f.unidad)}</span>
+        <span class="materiales-cantidad"${calcAttrs(f.cantidad, `${opts.calcNs}:${f.key}:cantidad`, `${f.nombre} · ${opts.colCantidad}`)}>${fmtNum(f.cantidad)}</span>
         <span class="materiales-usados" title="${escHtml(usadosTitle)}">${escHtml(usadosTexto)}</span>
-        <span class="materiales-costo"${costo != null ? calcAttrs(costo, `${opts.calcNs}:${g.entidad.key}:costo`, `${datos.nombre} · Costo`) : ''}>${costoStr}</span>
+        <span class="materiales-costo"${f.costoTotal != null ? calcAttrs(f.costoTotal, `${opts.calcNs}:${f.key}:costo`, `${f.nombre} · Costo`) : ''}>${costoStr}</span>
       </div>`;
   }).join('');
 
-  container.innerHTML = header + filas;
+  container.innerHTML = header + filasHtml;
 
   resumen.innerHTML = `
-    <div class="ap-resumen-row total"><span>${opts.labelTotal}</span><span${calcAttrs(costoTotalObra, `${opts.calcNs}:total`, opts.labelTotal)}>${fmtARS(costoTotalObra)}</span></div>
-    ${faltaPrecio ? `<p class="form-hint" style="margin-top:.5rem;">${opts.avisoSinPrecio}</p>` : ''}`;
+    <div class="ap-resumen-row total"><span>${opts.labelTotal}</span><span${calcAttrs(resultado.costoTotal, `${opts.calcNs}:total`, opts.labelTotal)}>${fmtARS(resultado.costoTotal)}</span></div>
+    ${resultado.faltaPrecio ? `<p class="form-hint" style="margin-top:.5rem;">${opts.avisoSinPrecio}</p>` : ''}`;
 }
 
 function renderTodo() {
-  renderTabla('lineas-materiales', 'resumen', calcularMateriales(), {
+  const insumos = window.calcularInsumosObra(modeloIns);
+
+  renderTabla('lineas-materiales', 'resumen', insumos.materiales, {
     calcNs: 'materiales',
     colNombre: 'Material',
     colCantidad: 'Cantidad necesaria',
     labelTotal: 'Costo total estimado de materiales',
     vacio: 'Todavía no hay materiales para mostrar — cargá líneas en el Cómputo vinculadas a un ítem con receta de materiales.',
     avisoSinPrecio: 'Algunos materiales no tienen precio cargado para esta obra — no se incluyen en el costo total.',
-    datosDe: g => ({
-      nombre: g.entidad.nombre,
-      unidad: g.entidad.unidad || '',
-      costoUnitario: precioUnitarioMaterial(g.entidad),
-    }),
   });
 
-  renderTabla('lineas-equipos', 'resumen-equipos', calcularEquipos(), {
+  renderTabla('lineas-equipos', 'resumen-equipos', insumos.equipos, {
     calcNs: 'equipos',
     colNombre: 'Equipo',
     colCantidad: 'Días de uso',
     labelTotal: 'Costo total estimado de equipos',
     vacio: 'Todavía no hay equipos para mostrar — cargá líneas en el Cómputo vinculadas a un ítem con equipos en su receta.',
     avisoSinPrecio: 'Algunos equipos no tienen costo calculable en esta obra (falta costo, vida útil, uso anual o el dólar de la obra) — no se incluyen en el costo total.',
-    datosDe: g => ({
-      nombre: nombreEquipo(g.entidad),
-      unidad: 'día',
-      costoUnitario: window.calcCostoDiarioEquipo(g.entidad, paramsEquipos, paramsMO.jornadaHoras, dolarObra),
-    }),
   });
 
-  renderTabla('lineas-mano-de-obra', 'resumen-mano-de-obra', calcularManoDeObra(), {
+  renderTabla('lineas-mano-de-obra', 'resumen-mano-de-obra', insumos.manoDeObra, {
     calcNs: 'manoDeObra',
     colNombre: 'Categoría',
     colCantidad: 'Días necesarios',
     labelTotal: 'Costo total estimado de mano de obra',
     vacio: 'Todavía no hay mano de obra para mostrar — cargá líneas en el Cómputo vinculadas a un ítem con mano de obra en su receta.',
     avisoSinPrecio: 'Algunas categorías no tienen básico cargado en Mano de Obra de esta obra — no se incluyen en el costo total.',
-    datosDe: g => ({
-      nombre: g.entidad.nombre,
-      unidad: 'día',
-      costoUnitario: g.entidad.basico ? window.calcCostoManoDeObra(g.entidad, paramsMO).costoJornal : null,
-    }),
   });
 }
 
@@ -234,16 +115,31 @@ async function loadAll() {
     return;
   }
   obra = obraData;
-  lineas = lineasData || {};
-  items = Object.entries(itemsData || {}).map(([key, it]) => ({ key, ...it }));
-  materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m }));
-  equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e }));
-  roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r }));
-  preciosObra = window.resolverPreciosObra(materiales, obraKey);
-  paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
-  paramsMO = { ...paramsMO, ...(obra.paramsMO || {}) };
-  dolarObra = obra.dolar ? obra.dolar.valor : null;
+  const materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m }));
+  const paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0, ...(obra.paramsEquipos || {}) };
+  const paramsMO = {
+    asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8,
+    seguridadCapatazActivo: false, seguridadCapatazPct: 0,
+    comidaActivo: false, comidaMonto: 0,
+    ...(obra.paramsMO || {}),
+  };
+  const dolarObra = obra.dolar ? obra.dolar.valor : null;
   window.setCotizacionObra(dolarObra);
+
+  modeloIns = {
+    obraKey,
+    catalogos: {
+      items: Object.entries(itemsData || {}).map(([key, it]) => ({ key, ...it })),
+      materiales,
+      equipos: Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e })),
+      roles: Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })),
+    },
+    computo: lineasData || {},
+    preciosObra: window.resolverPreciosObra(materiales, obraKey),
+    paramsEquipos,
+    paramsMO,
+    dolarObra,
+  };
 
   $('header-obra-nombre').textContent = 'Insumos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'insumos');
@@ -256,11 +152,11 @@ async function loadAll() {
 document.addEventListener('DOMContentLoaded', async () => {
   $('chk-orden-costo').addEventListener('change', e => {
     ordenPorCosto = e.target.checked;
-    if (obra) renderTodo();
+    if (modeloIns) renderTodo();
   });
   await loadAll();
   await getDolarSnapshot().catch(() => {});
-  if (obra) renderTodo();
+  if (modeloIns) renderTodo();
 });
 
-window.onDecimalesVista(() => { if (obra) renderTodo(); });
+window.onDecimalesVista(() => { if (modeloIns) renderTodo(); });
