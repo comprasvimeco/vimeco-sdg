@@ -308,21 +308,27 @@ function renderCoeficienteK() {
   const ggValorCelda = config.ggPct != null ? config.ggPct : window.roundLimpio(r.ggFracCalculado * 100);
   const ggCalculado = `<span class="cf-gg-calculado"${calcAttrs(r.ggFracCalculado * 100, 'cargafija:ggPctCalculado', '% Gastos Generales calculado')}>calculado ${fmtPct(r.ggFracCalculado)}</span>`;
 
-  // El tilde "IVA" es lo que separa el Presupuesto s/IVA del c/IVA: el neto que
-  // se factura incluye IIBB y percepciones, así que "sin IVA" no es lo mismo
-  // que "antes de los impuestos".
+  // Qué impuesto es "el IVA" (separa Presupuesto s/IVA de c/IVA) ya no se
+  // marca a mano acá: sale de impuestosDeConfig, por nombre ("iva" en el
+  // nombre) salvo que la obra ya tenga un ivaMarcado guardado de antes.
   const filasImpuestos = r.impuestos.map(i => filaK({
     label: `<input type="text" class="form-control cf-impuesto-nombre" data-key="${escHtml(i.key)}" value="${escHtml(i.nombre)}" placeholder="Nombre del impuesto">`,
-    medio: `<label class="cf-impuesto-iva" title="Marcalo si este impuesto es el IVA: el Presupuesto s/IVA lo deja afuera, el resto de los impuestos sí lo integran.">
-              <input type="checkbox" class="cf-impuesto-esiva" data-key="${escHtml(i.key)}" ${i.esIva ? 'checked' : ''}>IVA
-            </label>
-            ${pctInputHtml('cf-imp-' + i.key, i.porcentaje, '0', `cargafija:impuesto:${i.key}`, i.nombre || 'Impuesto')}
+    medio: `${pctInputHtml('cf-imp-' + i.key, i.porcentaje, '0', `cargafija:impuesto:${i.key}`, i.nombre || 'Impuesto')}
             <button class="cf-impuesto-del" data-key="${escHtml(i.key)}" title="Eliminar impuesto">${icSvg('x')}</button>`,
     aporte: r.aportePorImpuesto[i.key],
     clase: 'cf-fila-impuesto',
     id: `cargafija:impuesto:${i.key}:aporte`,
     calcLabel: `${i.nombre || 'Impuesto'} · Aporte`,
   })).join('');
+
+  // Si ninguno de los impuestos cargados matchea como IVA (ni por nombre ni
+  // por un ivaMarcado guardado de antes), el Presupuesto s/IVA queda igual al
+  // c/IVA — una etiqueta discreta al lado del título en vez de que pase
+  // desapercibido. Ver detección en inferirEsIva (calcCostos.js).
+  const sinIvaDetectado = r.impuestos.length > 0 && !r.impuestos.some(i => i.esIva);
+  const avisoSinIva = sinIvaDetectado
+    ? `<span class="cf-badge-sin-iva" title="El nombre tiene que contener &quot;IVA&quot; (ej: &quot;IVA&quot;, &quot;IVA Débito Fiscal&quot;) para que el Presupuesto s/IVA lo excluya. Por ahora se calcula igual al c/IVA.">IVA no detectado</span>`
+    : '';
 
   el.innerHTML = `
     <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(costoComputo, 'cargafija:costoComputo', 'Costo total del Cómputo')}>${fmtARS(costoComputo)}</span></div>
@@ -347,7 +353,7 @@ function renderCoeficienteK() {
       id: 'cargafija:financieroAporte', calcLabel: 'Costo Financiero · Aporte',
     })}
     ${filaK({ label: 'Subtotal con gasto financiero', aporte: r.subtotalConFinanciero, clase: 'cf-subtotal', id: 'cargafija:subtotalConFinanciero', calcLabel: 'Subtotal con gasto financiero' })}
-    <div class="cf-impuestos-titulo">Impuestos</div>
+    <div class="cf-impuestos-titulo">Impuestos${avisoSinIva}</div>
     ${filasImpuestos || '<p class="form-hint">Esta obra no tiene impuestos cargados.</p>'}
     <button type="button" class="btn btn-sm btn-outline cf-impuesto-add" id="cf-add-impuesto">+ Agregar impuesto</button>
     ${filaK({ label: 'Impuesto', aporte: r.impuestoFrac, clase: 'cf-subtotal', id: 'cargafija:impuestoTotal', calcLabel: 'Impuesto (total)' })}
@@ -424,10 +430,6 @@ function engancharCamposK(r) {
       updateImpuesto(input.dataset.key, { nombre: v });
     });
     input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
-  });
-
-  $('coeficiente-k').querySelectorAll('.cf-impuesto-esiva').forEach(chk => {
-    chk.addEventListener('change', () => updateImpuesto(chk.dataset.key, { esIva: chk.checked }));
   });
 
   $('coeficiente-k').querySelectorAll('.cf-impuesto-del').forEach(btn => {
@@ -814,7 +816,7 @@ function lineaKeyEnFocoCF() {
 function impuestoKeyEnFoco() {
   const el = document.activeElement;
   if (!el) return null;
-  if (el.dataset && el.dataset.key && el.classList && (el.classList.contains('cf-impuesto-nombre') || el.classList.contains('cf-impuesto-esiva'))) return el.dataset.key;
+  if (el.dataset && el.dataset.key && el.classList && el.classList.contains('cf-impuesto-nombre')) return el.dataset.key;
   if (el.id && el.id.startsWith('cf-imp-')) return el.id.slice('cf-imp-'.length);
   return null;
 }
