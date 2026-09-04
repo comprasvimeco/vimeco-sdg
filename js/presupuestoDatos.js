@@ -110,8 +110,10 @@
       obra.presupuestoOficial != null ? obra.presupuestoOficial : null);
     const gastosFijos = kDesglose.gastosFijos;
     const k = kDesglose.k;
-    // Referenciable como "k" en la calculadora flotante (ver calc.js) — no
-    // existe en exportar.html, que también usa este módulo pero no la carga.
+    // Referenciable como "k" en la calculadora flotante y en el precio "en
+    // vivo" de un material (ver calc.js, que presupuesto.html y
+    // exportar.html cargan). El guard queda como red de seguridad si algún
+    // día otra pantalla reusa este módulo sin cargar calc.js.
     if (window.setRefK) window.setRefK(k);
 
     // El total sale de TODAS las líneas del cómputo, incluidas las que

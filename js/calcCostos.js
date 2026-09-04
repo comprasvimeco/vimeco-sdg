@@ -115,9 +115,10 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     // propósito, y recién con ESE K ya resuelto se vuelve a costear la línea
     // puntual (sin la bandera) para que el precio final cierre exacto. Precios
     // sin referencias vivas (o viejos, sin precioFormulaMoneda) siempre fueron
-    // una foto fija — no cambian con nada de esto. En exportar.html, que no
-    // carga calc.js/refs.js, esto tampoco hace nada (formulaTieneRefs no
-    // existe ahí) y cae derecho al precio congelado.
+    // una foto fija — no cambian con nada de esto. Necesita que la pantalla
+    // haya cargado calc.js/refs.js (formulaTieneRefs) — presupuesto.html y
+    // exportar.html lo hacen; si alguna otra no lo carga, cae derecho al
+    // precio congelado en vez de romper.
     if (!opts.preciosCongelados && precio.precioFormula && precio.precioFormulaMoneda &&
         window.formulaTieneRefs && window.formulaTieneRefs(precio.precioFormula)) {
       try {
