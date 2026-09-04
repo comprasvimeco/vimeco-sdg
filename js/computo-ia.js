@@ -16,6 +16,7 @@
   const TIPOS_OK = ['application/pdf', 'image/jpeg', 'image/png'];
   const GEMINI_TIMEOUT_MS = 90000;
   const GEMINI_MODEL = 'gemini-3.5-flash-lite'; // ver nota de cuota en cotizaciones-ia.js
+  const GEMINI_MODEL_FALLBACK = 'gemini-3.5-flash'; // si el lite da 503 "high demand", ver cotizaciones-ia.js
 
   const GEMINI_PROMPT = 'Sos un asistente que extrae el rubrado (cómputo) de un presupuesto de ' +
     'obra de construcción argentino, a partir de un PDF o foto del documento. Los presupuestos ' +
@@ -115,15 +116,12 @@
     });
   }
 
-  async function callGeminiExtract(file) {
-    if (!GEMINI_API_KEY) throw new Error('Gemini no configurado');
-    const base64 = await fileToBase64(file);
+  async function llamarGemini(model, base64, mimeType) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
-    let resp;
     try {
-      resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      return await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
@@ -131,7 +129,7 @@
           body: JSON.stringify({
             contents: [{ parts: [
               { text: GEMINI_PROMPT },
-              { inlineData: { mimeType: file.type, data: base64 } },
+              { inlineData: { mimeType, data: base64 } },
             ] }],
             generationConfig: {
               responseMimeType: 'application/json',
@@ -144,6 +142,13 @@
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  async function callGeminiExtract(file) {
+    if (!GEMINI_API_KEY) throw new Error('Gemini no configurado');
+    const base64 = await fileToBase64(file);
+    let resp = await llamarGemini(GEMINI_MODEL, base64, file.type);
+    if (resp.status === 503) resp = await llamarGemini(GEMINI_MODEL_FALLBACK, base64, file.type);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     const text = data && data.candidates && data.candidates[0]

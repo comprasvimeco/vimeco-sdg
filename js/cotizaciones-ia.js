@@ -19,6 +19,10 @@
   // Revisar ai.google.dev/gemini-api/docs/models si esto arranca a fallar
   // con 404 más adelante (modelos se dan de baja con el tiempo).
   const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+  // Fallback si el modelo lite devuelve 503 "high demand" (pasó el 2026-09-04:
+  // el lite estuvo caído un rato mientras el modelo completo respondía bien).
+  // Cuota diaria menor, pero mejor que dejar al usuario sin nada.
+  const GEMINI_MODEL_FALLBACK = 'gemini-3.5-flash';
   const GEMINI_PROMPT = 'Sos un asistente que extrae datos de presupuestos de proveedores de ' +
     'materiales de construcción para una empresa constructora argentina. Analizá el documento ' +
     'adjunto (PDF o foto de un presupuesto) y extraé: 1) el proveedor que lo emite, 2) la fecha ' +
@@ -137,15 +141,12 @@
     });
   }
 
-  async function callGeminiExtract(file, mimeType) {
-    if (!GEMINI_API_KEY) throw new Error('Gemini no configurado');
-    const base64 = await fileToBase64(file);
+  async function llamarGemini(model, base64, mimeType) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
-    let resp;
     try {
-      resp = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      return await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': GEMINI_API_KEY },
@@ -170,6 +171,13 @@
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  async function callGeminiExtract(file, mimeType) {
+    if (!GEMINI_API_KEY) throw new Error('Gemini no configurado');
+    const base64 = await fileToBase64(file);
+    let resp = await llamarGemini(GEMINI_MODEL, base64, mimeType);
+    if (resp.status === 503) resp = await llamarGemini(GEMINI_MODEL_FALLBACK, base64, mimeType);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const data = await resp.json();
     const text = data && data.candidates && data.candidates[0]
