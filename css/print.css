@@ -12,8 +12,8 @@
 
 :root {
   --doc-ancho: 210mm;
-  --doc-margen: 12mm;
-  --doc-margen-top: 14mm;
+  --doc-margen: 15mm;
+  --doc-margen-top: 16mm;
   --doc-linea: #b8bfc9;
   --doc-linea-fuerte: #6b7280;
   --doc-tinta: #111827;
@@ -150,7 +150,7 @@
 /* El cronograma es la única sección que sale apaisada: aun cortado en bloques
    de columnas necesita el lado largo de la hoja. Se hace con una página con
    nombre (@page apaisada) para no voltear el resto del documento. */
-@page apaisada { size: A4 landscape; margin: 8mm 10mm 10mm; }
+@page apaisada { size: A4 landscape; margin: 10mm 15mm 12mm; }
 .doc-seccion-apaisada { page: apaisada; }
 
 /* En la hoja apaisada el alto es el recurso escaso: el membrete va compacto
@@ -163,10 +163,10 @@
 .doc-seccion-apaisada .doc-subtitulo { margin: 0 0 2.5mm; font-size: 7.5pt; }
 
 /* En pantalla la vista previa de esa sección se ensancha al útil de una A4
-   apaisada (297 − 2×10 de margen) y desborda la hoja vertical, que scrollea:
+   apaisada (297 − 2×15 de margen) y desborda la hoja vertical, que scrollea:
    lleva su propio fondo blanco para que la parte desbordada no quede sobre el
    fondo de la app. En papel toma el ancho de su propia página. */
-.doc-seccion-apaisada { width: 277mm; background: #fff; }
+.doc-seccion-apaisada { width: 267mm; background: #fff; }
 
 .doc-plan-bloque + .doc-plan-bloque { break-before: page; margin-top: 6mm; }
 .doc-plan-rango { font-size: 8pt; font-weight: 700; color: var(--primary-dark); margin-bottom: 1.5mm; }
@@ -230,7 +230,7 @@
 
 @page {
   size: A4 portrait;
-  margin: 12mm 10mm 14mm;
+  margin: 15mm 15mm 16mm;
 }
 
 @media print {

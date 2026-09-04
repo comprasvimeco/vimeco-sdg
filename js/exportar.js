@@ -57,10 +57,11 @@ function seccionesDisponibles() {
 
 // Períodos por hoja en el Plan de trabajos: el cronograma se corta en bloques
 // y cada uno repite las columnas fijas (ítem, cantidad, precio), igual que las
-// tres áreas de impresión de la planilla de referencia. Once es lo que deja
-// ~13 mm por columna en una A4 apaisada, el ancho que necesita un importe
-// acumulado en miles sin pisarse con el de al lado.
-const PERIODOS_POR_HOJA = 11;
+// tres áreas de impresión de la planilla de referencia. Diez es lo que deja
+// ~13 mm por columna en una A4 apaisada (ver márgenes de la página "apaisada"
+// en css/print.css), el ancho que necesita un importe acumulado en miles sin
+// pisarse con el de al lado.
+const PERIODOS_POR_HOJA = 10;
 
 let modelo = null;
 let config = { notas: null };
