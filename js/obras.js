@@ -35,7 +35,6 @@ function renderObras(list) {
           <button class="btn btn-sm btn-outline btn-edit-obra">Editar</button>
           <button class="btn btn-sm btn-outline btn-datos-obra">Datos</button>
           <button class="btn btn-sm btn-primary btn-computo-obra">CyP</button>
-          <button class="btn btn-sm btn-danger btn-del-obra">Eliminar</button>
         </div>
       </div>`;
   }).join('');
@@ -50,7 +49,6 @@ function renderObras(list) {
     card.querySelector('.btn-computo-obra').addEventListener('click', () => {
       window.location.href = 'computo.html?obra=' + encodeURIComponent(obra.key);
     });
-    card.querySelector('.btn-del-obra').addEventListener('click', () => deleteObra(obra));
   });
 }
 
@@ -123,18 +121,6 @@ async function saveObraModal() {
   } finally {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Guardar';
-  }
-}
-
-async function deleteObra(obra) {
-  const ok = await showConfirm('Eliminar obra', `¿Eliminar "${obra.nombre}"? Esta acción no se puede deshacer.`);
-  if (!ok) return;
-  try {
-    await _fbDel(`/obras/${obra.key}.json`);
-    showToast('Obra eliminada.');
-    await loadObras();
-  } catch (_) {
-    showToast('Error al eliminar la obra.', 'error');
   }
 }
 
