@@ -185,7 +185,6 @@ function seccionResumen() {
       <td class="doc-num">1,00</td>
       <td class="doc-num">${docARS(r.subtotal)}</td>
       <td class="doc-num">${docARS(r.subtotal)}</td>
-      <td class="doc-num">${docPct(r.incidencia)}</td>
     </tr>`).join('');
 
   return `
@@ -199,15 +198,13 @@ function seccionResumen() {
           <th style="width:16mm;">Cant.</th>
           <th style="width:30mm;">Precio unitario</th>
           <th style="width:32mm;">Precio total</th>
-          <th style="width:17mm;">Incid.</th>
         </tr>
       </thead>
       <tbody>
-        ${filas || '<tr><td colspan="7" class="doc-centro">Sin rubros cargados en el Cómputo.</td></tr>'}
+        ${filas || '<tr><td colspan="6" class="doc-centro">Sin rubros cargados en el Cómputo.</td></tr>'}
         <tr class="doc-fila-total">
           <td colspan="5">Precio total de la obra</td>
           <td class="doc-num">${docARS(modelo.total)}</td>
-          <td class="doc-num">100,00%</td>
         </tr>
       </tbody>
     </table>
@@ -223,7 +220,6 @@ function seccionPresupuesto() {
         <td>${escHtml(r.nombre || '(sin nombre)')}</td>
         <td colspan="3"></td>
         <td class="doc-num">${docARS(r.subtotal)}</td>
-        <td class="doc-num">${docPct(r.incidencia)}</td>
       </tr>`;
     const lineas = r.lineas.map(l => `
       <tr>
@@ -233,7 +229,6 @@ function seccionPresupuesto() {
         <td class="doc-num">${docCant(l.cantidad)}</td>
         <td class="doc-num">${docARS(l.precioUnitario)}</td>
         <td class="doc-num">${docARS(l.total)}</td>
-        <td class="doc-num">${docPct(l.incidencia)}</td>
       </tr>`).join('');
     return cabecera + lineas;
   }).join('');
@@ -249,15 +244,13 @@ function seccionPresupuesto() {
           <th style="width:18mm;">Cantidad</th>
           <th style="width:28mm;">Precio</th>
           <th style="width:30mm;">Importe ($)</th>
-          <th style="width:16mm;">Incid.</th>
         </tr>
       </thead>
       <tbody>
-        ${filas || '<tr><td colspan="7" class="doc-centro">Sin rubros cargados en el Cómputo.</td></tr>'}
+        ${filas || '<tr><td colspan="6" class="doc-centro">Sin rubros cargados en el Cómputo.</td></tr>'}
         <tr class="doc-fila-total">
           <td colspan="5">Total del presupuesto</td>
           <td class="doc-num">${docARS(modelo.total)}</td>
-          <td class="doc-num">100,00%</td>
         </tr>
       </tbody>
     </table>
