@@ -57,6 +57,11 @@
   <nav class="subtabs-bar" id="header-subtabs"></nav>
 
   <main class="app-main" id="main-content" style="display:none;">
+    <div class="form-group" style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
+      <input type="checkbox" id="chk-orden-costo" style="width:auto;">
+      <label for="chk-orden-costo" style="margin:0;">Ordenar por costo (mayor a menor)</label>
+    </div>
+
     <div class="card">
       <div class="card-header"><span class="card-title">Materiales necesarios</span></div>
       <div class="card-body" id="lineas-materiales"></div>
@@ -75,6 +80,16 @@
     <div class="card">
       <div class="card-header"><span class="card-title">Resumen de equipos</span></div>
       <div class="card-body" id="resumen-equipos"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Mano de obra necesaria</span></div>
+      <div class="card-body" id="lineas-mano-de-obra"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Resumen de mano de obra</span></div>
+      <div class="card-body" id="resumen-mano-de-obra"></div>
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando insumos…</div></div>
