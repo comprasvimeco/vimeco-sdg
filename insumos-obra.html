@@ -18,6 +18,28 @@
     .materiales-usados { color: var(--gray-500); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+
+    /* ===== MOBILE: misma grilla de ancho fijo que Cómputo -- se reacomoda en
+       varias filas por línea, misma info, sin tocar el HTML/JS. ===== */
+    @media (max-width: 700px) {
+      .materiales-linea-header { display: none; }
+      .materiales-linea {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas: "nombre nombre" "unidad cantidad" "usados usados" "costo costo";
+        row-gap: .3rem; column-gap: .5rem; padding: .6rem 0;
+      }
+      .materiales-linea > *:nth-child(1) { grid-area: nombre; }
+      .materiales-linea > *:nth-child(2) { grid-area: unidad; color: var(--gray-500); font-size: .85rem; }
+      .materiales-linea > *:nth-child(2)::before { content: "Unidad: "; }
+      .materiales-linea > *:nth-child(3) { grid-area: cantidad; text-align: left; }
+      .materiales-linea > *:nth-child(3)::before { content: "Cantidad: "; font-weight: 400; color: var(--gray-500); }
+      .materiales-linea > *:nth-child(4) {
+        grid-area: usados; white-space: normal; overflow: visible; text-overflow: clip; font-size: .8rem;
+      }
+      .materiales-linea > *:nth-child(4)::before { content: "Usado en: "; color: var(--gray-400); }
+      .materiales-linea > *:nth-child(5) { grid-area: costo; text-align: left; }
+      .materiales-linea > *:nth-child(5)::before { content: "Costo estimado: "; font-weight: 400; color: var(--gray-500); }
+    }
   </style>
 </head>
 <body>

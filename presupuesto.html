@@ -27,6 +27,37 @@
     .presupuesto-linea-header span:nth-child(5), .presupuesto-linea-header span:nth-child(6), .presupuesto-linea-header span:nth-child(7) { text-align: right; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+
+    /* ===== MOBILE: mismas grillas de ancho fijo que Cómputo -- se reacomodan
+       en varias filas por ítem/rubro, misma info, sin tocar el HTML/JS. ===== */
+    @media (max-width: 700px) {
+      .presupuesto-rubro-header {
+        grid-template-columns: 26px 1fr auto;
+        grid-template-areas: "num nombre nombre" ". incid subtotal";
+        row-gap: .35rem; padding: .5rem .6rem;
+      }
+      .presupuesto-rubro-numero { grid-area: num; }
+      .presupuesto-rubro-nombre { grid-area: nombre; }
+      .presupuesto-rubro-subtotal { grid-area: subtotal; }
+      .presupuesto-rubro-incidencia { grid-area: incid; text-align: left; }
+
+      .presupuesto-linea-header { display: none; }
+      .presupuesto-linea {
+        grid-template-columns: 26px 1fr 1fr;
+        grid-template-areas: "num nombre nombre" ". unidad cantidad" ". precio total" ". incid incid";
+        row-gap: .3rem; column-gap: .5rem; padding: .6rem 0;
+      }
+      .presupuesto-linea-numero { grid-area: num; }
+      .presupuesto-linea-nombre { grid-area: nombre; }
+      .presupuesto-linea-unidad { grid-area: unidad; }
+      .presupuesto-linea-cantidad { grid-area: cantidad; }
+      .presupuesto-linea-precio { grid-area: precio; text-align: left; font-size: .8rem; color: var(--gray-500); }
+      .presupuesto-linea-precio::before { content: "Precio unit.: "; }
+      .presupuesto-linea-total { grid-area: total; }
+      .presupuesto-linea-total::before { content: "Total: "; font-weight: 400; color: var(--gray-500); }
+      .presupuesto-linea-incidencia { grid-area: incid; text-align: left; }
+      .presupuesto-linea-incidencia::before { content: "Incidencia: "; font-weight: 400; color: var(--gray-500); }
+    }
   </style>
 </head>
 <body>

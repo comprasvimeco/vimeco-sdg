@@ -60,6 +60,41 @@
     .cf-presupuesto-bloque { margin-top: .7rem; padding-top: .55rem; border-top: 1px solid var(--gray-200); }
     .cf-fila-presupuesto { color: var(--gray-600); font-size: .88rem; }
     .cf-fila-presupuesto span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* ===== MOBILE: mismas grillas de ancho fijo que Cómputo -- se reacomodan
+       en varias filas por concepto, misma info, sin tocar el HTML/JS. Se
+       posiciona por nth-child (no por clase) porque las columnas 3-5 cambian
+       de contenido según el tipo de concepto (monto fijo vs. %). ===== */
+    @media (max-width: 700px) {
+      .cf-linea-header { display: none; }
+      .cf-linea {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas: "concepto concepto" "tipo tipo" "cant precio" "meses total" "acc acc";
+        row-gap: .3rem; column-gap: .5rem; padding: .6rem 0;
+      }
+      .cf-linea > *:nth-child(1) { grid-area: concepto; }
+      .cf-linea > *:nth-child(2) { grid-area: tipo; }
+      .cf-linea > *:nth-child(3) { grid-area: cant; }
+      .cf-linea > *:nth-child(4) { grid-area: precio; }
+      .cf-linea > *:nth-child(5) { grid-area: meses; }
+      .cf-linea > *:nth-child(6) { grid-area: total; text-align: right; }
+      .cf-linea > *:nth-child(6)::before { content: "Total: "; font-weight: 400; color: var(--gray-500); }
+      .cf-linea > *:nth-child(7) { grid-area: acc; justify-self: end; }
+
+      /* Bloque del Coeficiente K: label + control + aporte pasan de 3
+         columnas a 1 columna apilada -- el control del medio (a veces
+         checkbox+input+borrar, para impuestos) puede envolver en vez de
+         desbordar. */
+      .cf-fila-k {
+        grid-template-columns: 1fr; grid-template-areas: "label" "medio" "aporte";
+        row-gap: .25rem; padding: .5rem 0; border-bottom: 1px solid var(--gray-200);
+      }
+      .cf-fila-k > *:nth-child(1) { grid-area: label; }
+      .cf-fila-k > *:nth-child(2) { grid-area: medio; }
+      .cf-fila-k > *:nth-child(3) { grid-area: aporte; text-align: left; }
+      .cf-fila-k-medio { flex-wrap: wrap; justify-content: flex-start; }
+      .cf-subtotal, .cf-fila-k.total { border-bottom: none; }
+    }
   </style>
 </head>
 <body>

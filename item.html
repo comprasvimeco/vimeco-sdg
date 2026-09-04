@@ -55,6 +55,39 @@
     .ap-base-nota strong { color: var(--gray-800); font-weight: 600; }
     .ap-base-nota-del { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .1rem; display: flex; }
     .ap-base-nota-del:hover { color: var(--danger); }
+
+    /* ===== MOBILE: mismas grillas de ancho fijo que Cómputo -- se reacomodan
+       en varias filas por línea, misma info, sin tocar el HTML/JS. Se posiciona
+       por nth-child (no por clase) porque en la fila de Seguridad y Capataz dos
+       columnas distintas comparten la misma clase .ap-linea-costo-unit. ===== */
+    @media (max-width: 700px) {
+      .ap-linea-header { display: none; }
+
+      .ap-linea.con-costo {
+        grid-template-columns: 1fr 1fr 28px;
+        grid-template-areas: "sel sel sel" "cant unit del" "total total total";
+        row-gap: .3rem; column-gap: .5rem; padding: .6rem 0;
+      }
+      .ap-linea.con-costo .linea-select-wrap { grid-area: sel; }
+      .ap-linea.con-costo .linea-cantidad { grid-area: cant; }
+      .ap-linea.con-costo .ap-linea-costo-unit { grid-area: unit; text-align: left; }
+      .ap-linea.con-costo .ap-linea-costo-unit::before { content: "Unit.: "; font-weight: 400; }
+      .ap-linea.con-costo .ap-linea-costo-total { grid-area: total; }
+      .ap-linea.con-costo .ap-linea-costo-total::before { content: "Costo total: "; font-weight: 400; color: var(--gray-500); }
+      .ap-linea.con-costo .ap-linea-del { grid-area: del; justify-self: end; }
+
+      .ap-linea-mo.con-costo {
+        grid-template-columns: 1fr 1fr;
+        grid-template-areas: "nombre nombre" "c2 c3" "total total";
+        row-gap: .3rem; column-gap: .5rem; padding: .6rem 0;
+      }
+      .ap-linea-mo.con-costo > *:nth-child(1) { grid-area: nombre; }
+      .ap-linea-mo.con-costo > *:nth-child(2) { grid-area: c2; }
+      .ap-linea-mo.con-costo > *:nth-child(3) { grid-area: c3; text-align: left; }
+      .ap-linea-mo.con-costo > *:nth-child(3)::before { content: "Unit.: "; font-weight: 400; }
+      .ap-linea-mo.con-costo > *:nth-child(4) { grid-area: total; }
+      .ap-linea-mo.con-costo > *:nth-child(4)::before { content: "Total: "; font-weight: 400; color: var(--gray-500); }
+    }
   </style>
 </head>
 <body>

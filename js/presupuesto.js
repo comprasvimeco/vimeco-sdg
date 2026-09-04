@@ -27,9 +27,9 @@ function renderLineaRow(linea) {
   return `
     <div class="presupuesto-linea">
       <span class="presupuesto-linea-numero">${linea.numero}</span>
-      <span>${escHtml(linea.nombre)}</span>
-      <span>${escHtml(linea.unidad)}</span>
-      <span${calcAttrs(linea.cantidad, `${id}:cantidad`, `${et} · Cantidad`)}>${linea.cantidad != null ? fmtNum(linea.cantidad) : '—'}</span>
+      <span class="presupuesto-linea-nombre">${escHtml(linea.nombre)}</span>
+      <span class="presupuesto-linea-unidad">${escHtml(linea.unidad)}</span>
+      <span class="presupuesto-linea-cantidad"${calcAttrs(linea.cantidad, `${id}:cantidad`, `${et} · Cantidad`)}>${linea.cantidad != null ? fmtNum(linea.cantidad) : '—'}</span>
       <span class="presupuesto-linea-precio"${calcAttrs(linea.precioUnitario, `${id}:precioUnit`, `${et} · Precio unit.`)}>${fmtARS(linea.precioUnitario)}</span>
       <span class="presupuesto-linea-total"${calcAttrs(linea.total, `${id}:total`, `${et} · Total`)}>${fmtARS(linea.total)}</span>
       <span class="presupuesto-linea-incidencia"${calcAttrs(linea.incidencia != null ? linea.incidencia * 100 : null, `${id}:incidencia`, `${et} · Incidencia %`)}>${fmtPct(linea.incidencia)}</span>
