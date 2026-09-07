@@ -572,11 +572,18 @@ function engancharTabla() {
   wrap.addEventListener('keydown', e => {
     if (!e.target.classList || !e.target.classList.contains('pa-input')) return;
     if (e.key === 'Enter') { e.target.blur(); return; }
-    // Flechas ←/→ saltan de período dentro de la misma fila, como en la planilla.
+    // Flechas ←/→ saltan de período dentro de la misma fila, ↑/↓ saltan a la
+    // misma columna de período en la fila editable de arriba/abajo — como en
+    // la planilla.
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
       const dir = e.key === 'ArrowRight' ? 1 : -1;
       const p = parseInt(e.target.dataset.p, 10) + dir;
       const destino = wrap.querySelector(`.pa-input[data-row="${CSS.escape(e.target.dataset.row)}"][data-p="${p}"]`);
+      if (destino) { e.preventDefault(); destino.focus(); }
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      const dir = e.key === 'ArrowDown' ? 1 : -1;
+      const columna = Array.from(wrap.querySelectorAll(`.pa-input[data-p="${e.target.dataset.p}"]`));
+      const destino = columna[columna.indexOf(e.target) + dir];
       if (destino) { e.preventDefault(); destino.focus(); }
     }
   });
