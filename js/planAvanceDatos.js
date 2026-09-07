@@ -143,7 +143,7 @@
       accMonto += monto;
       acumMonto.push(accMonto);
       remanenteMonto.push(total - accMonto);
-      remanentePct.push(total > 0 ? (total - accMonto) / total : 0);
+      remanentePct.push(1 - acc);
     }
 
     return {
@@ -154,10 +154,12 @@
   };
 
   /* ===== Gráficos =====
-     Dos gráficos de un solo eje cada uno (nunca dos escalas en el mismo):
-     la curva de inversión (acumulado y remanente, ambos en %) y la
-     certificación por período (en $). Devuelven markup SVG; las zonas de
-     hover sólo se emiten si se piden (la pantalla sí, el PDF no). */
+     Tres gráficos, cada uno de un solo eje (nunca dos escalas en el mismo):
+     Plan de Avance (acumulado y remanente, en % — ajeno al anticipo), Curva
+     de Inversión (acumulado y remanente, en $ — arranca en el anticipo) y
+     certificación por período (en $, no acumulado). Devuelven markup SVG;
+     las zonas de hover sólo se emiten si se piden (la pantalla sí, el PDF
+     no). */
 
   const COLOR_ACUM = '#2557a7';
   const COLOR_REMANENTE = '#9a7420';
@@ -171,26 +173,42 @@
     return i => x0 + (ancho * i) / n;
   }
 
-  // El punto 0 es el arranque: acumulado = anticipo, remanente = 100%.
-  window.seriesCurvaInversion = function (d) {
+  // El punto 0 es el arranque de cada curva.
+  // Plan de Avance: % de obra ejecutado, ajeno al anticipo — arranca en 0%.
+  window.seriesPlanAvance = function (d) {
     return {
-      acum: [d.anticipoFrac, ...d.acumMonto.map(v => (d.total > 0 ? v / d.total : 0))],
+      acum: [0, ...d.acumPct],
       rem: [1, ...d.remanentePct],
     };
   };
 
-  window.svgCurvaInversion = function (d, opts) {
-    const o = Object.assign({ W: 960, H: 340, hover: false, unidad: 'Semana' }, opts);
+  // Curva de Inversión: plata que cobra el contratista — arranca en el
+  // anticipo (ya cobrado antes del primer certificado) y se amortiza
+  // proporcionalmente en cada certificado. Montos absolutos, sin normalizar
+  // (dibujarCurvaLineas los divide por el total para ubicarlos en el eje).
+  window.seriesCurvaInversion = function (d) {
+    return {
+      acum: [d.anticipoMonto, ...d.acumMonto],
+      rem: [d.total, ...d.remanenteMonto],
+    };
+  };
+
+  // Trazador genérico de las dos curvas (línea + puntos + etiquetas de fin +
+  // zonas de hover): recibe las series ya normalizadas a fracción [0,1] del
+  // techo del eje Y, y sólo varía cómo se rotula ese eje (opts.etiquetaEje) y
+  // el aria-label del SVG (opts.tituloAria).
+  function dibujarCurvaLineas(acum, rem, opts) {
+    const o = Object.assign({ W: 960, H: 340, hover: false, etiquetaEje: v => `${Math.round(v * 100)}%`, tituloAria: '' }, opts);
     const m = { top: 18, right: 96, bottom: 40, left: 52 };
     const pw = o.W - m.left - m.right;
     const ph = o.H - m.top - m.bottom;
-    const n = d.n;
+    const n = acum.length - 1;
     const px = ejeX(n, m.left, pw);
     const py = v => m.top + ph - v * ph;
 
     const grid = [0, 0.25, 0.5, 0.75, 1].map(v =>
       `<line x1="${m.left}" y1="${py(v)}" x2="${m.left + pw}" y2="${py(v)}" stroke="${COLOR_GRID}" stroke-width="1"/>
-       <text x="${m.left - 8}" y="${py(v) + 4}" text-anchor="end" class="pa-svg-tick">${Math.round(v * 100)}%</text>`
+       <text x="${m.left - 8}" y="${py(v) + 4}" text-anchor="end" class="pa-svg-tick">${escHtml(o.etiquetaEje(v))}</text>`
     ).join('');
 
     const paso = n > 20 ? Math.ceil(n / 12) : 1;
@@ -199,8 +217,6 @@
       if (i % paso !== 0 && i !== n) continue;
       ticks.push(`<text x="${px(i)}" y="${m.top + ph + 20}" text-anchor="middle" class="pa-svg-tick">${i}</text>`);
     }
-
-    const { acum, rem } = window.seriesCurvaInversion(d);
 
     const linea = (vals, color) =>
       `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" points="${vals.map((v, i) => `${px(i)},${py(v)}`).join(' ')}"/>`;
@@ -226,11 +242,11 @@
     }
 
     return `
-      <svg viewBox="0 0 ${o.W} ${o.H}" class="pa-svg" role="img" aria-label="Curva de inversión: avance acumulado y remanente por ${o.unidad.toLowerCase()}">
+      <svg viewBox="0 0 ${o.W} ${o.H}" class="pa-svg" role="img" aria-label="${escHtml(o.tituloAria)}">
         ${grid}
         <line x1="${m.left}" y1="${m.top + ph}" x2="${m.left + pw}" y2="${m.top + ph}" stroke="${COLOR_EJE}" stroke-width="1"/>
         ${ticks.join('')}
-        <text x="${m.left + pw / 2}" y="${o.H - 6}" text-anchor="middle" class="pa-svg-tick">${o.unidad}</text>
+        <text x="${m.left + pw / 2}" y="${o.H - 6}" text-anchor="middle" class="pa-svg-tick">${escHtml(o.unidad || 'Semana')}</text>
         ${o.hover ? `<line class="pa-crosshair" x1="0" y1="${m.top}" x2="0" y2="${m.top + ph}" stroke="${COLOR_EJE}" stroke-width="1" stroke-dasharray="3 3" style="display:none"/>` : ''}
         ${linea(rem, COLOR_REMANENTE)}
         ${linea(acum, COLOR_ACUM)}
@@ -240,6 +256,28 @@
         ${etiquetaFin(finRem, COLOR_REMANENTE, 'Remanente', chocan ? 11 : 0)}
         ${hover.join('')}
       </svg>`;
+  }
+
+  // Plan de Avance: eje en %, sin anticipo.
+  window.svgPlanAvance = function (d, opts) {
+    const o = Object.assign({ unidad: 'Semana' }, opts);
+    const { acum, rem } = window.seriesPlanAvance(d);
+    return dibujarCurvaLineas(acum, rem, Object.assign({}, o, {
+      etiquetaEje: v => `${Math.round(v * 100)}%`,
+      tituloAria: `Plan de avance: acumulado y remanente por ${o.unidad.toLowerCase()}`,
+    }));
+  };
+
+  // Curva de Inversión: eje en $, arranca en el anticipo.
+  window.svgCurvaInversion = function (d, opts) {
+    const o = Object.assign({ unidad: 'Semana', fmtMonto: window.fmtARS }, opts);
+    const { acum, rem } = window.seriesCurvaInversion(d);
+    const total = d.total;
+    const norm = v => (total > 0 ? v / total : 0);
+    return dibujarCurvaLineas(acum.map(norm), rem.map(norm), Object.assign({}, o, {
+      etiquetaEje: v => o.fmtMonto(v * total),
+      tituloAria: `Curva de inversión: acumulado y remanente en pesos por ${o.unidad.toLowerCase()}`,
+    }));
   };
 
   window.svgCertificacionPorPeriodo = function (d, opts) {

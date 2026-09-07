@@ -398,10 +398,14 @@ function renderResumen(d) {
 const COLOR_ACUM = window.PLAN_COLOR_ACUM;
 const COLOR_REMANENTE = window.PLAN_COLOR_REMANENTE;
 
-function renderCurva(d) {
-  $('pa-curva').innerHTML = window.svgCurvaInversion(d, { hover: true, unidad: nombreUnidad() });
-  const { acum, rem } = window.seriesCurvaInversion(d);
-  engancharHoverCurva(d, acum, rem);
+function renderCurvaAvance(d) {
+  $('pa-curva-avance').innerHTML = window.svgPlanAvance(d, { hover: true, unidad: nombreUnidad() });
+  engancharHoverCurvaAvance(d);
+}
+
+function renderCurvaInversion(d) {
+  $('pa-curva-inversion').innerHTML = window.svgCurvaInversion(d, { hover: true, unidad: nombreUnidad() });
+  engancharHoverCurvaInversion(d);
 }
 
 function renderBarras(d) {
@@ -435,8 +439,11 @@ function ocultarTooltip() {
   if (tooltipEl) tooltipEl.style.display = 'none';
 }
 
-function engancharHoverCurva(d, acum, rem) {
-  const svg = $('pa-curva').querySelector('svg');
+// Enganche genérico de las zonas de hover, compartido por las dos curvas:
+// sólo cambia de qué elemento cuelga el SVG y qué arma el HTML del tooltip
+// para el período `i` (0 = inicio de obra).
+function engancharHoverGenerico(contenedorId, armarTooltip) {
+  const svg = $(contenedorId).querySelector('svg');
   const cross = svg.querySelector('.pa-crosshair');
   svg.querySelectorAll('.pa-hover-zone').forEach(zone => {
     zone.addEventListener('mousemove', e => {
@@ -444,15 +451,34 @@ function engancharHoverCurva(d, acum, rem) {
       const x = parseFloat(zone.getAttribute('x')) + parseFloat(zone.getAttribute('width')) / 2;
       cross.setAttribute('x1', x); cross.setAttribute('x2', x);
       cross.style.display = '';
-      const titulo = i === 0 ? 'Inicio de obra' : `${i}° ${nombreUnidad()}`;
-      const montoAcum = i === 0 ? d.anticipoMonto : d.acumMonto[i - 1];
-      const montoRem = limpiarCero(i === 0 ? d.total : d.remanenteMonto[i - 1]);
-      mostrarTooltip(e, `
-        <div class="pa-tt-titulo">${escHtml(titulo)}</div>
-        <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_ACUM}"></span>Acumulado <b>${fmtPct(acum[i])}</b> · ${fmtARS(montoAcum)}</div>
-        <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_REMANENTE}"></span>Remanente <b>${fmtPct(rem[i])}</b> · ${fmtARS(montoRem)}</div>`);
+      mostrarTooltip(e, armarTooltip(i));
     });
     zone.addEventListener('mouseleave', () => { cross.style.display = 'none'; ocultarTooltip(); });
+  });
+}
+
+// Plan de Avance: % físico, ajeno al anticipo.
+function engancharHoverCurvaAvance(d) {
+  const { acum, rem } = window.seriesPlanAvance(d);
+  engancharHoverGenerico('pa-curva-avance', i => {
+    const titulo = i === 0 ? 'Inicio de obra' : `${i}° ${nombreUnidad()}`;
+    return `
+      <div class="pa-tt-titulo">${escHtml(titulo)}</div>
+      <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_ACUM}"></span>Acumulado <b>${fmtPct(acum[i])}</b></div>
+      <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_REMANENTE}"></span>Remanente <b>${fmtPct(rem[i])}</b></div>`;
+  });
+}
+
+// Curva de Inversión: plata, con el anticipo cobrado al inicio.
+function engancharHoverCurvaInversion(d) {
+  engancharHoverGenerico('pa-curva-inversion', i => {
+    const titulo = i === 0 ? 'Inicio de obra' : `${i}° ${nombreUnidad()}`;
+    const montoAcum = i === 0 ? d.anticipoMonto : d.acumMonto[i - 1];
+    const montoRem = limpiarCero(i === 0 ? d.total : d.remanenteMonto[i - 1]);
+    return `
+      <div class="pa-tt-titulo">${escHtml(titulo)}</div>
+      <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_ACUM}"></span>Acumulado <b>${fmtARS(montoAcum)}</b></div>
+      <div class="pa-tt-fila"><span class="pa-tt-punto" style="background:${COLOR_REMANENTE}"></span>Remanente <b>${fmtARS(montoRem)}</b></div>`;
   });
 }
 
@@ -493,7 +519,8 @@ function renderTodo() {
   contenido.style.display = '';
   renderResumen(d);
   renderTabla(d);
-  renderCurva(d);
+  renderCurvaAvance(d);
+  renderCurvaInversion(d);
   renderBarras(d);
 }
 

@@ -649,8 +649,11 @@ function seccionCurvas() {
       </tbody>
     </table>
 
-    <h3 class="doc-grafico-titulo">Avance acumulado y remanente</h3>
-    <div class="doc-grafico">${window.svgCurvaInversion(plan, { unidad })}</div>
+    <h3 class="doc-grafico-titulo">Plan de avance — acumulado y remanente</h3>
+    <div class="doc-grafico">${window.svgPlanAvance(plan, { unidad })}</div>
+
+    <h3 class="doc-grafico-titulo">Curva de inversión — acumulado y remanente</h3>
+    <div class="doc-grafico">${window.svgCurvaInversion(plan, { unidad, fmtMonto: docARS })}</div>
 
     <h3 class="doc-grafico-titulo">Certificación por ${escHtml(unidad.toLowerCase())}</h3>
     <div class="doc-grafico">${window.svgCertificacionPorPeriodo(plan, { unidad, fmtMonto: docARS })}</div>
