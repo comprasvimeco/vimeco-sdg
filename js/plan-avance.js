@@ -64,6 +64,19 @@ function cantidadDe(linea) {
   return linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : 0;
 }
 
+// Duración estimada del ítem (cantidad / rendimiento, en jornadas): sólo un
+// dato de ayuda para cargar el plan más rápido, no participa del cálculo ni
+// se guarda — por eso no está en js/planAvanceDatos.js (compartido con la
+// exportación) sino acá nomás, así no puede terminar apareciendo impreso.
+function duracionDe(itemKey, cantidad) {
+  if (!itemKey || !cantidad) return null;
+  const it = items.find(i => i.key === itemKey);
+  if (!it) return null;
+  const rend = versionDe(it).rendimiento;
+  if (!rend || isNaN(rend) || rend <= 0) return null;
+  return cantidad / rend;
+}
+
 function costoTotalComputo() {
   return Object.values(lineas).reduce((acc, l) =>
     acc + costoUnitarioDe(l.itemKey, { preciosCongelados: true }) * cantidadDe(l), 0);
@@ -132,6 +145,7 @@ function construirDatos() {
       cantidad: cantidadDe(l),
       precioUnitario: costoUnitarioDe(l.itemKey) * k,
       precioTotal: costoUnitarioDe(l.itemKey) * k * cantidadDe(l),
+      duracion: duracionDe(l.itemKey, cantidadDe(l)),
     }));
     return {
       rubro: r,
@@ -257,6 +271,7 @@ function renderTabla(d) {
           <td class="pa-col-nombre">
             <span class="pa-item-numero">${escHtml(x.numero)}</span>
             <span class="pa-item-nombre">${escHtml(x.linea.nombre || '(sin nombre)')}</span>
+            ${x.duracion != null ? `<span class="pa-item-duracion" title="Duración estimada: cantidad ÷ rendimiento">≈ ${fmtNum(x.duracion)} jorn.</span>` : ''}
             ${modoRubros ? '' : `<button class="pa-btn-distribuir" data-scope="item" data-row="${escHtml(x.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>`}
           </td>
           <td class="pa-col-un">${escHtml(x.linea.unidad || '')}</td>
