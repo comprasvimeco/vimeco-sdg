@@ -40,6 +40,36 @@ let verCant = false;   // mostrar la fila "% en Cant." de cada ítem
 
 const MAX_PERIODOS = window.PLAN_MAX_PERIODOS;
 
+/* ===== Ancho de columnas de la grilla (ajustable a mano) =====
+   Preferencia del navegador, no de la obra: se guarda en localStorage, igual
+   que decimalesVista (moneda.js) — cada uno la deja como le sirve, no viaja a
+   Firebase. Las columnas fijas usan una key propia; las de período usan
+   "p"+índice, así que si nunca se tocó una en particular cae al default
+   general de período (mismo ancho para todas hasta que se arrastre una). */
+const COLW_KEY = 'vimeco-plan-avance-colw';
+const COLW_DEFAULT = { nombre: 250, un: 52, cant: 78, precio: 130, incid: 78, suma: 78, periodo: 70 };
+const COLW_MIN = 40;
+
+function cargarColWidths() {
+  try { return JSON.parse(localStorage.getItem(COLW_KEY) || '{}') || {}; } catch (_) { return {}; }
+}
+function guardarColWidths() {
+  try { localStorage.setItem(COLW_KEY, JSON.stringify(colWidths)); } catch (_) { /* sin storage: no se guarda, la pantalla funciona igual */ }
+}
+// Default responsivo para las dos columnas que antes se achicaban en mobile
+// vía media query — ahora que el ancho lo pone el <colgroup>, el breakpoint
+// se resuelve en JS y sólo aplica mientras no haya un ancho guardado a mano.
+function anchoDefaultResponsivo(key) {
+  const angosto = window.innerWidth <= 700;
+  if (key === 'nombre') return angosto ? 160 : COLW_DEFAULT.nombre;
+  if (key === 'precio') return angosto ? 105 : COLW_DEFAULT.precio;
+  return COLW_DEFAULT[key] || COLW_DEFAULT.periodo;
+}
+function anchoCol(key) {
+  return colWidths[key] != null ? colWidths[key] : anchoDefaultResponsivo(key);
+}
+let colWidths = cargarColWidths();
+
 /* ===== Precios (mismo cálculo que el Presupuesto) ===== */
 
 function versionDe(it) {
@@ -178,10 +208,13 @@ function fmtCantGrilla(n) {
   return n == null || isNaN(n) || n === 0 ? '' : fmtNum(n);
 }
 
-// Valor de una celda editable: fracción → número de porcentaje sin ceros de más.
+// Valor de una celda editable: fracción → número de porcentaje sin ceros de
+// más, redondeado a los decimales elegidos en el header (mismo criterio que
+// fmtNum/fmtPct) — sin este redondeo, una distribución en tercios/séptimos
+// mostraba el residuo de punto flotante entero (16,6666666666667).
 function pctInputValue(frac) {
   if (!frac) return '';
-  const v = window.roundLimpio(frac * 100);
+  const v = parseFloat((frac * 100).toFixed(window.decimalesVista()));
   return String(v).replace('.', ',');
 }
 
@@ -216,21 +249,40 @@ function renderTabla(d) {
   // ítems, como el Cómputo y el cronograma impreso.
   const plana = window.numeracionCfg(obra).sinRubros;
 
+  // data-col identifica la columna para el resize a mano (ver anchoCol/
+  // engancharResizeColumnas) — el <colgroup> es la única fuente del ancho
+  // real bajo table-layout:fixed, así que cada <col> lleva la misma key.
+  const th = (col, clase, contenido) =>
+    `<th class="${clase} pa-th-resizable" data-col="${col}">${contenido}<span class="pa-resize-handle" data-col="${col}"></span></th>`;
+
   const thPeriodos = [];
+  const colsPeriodo = [];
   for (let i = 0; i < n; i++) {
     const { nro, fecha } = etiquetaPeriodo(i);
-    thPeriodos.push(`<th class="pa-th-periodo"><span class="pa-th-nro">${nro}</span>${fecha ? `<span class="pa-th-fecha">${fecha}</span>` : ''}</th>`);
+    const colKey = `p${i}`;
+    thPeriodos.push(th(colKey, 'pa-th-periodo', `<span class="pa-th-nro">${nro}</span>${fecha ? `<span class="pa-th-fecha">${fecha}</span>` : ''}`));
+    colsPeriodo.push(`<col data-col="${colKey}" style="width:${anchoCol(colKey)}px">`);
   }
+
+  const colgroup = `<colgroup>
+    <col data-col="nombre" style="width:${anchoCol('nombre')}px">
+    <col data-col="un" style="width:${anchoCol('un')}px">
+    <col data-col="cant" style="width:${anchoCol('cant')}px">
+    <col data-col="precio" style="width:${anchoCol('precio')}px">
+    <col data-col="incid" style="width:${anchoCol('incid')}px">
+    <col data-col="suma" style="width:${anchoCol('suma')}px">
+    ${colsPeriodo.join('')}
+  </colgroup>`;
 
   const head = `
     <thead>
       <tr>
-        <th class="pa-col-nombre">${nombreUnidad() === 'Mes' ? 'Ítem / Rubro' : 'Ítem / Rubro'}</th>
-        <th class="pa-col-un">Un.</th>
-        <th class="pa-col-num">Cant.</th>
-        <th class="pa-col-monto">Precio</th>
-        <th class="pa-col-num">Incid.</th>
-        <th class="pa-col-num">Σ</th>
+        ${th('nombre', 'pa-col-nombre', nombreUnidad() === 'Mes' ? 'Ítem / Rubro' : 'Ítem / Rubro')}
+        ${th('un', 'pa-col-un', 'Un.')}
+        ${th('cant', 'pa-col-num', 'Cant.')}
+        ${th('precio', 'pa-col-monto', 'Precio')}
+        ${th('incid', 'pa-col-num', 'Incid.')}
+        ${th('suma', 'pa-col-num', 'Σ')}
         ${thPeriodos.join('')}
       </tr>
     </thead>`;
@@ -320,7 +372,7 @@ function renderTabla(d) {
       ${filaTotal('Remanente %', d.remanentePct, '', v => fmtPct(v), comoPct)}
     </tfoot>`;
 
-  $('pa-tabla-wrap').innerHTML = `<table class="pa-tabla">${head}<tbody>${cuerpo}</tbody>${pie}</table>`;
+  $('pa-tabla-wrap').innerHTML = `<table class="pa-tabla">${colgroup}${head}<tbody>${cuerpo}</tbody>${pie}</table>`;
 }
 
 /* ===== Resumen ===== */
@@ -533,6 +585,58 @@ function engancharTabla() {
     const btn = e.target.closest('.pa-btn-distribuir');
     if (btn) abrirModalDistribuir(btn.dataset.scope, btn.dataset.row);
   });
+
+  engancharResizeColumnas(wrap);
+}
+
+/* ===== Resize de columnas a mano =====
+   Arrastra el <col> de la key correspondiente (no el <th>: bajo
+   table-layout:fixed el ancho real de la columna lo pone el <colgroup>). Se
+   engancha una sola vez sobre el wrap, que sobrevive a cada renderTabla —
+   el <table> de adentro se reemplaza entero en cada render.
+   Ojo: NO se guarda una referencia al nodo <col> en resizeActivo — un
+   arrastre largo puede convivir con un renderTodo() de otro origen a mitad
+   de camino (ej. termina de llegar la cotización del dólar apenas entrada
+   la pantalla, que fuerza un re-render) y ese nodo quedaría desconectado.
+   Se vuelve a buscar el <col> vivo por su key en cada paso. */
+let resizeActivo = null;   // { key, startX, startWidth }
+
+function colDe(key) {
+  return $('pa-tabla-wrap').querySelector(`col[data-col="${CSS.escape(key)}"]`);
+}
+
+function engancharResizeColumnas(wrap) {
+  wrap.addEventListener('mousedown', e => {
+    const handle = e.target.closest('.pa-resize-handle');
+    if (!handle) return;
+    const key = handle.dataset.col;
+    const col = colDe(key);
+    if (!col) return;
+    e.preventDefault();
+    resizeActivo = { key, startX: e.clientX, startWidth: col.getBoundingClientRect().width };
+    handle.classList.add('pa-resizing');
+    document.addEventListener('mousemove', moverResizeColumna);
+    document.addEventListener('mouseup', terminarResizeColumna);
+  });
+}
+
+function moverResizeColumna(e) {
+  if (!resizeActivo) return;
+  const col = colDe(resizeActivo.key);
+  if (!col) return;
+  const nuevo = Math.max(COLW_MIN, Math.round(resizeActivo.startWidth + (e.clientX - resizeActivo.startX)));
+  col.style.width = nuevo + 'px';
+}
+
+function terminarResizeColumna() {
+  if (!resizeActivo) return;
+  const col = colDe(resizeActivo.key);
+  if (col) colWidths[resizeActivo.key] = Math.round(col.getBoundingClientRect().width);
+  guardarColWidths();
+  document.querySelectorAll('.pa-resize-handle.pa-resizing').forEach(h => h.classList.remove('pa-resizing'));
+  document.removeEventListener('mousemove', moverResizeColumna);
+  document.removeEventListener('mouseup', terminarResizeColumna);
+  resizeActivo = null;
 }
 
 /* ===== Modal "Distribuir parejo" ===== */

@@ -31,21 +31,35 @@
     .pa-stat-alerta { color: var(--warning); }
     .pa-hint-alerta { color: var(--warning) !important; }
 
-    /* ===== Grilla ===== */
+    /* ===== Grilla =====
+       table-layout: fixed + un <colgroup> con el ancho de cada columna: es lo
+       que permite que se puedan achicar/agrandar a mano (ver pa-resize-handle
+       y anchoCol() en plan-avance.js). Los anchos ya no van en las clases de
+       columna (pa-col-un, pa-col-num, etc.) porque bajo layout fijo el que
+       manda es el <col>, no el width de la celda. */
     .pa-tabla-wrap { overflow: auto; max-height: 70vh; border: 1px solid var(--gray-200); border-radius: var(--radius); background: var(--white); }
-    .pa-tabla { border-collapse: separate; border-spacing: 0; font-size: .8rem; width: max-content; min-width: 100%; }
-    .pa-tabla th, .pa-tabla td { padding: .25rem .4rem; border-bottom: 1px solid var(--gray-200); white-space: nowrap; background: var(--white); }
+    .pa-tabla { border-collapse: separate; border-spacing: 0; font-size: .8rem; table-layout: fixed; }
+    .pa-tabla th, .pa-tabla td { padding: .25rem .4rem; border-bottom: 1px solid var(--gray-200); white-space: nowrap; background: var(--white); overflow: hidden; }
     .pa-tabla thead th { position: sticky; top: 0; z-index: 3; background: var(--gray-100); font-size: .72rem; font-weight: 600; color: var(--gray-600); border-bottom: 2px solid var(--gray-300); }
     /* La columna del nombre queda fija a la izquierda: son decenas de períodos
        y sin esto se pierde de vista qué ítem se está cargando. */
-    .pa-tabla .pa-col-nombre { position: sticky; left: 0; z-index: 2; min-width: 250px; max-width: 250px; overflow: hidden; text-overflow: ellipsis; box-shadow: 1px 0 0 var(--gray-200); }
+    .pa-tabla .pa-col-nombre { position: sticky; left: 0; z-index: 2; text-overflow: ellipsis; box-shadow: 1px 0 0 var(--gray-200); }
     .pa-tabla thead .pa-col-nombre { z-index: 4; }
-    .pa-col-un { width: 52px; color: var(--gray-500); }
-    .pa-col-num { width: 78px; text-align: right; }
-    .pa-col-monto { width: 130px; text-align: right; white-space: nowrap; }
-    .pa-th-periodo { text-align: center; min-width: 62px; }
+    .pa-col-un { color: var(--gray-500); }
+    .pa-col-num { text-align: right; }
+    .pa-col-monto { text-align: right; }
+    .pa-th-periodo { text-align: center; }
     .pa-th-nro { display: block; font-weight: 700; color: var(--gray-700); }
     .pa-th-fecha { display: block; font-size: .65rem; color: var(--gray-400); font-weight: 500; }
+
+    /* Handle de resize manual: una franja angosta en el borde derecho de cada
+       th, arrastrable con el mouse (ver engancharResizeColumnas en
+       plan-avance.js). Adentro del th (right:0, no negativo): el th recorta
+       con overflow:hidden y una franja que sobresaliera quedaría clickeable
+       pero sin pintar, así que el mouse nunca le pegaría. */
+    .pa-th-resizable { position: relative; }
+    .pa-resize-handle { position: absolute; top: 0; right: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 6; touch-action: none; }
+    .pa-resize-handle:hover, .pa-resize-handle.pa-resizing { background: var(--primary-light); opacity: .5; }
 
     .pa-fila-rubro td { background: var(--gray-100); font-weight: 600; color: var(--gray-700); border-bottom: 1px solid var(--gray-300); }
     .pa-rubro-numero { color: var(--primary); font-weight: 700; margin-right: .35rem; }
@@ -98,10 +112,6 @@
     .pa-tt-fila { display: flex; align-items: center; gap: .35rem; white-space: nowrap; }
     .pa-tt-punto { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
 
-    @media (max-width: 700px) {
-      .pa-tabla .pa-col-nombre { min-width: 160px; max-width: 160px; }
-      .pa-col-monto { width: 105px; }
-    }
   </style>
 </head>
 <body>
