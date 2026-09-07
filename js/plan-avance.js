@@ -269,10 +269,12 @@ function renderTabla(d) {
       const principal = `
         <tr class="pa-fila-item">
           <td class="pa-col-nombre">
-            <span class="pa-item-numero">${escHtml(x.numero)}</span>
-            <span class="pa-item-nombre">${escHtml(x.linea.nombre || '(sin nombre)')}</span>
-            ${x.duracion != null ? `<span class="pa-item-duracion" title="Duración estimada: cantidad ÷ rendimiento">≈ ${fmtNum(x.duracion)} jorn.</span>` : ''}
-            ${modoRubros ? '' : `<button class="pa-btn-distribuir" data-scope="item" data-row="${escHtml(x.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>`}
+            <div class="pa-nombre-linea">
+              <span class="pa-item-numero">${escHtml(x.numero)}</span>
+              <span class="pa-item-nombre">${escHtml(x.linea.nombre || '(sin nombre)')}</span>
+              ${modoRubros ? '' : `<button class="pa-btn-distribuir" data-scope="item" data-row="${escHtml(x.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>`}
+            </div>
+            ${x.duracion != null ? `<div class="pa-item-duracion" title="Duración estimada: cantidad ÷ rendimiento">≈ ${fmtNum(x.duracion)} jorn.</div>` : ''}
           </td>
           <td class="pa-col-un">${escHtml(x.linea.unidad || '')}</td>
           <td class="pa-col-num"${attrCalc(x.cantidad)}>${fmtCantGrilla(x.cantidad)}</td>

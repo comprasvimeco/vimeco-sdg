@@ -49,8 +49,13 @@
 
     .pa-fila-rubro td { background: var(--gray-100); font-weight: 600; color: var(--gray-700); border-bottom: 1px solid var(--gray-300); }
     .pa-rubro-numero { color: var(--primary); font-weight: 700; margin-right: .35rem; }
-    .pa-item-numero { color: var(--gray-400); margin-right: .4rem; font-size: .75rem; }
-    .pa-item-duracion { color: var(--gray-300); font-size: .68rem; font-style: italic; margin-left: .4rem; }
+    .pa-item-numero { color: var(--gray-400); margin-right: .4rem; font-size: .75rem; flex-shrink: 0; }
+    /* El nombre va en su propia línea con elipsis propia (no la del <td>, que
+       cortaría el texto a mitad de ícono si se lo dejara todo en una sola
+       línea) — la duración va debajo, chica, sin competir por el ancho. */
+    .pa-nombre-linea { display: flex; align-items: center; gap: .25rem; overflow: hidden; }
+    .pa-item-nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1 1 auto; }
+    .pa-item-duracion { display: block; color: var(--gray-400); font-size: .66rem; font-style: italic; margin-left: 1.5rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .pa-fila-item:hover td { background: #f8fafc; }
     .pa-fila-sub td { background: #fbfcfd; color: var(--gray-500); font-size: .72rem; }
     .pa-sub-label { padding-left: 2.2rem !important; font-style: italic; }
