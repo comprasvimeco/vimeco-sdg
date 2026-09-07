@@ -218,7 +218,6 @@
 
     grupo('Equipos');
     ref.tasaInteres = `Datos!$C$${dato('Interés anual', num(pe.tasaInteresPct) / 100, '', FMT_PCT)}`;
-    ref.consumo     = `Datos!$C$${dato('Consumo', num(pe.combustibleLtsPorHp), 'lts/HP·hora', '#,##0.000')}`;
     ref.reparaciones = `Datos!$C$${dato('Reparaciones y repuestos', num(pe.reparacionesPct) / 100, 'de la amortización', FMT_PCT)}`;
     ref.lubricantes  = `Datos!$C$${dato('Lubricantes', num(pe.lubricantesPct) / 100, 'del combustible', FMT_PCT)}`;
     r++;
@@ -404,7 +403,8 @@
      Un renglón por equipo con su costo diario desglosado término por término
      (amortización, intereses, reparaciones, combustible y lubricantes), que es
      la cuenta de calcDesgloseCostoEquipo escrita en fórmulas contra los
-     parámetros de la hoja Datos. El A.P después sólo busca el costo diario.
+     parámetros de la hoja Datos y el consumo propio de cada equipo (columna
+     Consumo, catálogo). El A.P después sólo busca el costo diario.
 
      A diferencia de Materiales (catálogo entero, es de consulta general), acá
      sólo van los equipos que window.equiposUsadosEnObra encuentra en algún A.P
@@ -422,13 +422,13 @@
 
     ws.getColumn(1).width = 4;
     ws.getColumn(2).width = 42;
-    [11, 12, 12, 14, 16, 15, 14, 15, 15, 14, 17].forEach((w, i) => { ws.getColumn(3 + i).width = w; });
+    [11, 12, 12, 12, 14, 16, 15, 14, 15, 15, 14, 17].forEach((w, i) => { ws.getColumn(3 + i).width = w; });
 
     let r = 2;
-    r = titulo(ws, r, 2, 13, 'EQUIPOS', 13) + 1;
+    r = titulo(ws, r, 2, 14, 'EQUIPOS', 13) + 1;
 
     const filaCab = r;
-    cabecera(ws, r, 2, ['Designación', 'Potencia\nHP', 'Uso anual\nHs', 'Vida útil\nHs',
+    cabecera(ws, r, 2, ['Designación', 'Potencia\nHP', 'Consumo\nlts/HP·h', 'Uso anual\nHs', 'Vida útil\nHs',
       'Costo actual\nU$D', 'Costo actual\n$', 'Amortización\n$/día', 'Intereses\n$/día',
       'Reparaciones\n$/día', 'Combustible\n$/día', 'Lubricantes\n$/día', 'Costo diario\n$']);
     ws.getRow(r).height = 32;
@@ -443,38 +443,40 @@
       ws.getCell(r, 2).value = nombres[eq.key];
       ws.getCell(r, 3).value = num(eq.potencia) || 0;
       ws.getCell(r, 3).numFmt = '#,##0.##';
-      ws.getCell(r, 4).value = num(eq.usoAnual);
-      ws.getCell(r, 5).value = num(eq.vidaUtil);
-      ws.getCell(r, 6).value = num(eq.costoUSD);
-      ws.getCell(r, 6).numFmt = FMT_CANT;
+      ws.getCell(r, 4).value = num(eq.consumoCombustibleLtsPorHp) || 0;
+      ws.getCell(r, 4).numFmt = '#,##0.000';
+      ws.getCell(r, 5).value = num(eq.usoAnual);
+      ws.getCell(r, 6).value = num(eq.vidaUtil);
+      ws.getCell(r, 7).value = num(eq.costoUSD);
+      ws.getCell(r, 7).numFmt = FMT_CANT;
       if (completo) {
-        ws.getCell(r, 7).value  = f(`=F${r}*${ref.dolar}`);                                  // costo actual $
-        ws.getCell(r, 8).value  = f(`=G${r}*${ref.jornada}/E${r}`);                           // amortización
-        ws.getCell(r, 9).value  = f(`=G${r}*${ref.tasaInteres}/2/D${r}*${ref.jornada}`);      // intereses
-        ws.getCell(r, 10).value = f(`=H${r}*${ref.reparaciones}`);                            // reparaciones
-        ws.getCell(r, 11).value = f(`=(${ref.consumo}*C${r}*${ref.jornada})*${ref.combustible}`);
-        ws.getCell(r, 12).value = f(`=K${r}*${ref.lubricantes}`);                             // lubricantes
-        ws.getCell(r, 13).value = f(`=H${r}+I${r}+J${r}+K${r}+L${r}`);
+        ws.getCell(r, 8).value  = f(`=G${r}*${ref.dolar}`);                                  // costo actual $
+        ws.getCell(r, 9).value  = f(`=H${r}*${ref.jornada}/F${r}`);                           // amortización
+        ws.getCell(r, 10).value = f(`=H${r}*${ref.tasaInteres}/2/E${r}*${ref.jornada}`);      // intereses
+        ws.getCell(r, 11).value = f(`=I${r}*${ref.reparaciones}`);                            // reparaciones
+        ws.getCell(r, 12).value = f(`=(D${r}*C${r}*${ref.jornada})*${ref.combustible}`);      // combustible (consumo propio de la fila)
+        ws.getCell(r, 13).value = f(`=L${r}*${ref.lubricantes}`);                             // lubricantes
+        ws.getCell(r, 14).value = f(`=I${r}+J${r}+K${r}+L${r}+M${r}`);
       } else {
-        ws.getCell(r, 13).value = 0;
+        ws.getCell(r, 14).value = 0;
       }
-      for (let c = 7; c <= 13; c++) ws.getCell(r, c).numFmt = FMT_ARS;
-      negrita(ws, r, 13, 13);
+      for (let c = 8; c <= 14; c++) ws.getCell(r, c).numFmt = FMT_ARS;
+      negrita(ws, r, 14, 14);
       r++;
     });
 
     if (r === primera) { ws.getCell(r, 2).value = 'Esta obra no usa equipos en ningún análisis de precio.'; r++; }
     const ultima = r - 1;
-    bordear(ws, primera, 2, ultima, 13);
+    bordear(ws, primera, 2, ultima, 14);
 
     ws.views = [{ state: 'frozen', ySplit: filaCab, xSplit: 2 }];
-    ws.autoFilter = { from: { row: filaCab, column: 2 }, to: { row: ultima, column: 13 } };
+    ws.autoFilter = { from: { row: filaCab, column: 2 }, to: { row: ultima, column: 14 } };
 
     ref.equipos = {
       nombres,
-      rango: `Equipos!$B$${primera}:$M$${ultima}`,
+      rango: `Equipos!$B$${primera}:$N$${ultima}`,
       colPotencia: 2,   // C, contando desde B
-      colCosto: 12,     // M
+      colCosto: 13,     // N
     };
   }
 

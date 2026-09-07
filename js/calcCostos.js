@@ -20,8 +20,8 @@ window.calcCostoManoDeObra = function (rol, params) {
   return { costoHorario, costoJornal: costoHorario * params.jornadaHoras + comidaDia, comidaPorHora, comidaDia };
 };
 
-// equipo: { costoUSD, vidaUtil, usoAnual, potencia }
-// params: { tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro }
+// equipo: { costoUSD, vidaUtil, usoAnual, potencia, consumoCombustibleLtsPorHp }
+// params: { tasaInteresPct, reparacionesPct, lubricantesPct, precioCombustibleLitro }
 // dolarValor: cotización a usar para convertir costoUSD — cada obra tiene la
 // suya (/obras/{obraKey}/dolar), no se lee más el dólar en vivo acá adentro.
 // Desglose del costo diario de un equipo, término por término (para mostrarlo
@@ -36,7 +36,7 @@ window.calcDesgloseCostoEquipo = function (equipo, params, jornadaHoras, dolarVa
   const amortizacionDia = costoActual * jornadaHoras / equipo.vidaUtil;
   const interesesDia = (costoActual * params.tasaInteresPct / 100 / 2) / equipo.usoAnual * jornadaHoras;
   const reparacionesDia = amortizacionDia * params.reparacionesPct / 100;
-  const combustibleDia = (params.combustibleLtsPorHp * (equipo.potencia || 0) * jornadaHoras) * params.precioCombustibleLitro;
+  const combustibleDia = ((equipo.consumoCombustibleLtsPorHp ?? 0) * (equipo.potencia || 0) * jornadaHoras) * params.precioCombustibleLitro;
   const lubricantesDia = combustibleDia * params.lubricantesPct / 100;
   const costoDiarioTotal = amortizacionDia + interesesDia + reparacionesDia + combustibleDia + lubricantesDia;
   return { costoActual, venta, amortizacionDia, interesesDia, reparacionesDia, combustibleDia, lubricantesDia, costoDiarioTotal };

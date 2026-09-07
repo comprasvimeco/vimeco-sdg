@@ -126,6 +126,7 @@ let editingKey = null;
 function metaLine(e) {
   const parts = [];
   if (e.potencia)  parts.push(`${e.potencia} HP`);
+  if (e.consumoCombustibleLtsPorHp != null) parts.push(`${e.consumoCombustibleLtsPorHp} lts/HP·h`);
   if (e.usoAnual)  parts.push(`${e.usoAnual} hs/año`);
   if (e.vidaUtil)  parts.push(`vida útil ${e.vidaUtil} hs`);
   if (e.costoUSD)  parts.push(fmtUSDConEquivalente(e.costoUSD));
@@ -136,6 +137,8 @@ function renderEquipos(list) {
   const container = $('equipos-list');
   const seedBtn = $('btn-seed');
   seedBtn.classList.toggle('hidden', allEquipos.length > 0);
+  $('btn-precargar-consumo').classList.toggle('hidden',
+    !allEquipos.some(e => e.consumoCombustibleLtsPorHp == null));
 
   if (!list.length) {
     container.innerHTML = '<div class="list-empty">No hay equipos cargados todavía.</div>';
@@ -181,6 +184,21 @@ async function loadEquipos() {
   }
 }
 
+// Mientras el usuario no haya tocado el campo de consumo a mano, se
+// autocompleta en vivo según el Tipo tipeado: "cami" (Camión/Camion/
+// Camiones, sin importar tilde/mayúsculas) da 0.08, cualquier otra cosa 0.11
+// — precarga acordada con el dueño del proyecto.
+let consumoTocadoAMano = false;
+
+function consumoSugerido(tipo) {
+  return /cami/i.test(tipo || '') ? 0.08 : 0.11;
+}
+
+function autocompletarConsumo() {
+  if (consumoTocadoAMano) return;
+  $('equipo-consumo').value = consumoSugerido($('equipo-tipo').value);
+}
+
 function openAddModal() {
   editingKey = null;
   $('modal-equipo-title').textContent = 'Agregar equipo';
@@ -188,6 +206,8 @@ function openAddModal() {
   $('equipo-codigo').value = '';
   $('equipo-tipo').value = '';
   $('equipo-potencia').value = '';
+  $('equipo-consumo').value = consumoSugerido('');
+  consumoTocadoAMano = false;
   $('equipo-uso-anual').value = '';
   $('equipo-vida-util').value = '';
   $('equipo-costo').value = '';
@@ -203,6 +223,8 @@ function openEditModal(equipo) {
   $('equipo-codigo').value = equipo.codigo || '';
   $('equipo-tipo').value = equipo.tipo || '';
   $('equipo-potencia').value = equipo.potencia ?? '';
+  $('equipo-consumo').value = equipo.consumoCombustibleLtsPorHp ?? '';
+  consumoTocadoAMano = equipo.consumoCombustibleLtsPorHp != null;
   $('equipo-uso-anual').value = equipo.usoAnual ?? '';
   $('equipo-vida-util').value = equipo.vidaUtil ?? '';
   $('equipo-costo').value = formatMoneyString(equipo.costoUSD);
@@ -249,6 +271,7 @@ async function saveEquipoModal() {
   }
 
   const potencia = numOrNull($('equipo-potencia'));
+  const consumoCombustibleLtsPorHp = numOrNull($('equipo-consumo'));
   const usoAnual = numOrNull($('equipo-uso-anual'));
   const vidaUtil = numOrNull($('equipo-vida-util'));
   const costoUSD = moneyOrNull($('equipo-costo'));
@@ -263,7 +286,7 @@ async function saveEquipoModal() {
 
   try {
     const data = {
-      codigo, tipo, potencia, usoAnual, vidaUtil, costoUSD,
+      codigo, tipo, potencia, consumoCombustibleLtsPorHp, usoAnual, vidaUtil, costoUSD,
       potenciaFormula, usoAnualFormula, vidaUtilFormula, costoUSDFormula,
     };
     if (editingKey) {
@@ -319,15 +342,49 @@ async function seedEquipos() {
   }
 }
 
+// Precarga de una sola vez del catálogo ya cargado (equipos sin este campo
+// todavía): 0.08 lts/HP·h para los que tienen "cami" en el Tipo, 0.11 para el
+// resto. PATCH individual por equipo — nunca un PATCH masivo a /equipos.json
+// con un objeto anidado por key, que reemplazaría el nodo entero de cada uno
+// y borraría potencia/costo/vida útil ya cargados.
+async function precargarConsumo() {
+  const faltantes = allEquipos.filter(e => e.consumoCombustibleLtsPorHp == null);
+  if (!faltantes.length) return;
+  const ok = await showConfirm(
+    'Precargar consumo de combustible',
+    `Se va a completar el consumo de ${faltantes.length} equipo(s) sin ese dato: 0,08 lts/HP·h para los que dicen "camión" en el Tipo, 0,11 para el resto.`
+  );
+  if (!ok) return;
+
+  const btn = $('btn-precargar-consumo');
+  btn.disabled = true;
+  btn.textContent = 'Precargando…';
+  try {
+    await Promise.all(faltantes.map(e =>
+      _fbPatch(`/equipos/${e.key}.json`, { consumoCombustibleLtsPorHp: consumoSugerido(e.tipo) })
+    ));
+    showToast('Consumo precargado.');
+    await loadEquipos();
+  } catch (_) {
+    showToast('Error al precargar el consumo.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Precargar consumo de combustible';
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   attachCalcInput($('equipo-potencia'));
   attachCalcInput($('equipo-uso-anual'));
   attachCalcInput($('equipo-vida-util'));
   attachCalcInput($('equipo-costo'));
   attachMoneyInput($('equipo-costo'));
+  $('equipo-tipo').addEventListener('input', autocompletarConsumo);
+  $('equipo-consumo').addEventListener('input', () => { consumoTocadoAMano = true; });
 
   $('btn-add-equipo').addEventListener('click', openAddModal);
   $('btn-seed').addEventListener('click', seedEquipos);
+  $('btn-precargar-consumo').addEventListener('click', precargarConsumo);
   $('modal-equipo-close').addEventListener('click',  () => $('modal-equipo').classList.add('hidden'));
   $('modal-equipo-cancel').addEventListener('click', () => $('modal-equipo').classList.add('hidden'));
   $('modal-equipo-save').addEventListener('click', saveEquipoModal);

@@ -116,7 +116,7 @@ async function loadAll() {
   }
   obra = obraData;
   const materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m }));
-  const paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0, ...(obra.paramsEquipos || {}) };
+  const paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, precioCombustibleLitro: 0, ...(obra.paramsEquipos || {}) };
   const paramsMO = {
     asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8,
     seguridadCapatazActivo: false, seguridadCapatazPct: 0,

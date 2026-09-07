@@ -15,7 +15,7 @@
 (function () {
   const DEFAULT_PARAMS_EQUIPOS = {
     tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50,
-    combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0,
+    precioCombustibleLitro: 0,
   };
   const DEFAULT_PARAMS_MO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 

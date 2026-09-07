@@ -12,7 +12,7 @@ const obraKey = params.get('obra');
 
 let obra = null;
 let allEquipos = [];
-let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, combustibleLtsPorHp: 0.1, precioCombustibleLitro: 0 };
+let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, precioCombustibleLitro: 0 };
 let jornadaHoras = 8;   // se toma de /config/manoDeObra.json (misma jornada que las cuadrillas, hasta que Mano de Obra sea por obra)
 let dolarObra = null;
 
@@ -20,7 +20,6 @@ function fillParamsForm() {
   $('param-interes').value = paramsEquipos.tasaInteresPct;
   $('param-reparaciones').value = paramsEquipos.reparacionesPct;
   $('param-lubricantes').value = paramsEquipos.lubricantesPct;
-  $('param-consumo').value = paramsEquipos.combustibleLtsPorHp;
   $('param-combustible').value = formatMoneyString(paramsEquipos.precioCombustibleLitro);
 }
 
@@ -28,10 +27,9 @@ async function saveParams() {
   const tasaInteresPct        = parseFloat($('param-interes').value.replace(',', '.'));
   const reparacionesPct       = parseFloat($('param-reparaciones').value.replace(',', '.'));
   const lubricantesPct        = parseFloat($('param-lubricantes').value.replace(',', '.'));
-  const combustibleLtsPorHp   = parseFloat($('param-consumo').value.replace(',', '.'));
   const precioCombustibleLitro = parseMoneyString($('param-combustible').value);
-  if ([tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro].some(n => isNaN(n) || n < 0)) return;
-  paramsEquipos = { tasaInteresPct, reparacionesPct, lubricantesPct, combustibleLtsPorHp, precioCombustibleLitro };
+  if ([tasaInteresPct, reparacionesPct, lubricantesPct, precioCombustibleLitro].some(n => isNaN(n) || n < 0)) return;
+  paramsEquipos = { tasaInteresPct, reparacionesPct, lubricantesPct, precioCombustibleLitro };
   try {
     await _fbPut(`/obras/${obraKey}/paramsEquipos.json`, paramsEquipos);
     applyFilter();
@@ -88,7 +86,6 @@ function resumenParamsEquipos(p) {
     `Interés ${p.tasaInteresPct ?? 0}%`,
     `Reparaciones ${p.reparacionesPct ?? 0}%`,
     `Lubricantes ${p.lubricantesPct ?? 0}%`,
-    `Consumo ${p.combustibleLtsPorHp ?? 0} lts/HP.h`,
     `Combustible ${fmtARS(p.precioCombustibleLitro || 0)}/lt`,
   ].join(' · ');
 }
@@ -192,7 +189,7 @@ async function loadAll() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   attachMoneyInput($('param-combustible'));
-  ['param-interes', 'param-reparaciones', 'param-lubricantes', 'param-consumo', 'param-combustible']
+  ['param-interes', 'param-reparaciones', 'param-lubricantes', 'param-combustible']
     .forEach(id => $(id).addEventListener('blur', saveParams));
   $('equipos-search').addEventListener('input', applyFilter);
 
