@@ -1057,9 +1057,11 @@ async function saveEditarPrecioModal() {
 }
 
 // Desglose de costo diario de un equipo — sólo lectura, mismos parámetros
-// generales (interés, % reparaciones, etc.) que se editan en Equipos.
-function filaDesglose(label, formula, valor) {
-  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span></span><span>${fmtARS(valor)}/día</span></div>`;
+// generales (interés, % reparaciones, etc.) que se editan en Equipos. Debajo
+// de la fórmula (con nombres) va la misma cuenta con los números que se
+// usaron, para que se pueda verificar sin ir a buscarlos a otro lado.
+function filaDesglose(label, formula, cuenta, valor) {
+  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${escHtml(cuenta)}</span></span><span>${fmtARS(valor)}/día</span></div>`;
 }
 
 function openDetalleEquipoModal(equipo) {
@@ -1069,12 +1071,18 @@ function openDetalleEquipoModal(equipo) {
   if (!d) {
     cont.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Faltan datos de costo para este equipo (costo, vida útil o uso anual), o no se pudo obtener la cotización del dólar.</p>';
   } else {
+    const jornada = paramsMO.jornadaHoras;
     cont.innerHTML = [
-      filaDesglose('Amortización', `Costo actual × jornada ÷ vida útil`, d.amortizacionDia),
-      filaDesglose('Intereses', `Costo actual × tasa ÷ 2 ÷ uso anual × jornada`, d.interesesDia),
-      filaDesglose('Reparaciones y Repuestos', `${paramsEquipos.reparacionesPct}% de Amortización`, d.reparacionesDia),
-      filaDesglose('Combustibles', `Consumo × potencia × jornada × precio`, d.combustibleDia),
-      filaDesglose('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`, d.lubricantesDia),
+      filaDesglose('Amortización', `Costo actual × jornada ÷ vida útil`,
+        `${fmtARS(d.costoActual)} × ${fmtNum(jornada)} ÷ ${fmtNum(equipo.vidaUtil)}`, d.amortizacionDia),
+      filaDesglose('Intereses', `Costo actual × tasa ÷ 2 ÷ uso anual × jornada`,
+        `${fmtARS(d.costoActual)} × ${paramsEquipos.tasaInteresPct}% ÷ 2 ÷ ${fmtNum(equipo.usoAnual)} × ${fmtNum(jornada)}`, d.interesesDia),
+      filaDesglose('Reparaciones y Repuestos', `${paramsEquipos.reparacionesPct}% de Amortización`,
+        `${paramsEquipos.reparacionesPct}% de ${fmtARS(d.amortizacionDia)}`, d.reparacionesDia),
+      filaDesglose('Combustibles', `Consumo × potencia × jornada × precio`,
+        `${fmtNum(equipo.consumoCombustibleLtsPorHp)} × ${fmtNum(equipo.potencia)} × ${fmtNum(jornada)} × ${fmtARS(paramsEquipos.precioCombustibleLitro)}`, d.combustibleDia),
+      filaDesglose('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`,
+        `${paramsEquipos.lubricantesPct}% de ${fmtARS(d.combustibleDia)}`, d.lubricantesDia),
       `<div class="ap-resumen-row total"><span>Costo diario del equipo</span><span>${fmtARS(d.costoDiarioTotal)}/día</span></div>`,
     ].join('');
   }

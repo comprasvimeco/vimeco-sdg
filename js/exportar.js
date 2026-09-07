@@ -386,10 +386,10 @@ function seccionAuxiliares() {
    calcDesgloseCostoEquipo y que el modal de detalle del AP (js/item.js), pero
    para todos los equipos que aparecen en algún análisis de precio de esta
    obra (window.equiposUsadosEnObra), no el catálogo global. */
-function filaDesgloseDoc(label, formula, valor) {
+function filaDesgloseDoc(label, formula, cuenta, valor) {
   return `
     <tr>
-      <td>${escHtml(label)}<br><span class="doc-formula">${escHtml(formula)}</span></td>
+      <td>${escHtml(label)}<br><span class="doc-formula">${escHtml(formula)}</span><br><span class="doc-formula">${escHtml(cuenta)}</span></td>
       <td class="doc-num">${docARS(valor)}/día</td>
     </tr>`;
 }
@@ -398,6 +398,7 @@ function bloqueEquipo(equipo, desglose) {
   const nombre = `${equipo.tipo || ''} ${equipo.codigo || ''}`.trim();
   const meta = [
     equipo.potencia ? `${docCant(equipo.potencia)} HP` : '',
+    equipo.consumoCombustibleLtsPorHp != null ? `${docCant(equipo.consumoCombustibleLtsPorHp)} lts/HP·h` : '',
     equipo.usoAnual ? `${docCant(equipo.usoAnual)} hs/año` : '',
     equipo.vidaUtil ? `vida útil ${docCant(equipo.vidaUtil)} hs` : '',
     equipo.costoUSD ? `Costo actual: ${docARS(desglose ? desglose.costoActual : null)}` : '',
@@ -417,11 +418,16 @@ function bloqueEquipo(equipo, desglose) {
       <div class="doc-ap-meta">${escHtml(meta)}</div>
       <table class="doc-tabla">
         <tbody>
-          ${filaDesgloseDoc('Amortización', 'Costo actual × jornada ÷ vida útil', desglose.amortizacionDia)}
-          ${filaDesgloseDoc('Intereses', 'Costo actual × tasa ÷ 2 ÷ uso anual × jornada', desglose.interesesDia)}
-          ${filaDesgloseDoc('Reparaciones y Repuestos', `${docCant(modelo.paramsEquipos.reparacionesPct)}% de Amortización`, desglose.reparacionesDia)}
-          ${filaDesgloseDoc('Combustibles', 'Consumo × potencia × jornada × precio', desglose.combustibleDia)}
-          ${filaDesgloseDoc('Lubricantes', `${docCant(modelo.paramsEquipos.lubricantesPct)}% de Combustibles`, desglose.lubricantesDia)}
+          ${filaDesgloseDoc('Amortización', 'Costo actual × jornada ÷ vida útil',
+            `${docARS(desglose.costoActual)} × ${docCant(modelo.paramsMO.jornadaHoras)} ÷ ${docCant(equipo.vidaUtil)}`, desglose.amortizacionDia)}
+          ${filaDesgloseDoc('Intereses', 'Costo actual × tasa ÷ 2 ÷ uso anual × jornada',
+            `${docARS(desglose.costoActual)} × ${docCant(modelo.paramsEquipos.tasaInteresPct)}% ÷ 2 ÷ ${docCant(equipo.usoAnual)} × ${docCant(modelo.paramsMO.jornadaHoras)}`, desglose.interesesDia)}
+          ${filaDesgloseDoc('Reparaciones y Repuestos', `${docCant(modelo.paramsEquipos.reparacionesPct)}% de Amortización`,
+            `${docCant(modelo.paramsEquipos.reparacionesPct)}% de ${docARS(desglose.amortizacionDia)}`, desglose.reparacionesDia)}
+          ${filaDesgloseDoc('Combustibles', 'Consumo × potencia × jornada × precio',
+            `${docCant(equipo.consumoCombustibleLtsPorHp)} × ${docCant(equipo.potencia)} × ${docCant(modelo.paramsMO.jornadaHoras)} × ${docARS(modelo.paramsEquipos.precioCombustibleLitro)}`, desglose.combustibleDia)}
+          ${filaDesgloseDoc('Lubricantes', `${docCant(modelo.paramsEquipos.lubricantesPct)}% de Combustibles`,
+            `${docCant(modelo.paramsEquipos.lubricantesPct)}% de ${docARS(desglose.combustibleDia)}`, desglose.lubricantesDia)}
           <tr class="doc-fila-total"><td>Costo diario del equipo</td><td class="doc-num">${docARS(desglose.costoDiarioTotal)}/día</td></tr>
         </tbody>
       </table>
