@@ -58,11 +58,11 @@ function seccionesDisponibles() {
 
 // Períodos por hoja en el Plan de trabajos: el cronograma se corta en bloques
 // y cada uno repite las columnas fijas (ítem, cantidad, precio), igual que las
-// tres áreas de impresión de la planilla de referencia. Diez es lo que deja
-// ~13 mm por columna en una A4 apaisada (ver márgenes de la página "apaisada"
-// en css/print.css), el ancho que necesita un importe acumulado en miles sin
-// pisarse con el de al lado.
-const PERIODOS_POR_HOJA = 10;
+// tres áreas de impresión de la planilla de referencia. La hoja "apaisada" es
+// A3 (ver css/print.css) porque el pie lleva los importes completos en pesos,
+// no en miles — ocho es lo que deja ~32 mm por columna, suficiente para que
+// "$ 772.197.031,78" entre en una sola línea sin achicarse ni cortarse.
+const PERIODOS_POR_HOJA = 8;
 
 let modelo = null;
 let config = { notas: null };
@@ -521,11 +521,6 @@ const pctDoc = frac => (!frac ? '' : Number(frac * 100).toLocaleString('es-AR', 
 
 const unidadPlural = () => (window.nombreUnidadPlan(planConfig) === 'Mes' ? 'meses' : 'semanas');
 
-// Los importes completos no entran en una columna de período de 11 mm: en el
-// cronograma van en miles, como es habitual en un plan de inversiones. El
-// detalle peso por peso está en la sección Curva de inversión.
-const milesDoc = v => (!v ? '' : Number(v / 1000).toLocaleString('es-AR', { maximumFractionDigits: 0 }));
-
 // Un bloque del cronograma: las columnas fijas + los períodos [desde, hasta).
 function bloquePlanTrabajos(desde, hasta) {
   const ths = [];
@@ -589,8 +584,10 @@ function bloquePlanTrabajos(desde, hasta) {
         ${filas || '<tr><td colspan="6" class="doc-centro">Sin ítems en el Cómputo.</td></tr>'}
         ${filaPie('Certificación parcial %', plan.parcialPct, v => docPct(v), 'doc-fila-subtotal')}
         ${filaPie('Certificación acumulada %', plan.acumPct, v => docPct(v), 'doc-fila-subtotal')}
-        ${filaPie('Certificación parcial (en miles de $)', plan.parcialMonto, milesDoc, 'doc-fila-subtotal')}
-        ${filaPie('Certificación acumulada (en miles de $)', plan.acumMonto, milesDoc, 'doc-fila-total')}
+        ${filaPie('Certificación parcial $', plan.parcialMonto, v => docARS(v), 'doc-fila-subtotal doc-fila-monto')}
+        ${filaPie('Certificación acumulada $', plan.acumMonto, v => docARS(v), 'doc-fila-total doc-fila-monto')}
+        ${filaPie('Remanente $', plan.remanenteMonto, v => docARS(v), 'doc-fila-subtotal doc-fila-monto')}
+        ${filaPie('Remanente %', plan.remanentePct, v => docPct(v), 'doc-fila-subtotal')}
       </tbody>
     </table>`;
 }

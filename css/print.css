@@ -149,8 +149,10 @@
 
 /* El cronograma es la única sección que sale apaisada: aun cortado en bloques
    de columnas necesita el lado largo de la hoja. Se hace con una página con
-   nombre (@page apaisada) para no voltear el resto del documento. */
-@page apaisada { size: A4 landscape; margin: 10mm 15mm 12mm; }
+   nombre (@page apaisada) para no voltear el resto del documento. Es A3 (no
+   A4) porque el pie lleva los importes completos en pesos, no en miles: en
+   A4 no entran sin cortarse. */
+@page apaisada { size: A3 landscape; margin: 10mm 12mm 12mm; }
 .doc-seccion-apaisada { page: apaisada; }
 
 /* En la hoja apaisada el alto es el recurso escaso: el membrete va compacto
@@ -162,11 +164,11 @@
 .doc-seccion-apaisada .doc-titulo { font-size: 10pt; margin-bottom: 1.5mm; }
 .doc-seccion-apaisada .doc-subtitulo { margin: 0 0 2.5mm; font-size: 7.5pt; }
 
-/* En pantalla la vista previa de esa sección se ensancha al útil de una A4
-   apaisada (297 − 2×15 de margen) y desborda la hoja vertical, que scrollea:
+/* En pantalla la vista previa de esa sección se ensancha al útil de una A3
+   apaisada (420 − 2×12 de margen) y desborda la hoja vertical, que scrollea:
    lleva su propio fondo blanco para que la parte desbordada no quede sobre el
    fondo de la app. En papel toma el ancho de su propia página. */
-.doc-seccion-apaisada { width: 267mm; background: #fff; }
+.doc-seccion-apaisada { width: 396mm; background: #fff; }
 
 .doc-plan-bloque + .doc-plan-bloque { break-before: page; margin-top: 6mm; }
 .doc-plan-rango { font-size: 8pt; font-weight: 700; color: var(--primary-dark); margin-bottom: 1.5mm; }
@@ -178,10 +180,11 @@
 .doc-tabla-plan th, .doc-tabla-plan td { padding: .8mm 1mm; }
 .doc-tabla-plan th:nth-child(2) { width: 55mm; }
 .doc-tabla-plan td:nth-child(2) { overflow-wrap: anywhere; }
-/* Las filas de importes (la de total viene a 9pt del estilo general de tabla)
-   son las más anchas de la grilla. */
-.doc-tabla-plan tr.doc-fila-total td,
-.doc-tabla-plan tr.doc-fila-subtotal:last-of-type td { font-size: 6.5pt; }
+/* Las filas de importe completo en pesos (parcial, acumulada y remanente $)
+   son las más anchas de la grilla — llevan su propia clase para el achique de
+   fuente en vez de apuntarles por posición, que se rompe apenas se agrega o
+   reordena una fila. */
+.doc-tabla-plan tr.doc-fila-monto td { font-size: 6.5pt; }
 .doc-plan-periodo { font-size: 6.5pt; }
 .doc-plan-fecha { display: block; font-weight: 400; font-size: 6pt; color: #6b7280; }
 
