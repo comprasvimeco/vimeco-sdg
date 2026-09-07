@@ -198,24 +198,57 @@
   // techo del eje Y, y sólo varía cómo se rotula ese eje (opts.etiquetaEje) y
   // el aria-label del SVG (opts.tituloAria).
   function dibujarCurvaLineas(acum, rem, opts) {
-    const o = Object.assign({ W: 960, H: 340, hover: false, etiquetaEje: v => `${Math.round(v * 100)}%`, tituloAria: '' }, opts);
-    const m = { top: 18, right: 96, bottom: 40, left: 52 };
+    const o = Object.assign({ W: 960, H: 340, hover: false, etiquetaEje: v => `${Math.round(v * 100)}%`, etiquetaPunto: null, tituloAria: '' }, opts);
+    const etiquetaPunto = o.etiquetaPunto || o.etiquetaEje;
+
+    // Margen izquierdo según el ancho real de la etiqueta más larga del eje Y,
+    // no un número fijo: "100%" y "$772.197.031,78" no entran en el mismo
+    // margen, y una etiqueta del eje no puede quedar cortada nunca. 6,8px por
+    // carácter es una estimación generosa para Segoe UI a 11px (de sobra
+    // incluso para un presupuesto varias veces más grande).
+    const etiquetasGrid = [0, 0.25, 0.5, 0.75, 1].map(o.etiquetaEje);
+    const anchoMaxTexto = Math.max(...etiquetasGrid.map(t => t.length));
+    const margenIzq = Math.max(52, 16 + anchoMaxTexto * 6.8);
+
+    const m = { top: 18, right: 96, bottom: 40, left: margenIzq };
     const pw = o.W - m.left - m.right;
     const ph = o.H - m.top - m.bottom;
     const n = acum.length - 1;
     const px = ejeX(n, m.left, pw);
     const py = v => m.top + ph - v * ph;
 
-    const grid = [0, 0.25, 0.5, 0.75, 1].map(v =>
-      `<line x1="${m.left}" y1="${py(v)}" x2="${m.left + pw}" y2="${py(v)}" stroke="${COLOR_GRID}" stroke-width="1"/>
-       <text x="${m.left - 8}" y="${py(v) + 4}" text-anchor="end" class="pa-svg-tick">${escHtml(o.etiquetaEje(v))}</text>`
-    ).join('');
+    const grid = etiquetasGrid.map((texto, idx) => {
+      const v = [0, 0.25, 0.5, 0.75, 1][idx];
+      return `<line x1="${m.left}" y1="${py(v)}" x2="${m.left + pw}" y2="${py(v)}" stroke="${COLOR_GRID}" stroke-width="1"/>
+       <text x="${m.left - 8}" y="${py(v) + 4}" text-anchor="end" class="pa-svg-tick">${escHtml(texto)}</text>`;
+    }).join('');
 
     const paso = n > 20 ? Math.ceil(n / 12) : 1;
     const ticks = [];
     for (let i = 1; i <= n; i++) {
       if (i % paso !== 0 && i !== n) continue;
       ticks.push(`<text x="${px(i)}" y="${m.top + ph + 20}" text-anchor="middle" class="pa-svg-tick">${i}</text>`);
+    }
+
+    // Valor de cada punto, chico y discreto: en el PDF no hay hover, así que
+    // es la única forma de leer un dato puntual sin ir a la tabla. Se etiqueta
+    // con la misma frecuencia que los números del eje X (paso, arriba). El
+    // primer y último punto no centran el texto sobre el punto para no pisar
+    // la etiqueta del eje Y ni la de fin de línea.
+    const valorPunto = (i, v, color, dy) => {
+      const anchor = i === 0 ? 'start' : (i === n ? 'end' : 'middle');
+      const x = i === 0 ? px(i) + 4 : (i === n ? px(i) - 4 : px(i));
+      return `<text x="${x}" y="${py(v) + dy}" text-anchor="${anchor}" class="pa-svg-valor" fill="${color}">${escHtml(etiquetaPunto(v))}</text>`;
+    };
+    const valores = [];
+    for (let i = 0; i <= n; i++) {
+      if (i !== 0 && i !== n && i % paso !== 0) continue;
+      // Un valor pegado a 0 o al techo del eje ya lo dice la grilla de fondo
+      // a esa misma altura (el arranque y el cierre de estas curvas siempre
+      // caen justo en un extremo) — repetirlo ahí sólo lo encima.
+      const enExtremo = v => v < 1e-6 || v > 1 - 1e-6;
+      if (!enExtremo(acum[i])) valores.push(valorPunto(i, acum[i], COLOR_ACUM, -6));
+      if (!enExtremo(rem[i])) valores.push(valorPunto(i, rem[i], COLOR_REMANENTE, 12));
     }
 
     const linea = (vals, color) =>
@@ -254,16 +287,21 @@
         ${puntos(acum, COLOR_ACUM)}
         ${etiquetaFin(finAcum, COLOR_ACUM, 'Acumulado', chocan ? -7 : 0)}
         ${etiquetaFin(finRem, COLOR_REMANENTE, 'Remanente', chocan ? 11 : 0)}
+        ${valores.join('')}
         ${hover.join('')}
       </svg>`;
   }
 
-  // Plan de Avance: eje en %, sin anticipo.
+  // Plan de Avance: eje en %, sin anticipo. El valor de cada punto usa
+  // fmtPct (los decimales configurados) en vez de la etiqueta redondeada del
+  // eje — a diferencia de la grilla, un punto de datos no puede perder
+  // precisión.
   window.svgPlanAvance = function (d, opts) {
     const o = Object.assign({ unidad: 'Semana' }, opts);
     const { acum, rem } = window.seriesPlanAvance(d);
     return dibujarCurvaLineas(acum, rem, Object.assign({}, o, {
       etiquetaEje: v => `${Math.round(v * 100)}%`,
+      etiquetaPunto: v => window.fmtPct(v),
       tituloAria: `Plan de avance: acumulado y remanente por ${o.unidad.toLowerCase()}`,
     }));
   };

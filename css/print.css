@@ -195,6 +195,7 @@
 .doc-grafico .pa-svg { width: 100%; height: auto; display: block; }
 .pa-svg-tick { font-size: 11px; fill: #6b7280; font-family: 'Segoe UI', system-ui, sans-serif; }
 .pa-svg-label { font-size: 11px; font-weight: 600; font-family: 'Segoe UI', system-ui, sans-serif; }
+.pa-svg-valor { font-size: 8px; font-family: 'Segoe UI', system-ui, sans-serif; opacity: .7; }
 
 /* Cuadro de dos pares etiqueta/valor por fila (resumen de la curva). */
 .doc-tabla-datos { width: 100%; margin-bottom: 3mm; table-layout: fixed; }
