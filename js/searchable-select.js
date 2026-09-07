@@ -79,9 +79,14 @@ window.createSearchableSelect = function (container, opts) {
       ? currentOptions.filter(o => `${o.label} ${o.sublabel || ''}`.toLowerCase().includes(q))
       : currentOptions;
 
-    let html = filtered.map(o => `
-      <div class="ss-option" data-value="${escHtml(o.value)}">
-        <span>${escHtml(o.label)}</span>
+    // Los ya usados (o.usado) van arriba de todo, para elegirlos rápido —
+    // p. ej. equipos que ya están en otras líneas de la obra. sort() es
+    // estable: si nadie manda "usado", el orden queda intacto.
+    const ordenados = filtered.slice().sort((a, b) => (b.usado ? 1 : 0) - (a.usado ? 1 : 0));
+
+    let html = ordenados.map(o => `
+      <div class="ss-option${o.usado ? ' ss-option--usado' : ''}" data-value="${escHtml(o.value)}">
+        <span>${o.usado ? window.icSvg('checkSm', 'ss-option-check') : ''}${escHtml(o.label)}</span>
         ${o.sublabel ? `<span class="ss-option-sub">${escHtml(o.sublabel)}</span>` : ''}
       </div>`).join('');
 

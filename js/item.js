@@ -54,6 +54,24 @@ let dolarObraActivo = null;   // dólar propio de la obra de la pestaña activa 
 // completo de la obra (sólo lo necesita para la numeración de esta línea).
 let kPorObra = {};   // { obraKey: number|null } — null = no se pudo calcular (obra sin costo de Cómputo todavía)
 
+// Equipos que ya aparecen en alguna línea de CUALQUIER ítem/auxiliar de esta
+// obra (recorre allItemsFull, que ya trae la versión de cada ítem para esta
+// obra) — para destacarlos arriba del todo en el selector, ver renderLineasSeccion.
+let equiposUsadosEnObra = new Set();
+
+function calcularEquiposUsadosEnObra() {
+  const set = new Set();
+  if (!obraParam) return set;
+  Object.values(allItemsFull).forEach(it => {
+    const version = it.versionesObra && it.versionesObra[obraParam];
+    if (!version || !version.lineas) return;
+    Object.values(version.lineas).forEach(l => {
+      if (l.tipo === 'equipo' && l.refKey) set.add(l.refKey);
+    });
+  });
+  return set;
+}
+
 function costoComputoDeObra(obraKeyX, computoDataX) {
   const obraFullX = obrasFull[obraKeyX] || {};
   const paramsEq = { ...DEFAULT_PARAMS_EQUIPOS, ...(obraFullX.paramsEquipos || {}) };
@@ -672,6 +690,7 @@ function renderLineasSeccion(tipo, r) {
       value: c.key,
       label: labelFor(tipo, c),
       sublabel: tipo === 'material' ? c.unidad : undefined,
+      usado: tipo === 'equipo' ? equiposUsadosEnObra.has(c.key) : undefined,
     }));
     createSearchableSelect(row.querySelector('.linea-select-container'), {
       options,
@@ -1142,6 +1161,7 @@ async function loadAll() {
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
   allItemsFull = allItemsData || {};
+  equiposUsadosEnObra = calcularEquiposUsadosEnObra();
   populateRubroSelect();
 
   // K de la obra abierta, referenciable como "k" en la calculadora flotante
