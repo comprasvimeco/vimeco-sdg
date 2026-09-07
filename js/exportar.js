@@ -567,6 +567,24 @@ function bloquePlanTrabajos(desde, hasta) {
     return `<tr class="${clase || ''}"><td colspan="6">${escHtml(label)}</td>${celdas.join('')}</tr>`;
   };
 
+  // Total y anticipo, en las mismas columnas Precio/Incid. que cada ítem —
+  // así se ve de un vistazo, antes de bajar a las certificaciones, contra qué
+  // monto se está certificando (el total de la obra, no el neto a certificar).
+  const nPeriodos = hasta - desde;
+  const filaTotalPrecio = `
+    <tr class="doc-fila-total">
+      <td colspan="4">Total del presupuesto</td>
+      <td class="doc-num">${docARS(plan.total)}</td>
+      <td class="doc-num">${docPct(1)}</td>
+      <td colspan="${nPeriodos}"></td>
+    </tr>`;
+  const filaAnticipo = `
+    <tr class="doc-fila-subtotal">
+      <td colspan="4">Anticipo financiero (${docPct(plan.anticipoFrac)})</td>
+      <td class="doc-num">${docARS(plan.anticipoMonto)}</td>
+      <td colspan="${nPeriodos + 1}"></td>
+    </tr>`;
+
   return `
     <table class="doc-tabla doc-tabla-plan">
       <thead>
@@ -582,6 +600,8 @@ function bloquePlanTrabajos(desde, hasta) {
       </thead>
       <tbody>
         ${filas || '<tr><td colspan="6" class="doc-centro">Sin ítems en el Cómputo.</td></tr>'}
+        ${filaTotalPrecio}
+        ${filaAnticipo}
         ${filaPie('Certificación parcial %', plan.parcialPct, v => docPct(v), 'doc-fila-subtotal')}
         ${filaPie('Certificación acumulada %', plan.acumPct, v => docPct(v), 'doc-fila-subtotal')}
         ${filaPie('Certificación parcial $', plan.parcialMonto, v => docARS(v), 'doc-fila-subtotal doc-fila-monto')}

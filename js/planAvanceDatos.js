@@ -335,6 +335,11 @@
               <text x="${m.left - 8}" y="${py(v) + 4}" text-anchor="end" class="pa-svg-tick">${o.fmtMonto(v)}</text>`;
     }).join('');
 
+    // Mismo criterio de espaciado que los números de período de abajo: con
+    // muchos períodos, tanto los números como el monto de cada barra se
+    // amontonarían.
+    const paso = n > 20 ? Math.ceil(n / 12) : 1;
+
     const r = 4;
     const barras = d.parcialMonto.map((v, i) => {
       const x = m.left + i * anchoSlot + (anchoSlot - anchoBarra) / 2;
@@ -343,10 +348,14 @@
       if (h <= 0) return '';
       const rr = Math.min(r, anchoBarra / 2, h);
       const path = `M${x},${m.top + ph} L${x},${y + rr} Q${x},${y} ${x + rr},${y} L${x + anchoBarra - rr},${y} Q${x + anchoBarra},${y} ${x + anchoBarra},${y + rr} L${x + anchoBarra},${m.top + ph} Z`;
-      return `<path d="${path}" fill="${COLOR_ACUM}" class="pa-barra"${o.hover ? ` data-i="${i}"` : ''}/>`;
+      const barra = `<path d="${path}" fill="${COLOR_ACUM}" class="pa-barra"${o.hover ? ` data-i="${i}"` : ''}/>`;
+      const mostrarValor = paso === 1 || (i + 1) % paso === 0 || i === n - 1;
+      const valor = mostrarValor
+        ? `<text x="${x + anchoBarra / 2}" y="${Math.max(m.top + 8, y - 6)}" text-anchor="middle" class="pa-svg-valor" fill="${COLOR_ACUM}">${escHtml(o.fmtMonto(v))}</text>`
+        : '';
+      return barra + valor;
     }).join('');
 
-    const paso = n > 20 ? Math.ceil(n / 12) : 1;
     const ticks = [];
     for (let i = 0; i < n; i++) {
       if ((i + 1) % paso !== 0 && i !== n - 1) continue;
