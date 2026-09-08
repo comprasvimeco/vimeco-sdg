@@ -334,7 +334,10 @@
   .doc-tabla tr.doc-fila-rubro td,
   .doc-tabla tr.doc-fila-seccion td,
   .doc-tabla tr.doc-fila-total td,
-  .doc-tabla tr.doc-fila-subtotal td {
+  .doc-tabla tr.doc-fila-subtotal td,
+  .doc-tabla-plan tr.doc-fila-pctitem td.doc-fila-label,
+  .doc-tabla-plan tr.doc-fila-pctitem td.doc-pctitem-num,
+  .doc-tabla-plan tr.doc-fila-sub td {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }

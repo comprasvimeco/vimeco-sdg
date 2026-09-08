@@ -34,6 +34,19 @@ jobs:
       # pero no es lo que se publica: eso sale del working tree, que ya quedó
       # bumpeado por el Build. Por eso este paso NO puede tumbar el deploy —
       # pasó con la v105: el push se rechazó y el sitio se quedó en la v104.
+      #
+      # El `continue-on-error` de este paso hace que salga en verde en la
+      # lista de runs aunque git pull/push adentro fallen — así se vio "success"
+      # en 30+ runs seguidos mientras el push venía siendo rechazado en
+      # silencio (2026-09 al 2026-09-08: app.html se quedó clavado en v105,
+      # cada deploy volvía a bumpear v105→v106 sin avanzar nunca, aunque la
+      # lista de Actions no mostraba ni un solo error). Por eso ahora, si el
+      # pull/push falla, se emite un `::warning::` explícito — sí se ve en el
+      # resumen del run sin tener que entrar a este paso puntual. Si vuelve a
+      # pasar, lo primero a revisar es Settings → Actions → General →
+      # "Workflow permissions" (tiene que ser "Read and write") y las reglas
+      # de protección de la rama main (tienen que permitir el push directo de
+      # github-actions[bot], o el commit queda rechazado igual que un PR).
       - name: Commit version bump
         continue-on-error: true
         run: |
@@ -44,8 +57,14 @@ jobs:
           git commit -m "ci: bump version [skip ci]"
           # main puede haber avanzado mientras corría el build, o este puede ser
           # el re-run de un run cuyo bump ya se pusheó.
-          git pull --rebase origin main
-          git push
+          if ! git pull --rebase origin main; then
+            echo "::warning::Bump de versión: falló git pull --rebase, no se pudo actualizar app.html en el repo (el deploy salió igual, ya bumpeado en el artifact)."
+            exit 0
+          fi
+          if ! git push; then
+            echo "::warning::Bump de versión: el push fue rechazado, app.html quedó desactualizado en el repo (el deploy salió igual, ya bumpeado en el artifact). Revisar Workflow permissions y protección de main."
+            exit 0
+          fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

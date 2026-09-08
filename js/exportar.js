@@ -944,18 +944,30 @@ function renderDocumento() {
 // bloque ya renderizado y se lo achica entero con `zoom` (a diferencia de
 // `transform: scale`, sí reduce el lugar que ocupa en el flujo/paginado) hasta
 // que entra en el área útil de la hoja, sin agrandar si ya entraba justo.
+//
+// Lo que más suele mandar el achique es el alto (se acumulan filas por cada
+// ítem, no por cada período): un `zoom` es un único factor para las dos
+// direcciones, así que si se aplica el que pide el alto, el ancho queda
+// escalado de más y sobra hoja en blanco a la derecha. Por eso, cuando el
+// alto es lo que manda, antes de aplicar el zoom se les da a las columnas de
+// período el ancho extra necesario para que, ya achicadas, terminen ocupando
+// todo el ancho de la hoja en vez de quedar angostas en el medio.
 function ajustarPlanAUnaHoja() {
   const PX_POR_MM = 96 / 25.4;   // conversión física fija de CSS, no depende del DPI de pantalla
+  const ANCHO_PERIODO_MIN_MM = 15;
   // Colchón contra redondeos entre esta medición en pantalla y la paginación
   // real de Chrome al imprimir — sin esto, un plan que mide justo-justo puede
   // igual desbordar dos o tres filas del pie a una segunda hoja.
-  const MARGEN_SEGURIDAD_MM = 4;
+  const MARGEN_SEGURIDAD_MM = 6;
   const seccion = document.querySelector('.doc-seccion[data-seccion="plan"]');
   if (!seccion || !incluidas.plan || !config.hojaPlanAjustar) return;
   const bloque = seccion.querySelector('.doc-plan-bloque');
   if (!bloque) return;
 
   bloque.style.zoom = 1;
+  const periodoThs = Array.from(bloque.querySelectorAll('.doc-plan-periodo'));
+  periodoThs.forEach(th => { th.style.width = ANCHO_PERIODO_MIN_MM + 'mm'; });
+
   const dims = dimsHojaPlan();
   const anchoDisponiblePx = (dims.anchoUtilMm - MARGEN_SEGURIDAD_MM) * PX_POR_MM;
   // La altura ya ocupada por el membrete/título/subtítulo antes de la tabla:
@@ -965,9 +977,24 @@ function ajustarPlanAUnaHoja() {
   const altoPreviosPx = bloque.getBoundingClientRect().top - seccion.getBoundingClientRect().top;
   const altoDisponiblePx = (dims.altoUtilMm - MARGEN_SEGURIDAD_MM) * PX_POR_MM - altoPreviosPx;
 
+  const escalaXBase = anchoDisponiblePx / bloque.scrollWidth;
+  const escalaYBase = altoDisponiblePx / bloque.scrollHeight;
+
+  if (periodoThs.length && escalaYBase > 0 && escalaYBase < escalaXBase) {
+    // El alto manda: el ancho natural (con columnas al mínimo) alcanzaría
+    // para un zoom mayor a escalaYBase, así que sobra ancho. Se reparte esa
+    // diferencia entre las columnas de período para que, con el zoom final
+    // (que va a ser escalaYBase), el ancho termine llenando la hoja.
+    const anchoObjetivoPx = anchoDisponiblePx / escalaYBase;
+    const incrementoPx = Math.max(0, anchoObjetivoPx - bloque.scrollWidth);
+    const incrementoPorColumnaMm = (incrementoPx / periodoThs.length) / PX_POR_MM;
+    periodoThs.forEach(th => { th.style.width = (ANCHO_PERIODO_MIN_MM + incrementoPorColumnaMm) + 'mm'; });
+  }
+
   const escalaX = anchoDisponiblePx / bloque.scrollWidth;
   const escalaY = altoDisponiblePx / bloque.scrollHeight;
-  const escala = Math.min(1, escalaX, escalaY);
+  let escala = Math.min(1, escalaX, escalaY);
+  if (escala < 1) escala *= 0.97;   // colchón extra: en tablas largas el redondeo fila a fila se acumula
   bloque.style.zoom = escala > 0 && isFinite(escala) ? escala : 1;
 }
 
