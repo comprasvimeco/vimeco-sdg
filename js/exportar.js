@@ -541,6 +541,34 @@ function tablaInsumos(titulo, colCantidad, resultado, vacio, avisoSinPrecio) {
     ${resultado.faltaPrecio ? `<p class="doc-notas">${escHtml(avisoSinPrecio)}</p>` : ''}`;
 }
 
+// Capatacía (adicional "Seguridad y Capataz"): no es una entidad de receta
+// como los otros tres, así que no encaja en tablaInsumos/filaInsumoDoc* (esas
+// asumen que "cantidad" y "costoUnitario" son de la misma naturaleza en la
+// fila principal y en el desglose). Tabla propia, misma estética doc-tabla.
+// `cap` es null cuando el adicional no está activo en la obra — no se pinta nada.
+function tablaCapataz(cap) {
+  if (!cap) return '';
+  const desglose = config.insumosDesglose && cap.usados.length
+    ? `
+    <table class="doc-tabla" style="margin-top:.3rem;">
+      <thead><tr><th>Ítem</th><th style="width:35mm;">Monto</th></tr></thead>
+      <tbody>
+        ${cap.usados.map(u => `
+        <tr class="doc-fila-sub">
+          <td>${escHtml(u.nombre)}</td>
+          <td class="doc-num">${docARS(u.cantidad)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : '';
+  return `
+    <h3 class="doc-grafico-titulo">Capatacía</h3>
+    <table class="doc-tabla">
+      <thead><tr><th>Denominación</th><th style="width:24mm;">% MO</th><th style="width:30mm;">Monto</th></tr></thead>
+      <tbody><tr><td>Capatacía</td><td class="doc-num">${docCant(cap.pct)}%</td><td class="doc-num">${docARS(cap.costoTotal)}</td></tr></tbody>
+    </table>
+    ${desglose}`;
+}
+
 function seccionInsumos() {
   const insumos = window.calcularInsumosObra(modelo);
   return `
@@ -553,7 +581,8 @@ function seccionInsumos() {
       'Algunos equipos no tienen costo calculable en esta obra — no se incluyen en el total estimado.')}
     ${tablaInsumos('Mano de obra necesaria', 'Días necesarios', insumos.manoDeObra,
       'Sin mano de obra para mostrar.',
-      'Algunas categorías no tienen básico cargado en esta obra — no se incluyen en el total estimado.')}`;
+      'Algunas categorías no tienen básico cargado en esta obra — no se incluyen en el total estimado.')}
+    ${tablaCapataz(insumos.capataz)}`;
 }
 
 /* ===== Plan de trabajos y curva de inversión ===== */

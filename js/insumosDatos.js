@@ -102,8 +102,51 @@
     return { filas, costoTotal, faltaPrecio };
   }
 
-  // Devuelve { materiales, equipos, manoDeObra }, cada uno
-  // { filas: [{ key, nombre, unidad, cantidad, costoUnitario, costoTotal, usados }], costoTotal, faltaPrecio }.
+  /* Capatacía (adicional "Seguridad y Capataz" de paramsMO): a diferencia de
+     Materiales/Equipos/Mano de Obra, no es una entidad de la receta — es un %
+     sobre el costo diario de mano de obra de CADA AP, calculado igual que en
+     calcCostoUnitarioItem (calcCostos.js) pero recorriendo el Cómputo para
+     sumar el monto de toda la obra. Devuelve null si el adicional no está
+     activo en esta obra (no tiene sentido mostrar una fila en 0 siempre).
+     Devuelve { pct, costoTotal, usados: [{ nombre, cantidad }] } — acá
+     `cantidad` de cada usado es el monto en pesos que aporta esa línea, para
+     el desglose por ítem. */
+  function calcularCapataz(modelo) {
+    const paramsMO = modelo.paramsMO;
+    if (!paramsMO.seguridadCapatazActivo) return null;
+    const pct = paramsMO.seguridadCapatazPct || 0;
+
+    let costoTotal = 0;
+    const usados = [];
+    Object.values(modelo.computo || {}).forEach(linea => {
+      if (!linea.itemKey || linea.cantidad == null || isNaN(linea.cantidad)) return;
+      const item = modelo.catalogos.items.find(i => i.key === linea.itemKey);
+      if (!item) return;
+      const version = versionDe(item, modelo.obraKey);
+      if (!version.lineas || version.sinSeguridadCapataz) return;
+      const rendimiento = version.rendimiento || 1;
+
+      let costoDiarioMORoles = 0;
+      Object.values(version.lineas).forEach(rl => {
+        if (rl.tipo !== 'manoDeObra' || rl.cantidad == null || isNaN(rl.cantidad)) return;
+        const rol = modelo.catalogos.roles.find(r => r.key === rl.refKey);
+        if (!rol || !rol.basico) return;
+        costoDiarioMORoles += rl.cantidad * window.calcCostoManoDeObra(rol, paramsMO).costoJornal;
+      });
+      if (costoDiarioMORoles <= 0) return;
+
+      const monto = linea.cantidad * costoDiarioMORoles * pct / 100 / rendimiento;
+      if (!monto) return;
+      costoTotal += monto;
+      usados.push({ nombre: linea.nombre || '(sin nombre)', cantidad: monto });
+    });
+
+    return { pct, costoTotal, usados };
+  }
+
+  // Devuelve { materiales, equipos, manoDeObra, capataz }, los primeros tres
+  // { filas: [{ key, nombre, unidad, cantidad, costoUnitario, costoTotal, usados }], costoTotal, faltaPrecio },
+  // capataz: null (adicional inactivo en la obra) o { pct, costoTotal, usados }.
   window.calcularInsumosObra = function (modelo) {
     const materiales = armarGrupo(
       consolidar(modelo, 'material', modelo.catalogos.materiales, (linea, rl) => linea.cantidad * rl.cantidad)
@@ -134,7 +177,7 @@
         costoUnitario: g.entidad.basico ? window.calcCostoManoDeObra(g.entidad, modelo.paramsMO).costoJornal : null,
       }));
 
-    return { materiales, equipos, manoDeObra };
+    return { materiales, equipos, manoDeObra, capataz: calcularCapataz(modelo) };
   };
 
 })();
