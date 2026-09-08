@@ -185,6 +185,10 @@
    fuente en vez de apuntarles por posición, que se rompe apenas se agrega o
    reordena una fila. */
 .doc-tabla-plan tr.doc-fila-monto td { font-size: 6.5pt; }
+/* Filas opcionales "% en Obra" / "Cantidad" / "Monto" de cada ítem — opt-in
+   en la pantalla (checkboxes pa-ver-obra/pa-ver-cant/pa-ver-monto), mismo
+   tratamiento visual que su equivalente pa-fila-sub de la grilla. */
+.doc-tabla-plan tr.doc-fila-sub td { background: #fbfcfd; color: #6b7280; font-style: italic; }
 .doc-plan-periodo { font-size: 6.5pt; }
 .doc-plan-fecha { display: block; font-weight: 400; font-size: 6pt; color: #6b7280; }
 

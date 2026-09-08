@@ -35,8 +35,20 @@ let cargaFijaConfig = { beneficioPct: null, costoFinancieroPct: null };
 let config = { modo: 'items', unidad: 'semana', cantidad: 12, fechaInicio: '', anticipoPct: null };
 let distItems = {};    // { lineaKey: { p0: fracción, p1: … } }
 let distRubros = {};   // { rubroKey: { p0: fracción, … } }
-let verObra = false;   // mostrar la fila "% en Obra" de cada ítem
-let verCant = false;   // mostrar la fila "% en Cant." de cada ítem
+// Preferencia del navegador (no de la obra), igual que colWidths más abajo —
+// así la exportación (js/exportar.js) puede leer la misma key y mostrar las
+// mismas filas que se dejaron activadas en pantalla.
+const VER_KEY = 'vimeco-plan-avance-ver';
+function cargarVerFilas() {
+  try { return JSON.parse(localStorage.getItem(VER_KEY) || '{}') || {}; } catch (_) { return {}; }
+}
+function guardarVerFilas() {
+  try { localStorage.setItem(VER_KEY, JSON.stringify({ obra: verObra, cant: verCant, monto: verMonto })); } catch (_) { /* sin storage: no se guarda, la pantalla funciona igual */ }
+}
+const verFilasGuardadas = cargarVerFilas();
+let verObra = !!verFilasGuardadas.obra;   // mostrar la fila "% en Obra" de cada ítem
+let verCant = !!verFilasGuardadas.cant;   // mostrar la fila "Cantidad" de cada ítem
+let verMonto = !!verFilasGuardadas.monto; // mostrar la fila "Monto" de cada ítem
 
 const MAX_PERIODOS = window.PLAN_MAX_PERIODOS;
 
@@ -345,7 +357,12 @@ function renderTabla(d) {
       if (verCant) {
         const c = [];
         for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtCantGrilla(x.pctCant[i]), 'pa-derivada', x.pctCant[i]));
-        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% en Cant.</td><td colspan="5"></td>${c.join('')}</tr>`);
+        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Cantidad</td><td colspan="5"></td>${c.join('')}</tr>`);
+      }
+      if (verMonto) {
+        const c = [];
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.pctMonto[i] ? fmtARS(x.pctMonto[i]) : '', 'pa-derivada', x.pctMonto[i]));
+        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Monto</td><td colspan="5"></td>${c.join('')}</tr>`);
       }
       return principal + extra.join('');
     }).join('');
@@ -733,6 +750,7 @@ function renderControles() {
   $('pa-anticipo').value = config.anticipoPct ?? '';
   $('pa-ver-obra').checked = verObra;
   $('pa-ver-cant').checked = verCant;
+  $('pa-ver-monto').checked = verMonto;
 }
 
 function engancharControles() {
@@ -753,8 +771,9 @@ function engancharControles() {
 
   $('pa-fecha-inicio').addEventListener('change', e => updateConfig({ fechaInicio: e.target.value || '' }));
 
-  $('pa-ver-obra').addEventListener('change', e => { verObra = e.target.checked; renderTodo(); });
-  $('pa-ver-cant').addEventListener('change', e => { verCant = e.target.checked; renderTodo(); });
+  $('pa-ver-obra').addEventListener('change', e => { verObra = e.target.checked; guardarVerFilas(); renderTodo(); });
+  $('pa-ver-cant').addEventListener('change', e => { verCant = e.target.checked; guardarVerFilas(); renderTodo(); });
+  $('pa-ver-monto').addEventListener('change', e => { verMonto = e.target.checked; guardarVerFilas(); renderTodo(); });
 
   $('distribuir-close').addEventListener('click', cerrarModalDistribuir);
   $('distribuir-cancelar').addEventListener('click', cerrarModalDistribuir);

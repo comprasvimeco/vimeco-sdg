@@ -11,6 +11,10 @@
      % en Ítem    → lo que se carga a mano: qué fracción del ítem se ejecuta
                     en ese período. La fila tiene que sumar 100%.
      % en Obra    = % en Ítem × incidencia del ítem sobre el total
+     Cantidad     = % en Ítem × cantidad de contrato del ítem
+     Monto        = % en Obra × total × (1 − anticipo)   ← neto de anticipo,
+                    mismo criterio que "Certif. $"; sumado entre todos los
+                    ítems de un período da exactamente ese importe
      Certif. %    = suma de "% en Obra" de todas las filas, por período
      Certif. $    = Certif. % × total × (1 − anticipo)   ← el anticipo ya se
                     cobró al inicio, así que se amortiza sobre cada certificado
@@ -82,6 +86,7 @@
     const n = window.cantidadPeriodosPlan(config);
     const pk = window.pkPeriodo;
     const total = gruposRubro.reduce((a, g) => a + g.precioTotal, 0);
+    const anticipoFrac = (config.anticipoPct || 0) / 100;
 
     gruposRubro.forEach(g => {
       g.incidencia = total > 0 ? g.precioTotal / total : 0;
@@ -94,11 +99,13 @@
         x.pctItem = [];
         x.pctObra = [];
         x.pctCant = [];
+        x.pctMonto = [];
         for (let i = 0; i < n; i++) {
           const f = x.dist[pk(i)] || 0;
           x.pctItem.push(f);
           x.pctObra.push(f * x.incidencia);
           x.pctCant.push(f * x.cantidad);
+          x.pctMonto.push(f * x.precioTotal * (1 - anticipoFrac));
         }
         x.suma = x.pctItem.reduce((a, v) => a + v, 0);
       });
@@ -120,8 +127,6 @@
         ? g.pctItem.reduce((a, v) => a + v, 0)
         : (g.incidencia > 0 ? sumaObra / g.incidencia : 0);
     });
-
-    const anticipoFrac = (config.anticipoPct || 0) / 100;
 
     const parcialPct = [];
     for (let i = 0; i < n; i++) {

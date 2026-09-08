@@ -518,8 +518,20 @@ function etiquetaPeriodoDoc(i) {
 // llena de "0,00%" no se lee) y los enteros van sin decimales — lo que se
 // carga son valores como 20% o 12,5%.
 const pctDoc = frac => (!frac ? '' : Number(frac * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%');
+const cantDoc = n => (!n ? '' : docCant(n));
+const montoDoc = n => (!n ? '' : docARS(n));
 
 const unidadPlural = () => (window.nombreUnidadPlan(planConfig) === 'Mes' ? 'meses' : 'semanas');
+
+// Las filas "% en Obra" / "Cantidad" / "Monto" de cada ítem son opt-in en la
+// pantalla Plan de Avance (checkboxes pa-ver-obra/pa-ver-cant/pa-ver-monto en
+// js/plan-avance.js) y se guardan como preferencia del navegador, no de la
+// obra. Se lee la misma key para que lo que quedó tildado en pantalla salga
+// igual en el PDF.
+function verFilasPlanExport() {
+  try { return JSON.parse(localStorage.getItem('vimeco-plan-avance-ver') || '{}') || {}; } catch (_) { return {}; }
+}
+const verFilasPlan = verFilasPlanExport();
 
 // Un bloque del cronograma: las columnas fijas + los períodos [desde, hasta).
 function bloquePlanTrabajos(desde, hasta) {
@@ -546,7 +558,7 @@ function bloquePlanTrabajos(desde, hasta) {
     const filasItems = g.lineas.map(x => {
       const celdas = [];
       for (let i = desde; i < hasta; i++) celdas.push(`<td class="doc-num">${pctDoc(x.pctItem[i])}</td>`);
-      return `
+      const principal = `
         <tr>
           <td class="doc-centro doc-item">${escHtml(x.numero)}</td>
           <td>${escHtml(x.linea.nombre || '')}</td>
@@ -556,6 +568,24 @@ function bloquePlanTrabajos(desde, hasta) {
           <td class="doc-num">${docPct(x.incidencia)}</td>
           ${celdas.join('')}
         </tr>`;
+
+      const extra = [];
+      if (verFilasPlan.obra) {
+        const c = [];
+        for (let i = desde; i < hasta; i++) c.push(`<td class="doc-num">${pctDoc(x.pctObra[i])}</td>`);
+        extra.push(`<tr class="doc-fila-sub"><td colspan="6">% en Obra</td>${c.join('')}</tr>`);
+      }
+      if (verFilasPlan.cant) {
+        const c = [];
+        for (let i = desde; i < hasta; i++) c.push(`<td class="doc-num">${cantDoc(x.pctCant[i])}</td>`);
+        extra.push(`<tr class="doc-fila-sub"><td colspan="6">Cantidad</td>${c.join('')}</tr>`);
+      }
+      if (verFilasPlan.monto) {
+        const c = [];
+        for (let i = desde; i < hasta; i++) c.push(`<td class="doc-num">${montoDoc(x.pctMonto[i])}</td>`);
+        extra.push(`<tr class="doc-fila-sub"><td colspan="6">Monto</td>${c.join('')}</tr>`);
+      }
+      return principal + extra.join('');
     }).join('');
 
     return filaRubro + filasItems;
