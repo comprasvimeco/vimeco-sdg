@@ -58,7 +58,7 @@ function renderTabla(containerId, resumenId, resultado, opts) {
   const titulos = {
     materiales: 'Clic para ver/editar el precio de este material en esta obra',
     equipos: 'Clic para ver el detalle del costo diario de este equipo',
-    manoDeObra: 'Clic para ver/editar el básico de esta categoría en esta obra',
+    manoDeObra: 'Clic para ver el cálculo del costo de esta categoría en esta obra',
   };
 
   const filasHtml = filas.map(f => {
@@ -97,7 +97,7 @@ function abrirCardInsumo(calcNs, key) {
   if (!entidad) return;
   if (calcNs === 'materiales') openEditarPrecioModal(entidad);
   else if (calcNs === 'equipos') openDetalleEquipoModal(entidad);
-  else if (calcNs === 'manoDeObra') openEditarRolModal(entidad);
+  else if (calcNs === 'manoDeObra') openDetalleRolModal(entidad);
 }
 
 function renderTodo() {
@@ -290,13 +290,15 @@ async function saveEditarPrecioModal() {
 /* ===== Card de Equipo: desglose del costo diario (sólo lectura) =====
    Mismo desglose que el modal de detalle de equipo en item.js — para editar
    potencia, vida útil, uso anual o costo hay que ir a Equipos (catálogo
-   global, no es por obra). */
-function filaDesglose(label, formula, cuenta, valor) {
-  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${escHtml(cuenta)}</span></span><span>${fmtARS(valor)}/día</span></div>`;
+   global); para editar la tasa/reparaciones/lubricantes/combustible de ESTA
+   obra hay que ir a Equipos de la obra (paramsEquipos, por obra). */
+function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
+  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${escHtml(cuenta)}</span></span><span>${fmtARS(valor)}${unidad}</span></div>`;
 }
 
 function openDetalleEquipoModal(equipo) {
   $('ed-equipo-nombre').textContent = `${equipo.tipo || ''} ${equipo.codigo || ''}`.trim();
+  $('ed-link-params').href = `equipos-obra.html?obra=${encodeURIComponent(obraKey)}`;
   const d = window.calcDesgloseCostoEquipo(equipo, modeloIns.paramsEquipos, modeloIns.paramsMO.jornadaHoras, modeloIns.dolarObra);
   const cont = $('ed-desglose');
   if (!d) {
@@ -321,86 +323,43 @@ function openDetalleEquipoModal(equipo) {
   $('modal-equipo-detalle').classList.remove('hidden');
 }
 
-/* ===== Card de Mano de Obra: editar el rol de esta obra =====
-   No existía en ningún AP (ahí sólo se carga cantidad) — este modal reusa
-   los mismos campos que la pantalla Mano de Obra de la obra
-   (mano-de-obra-obra.js: básico, extra %, no remunerativo, fecha) pero
-   editando directo desde Insumos. */
-let editingRolKey = null;
-
-function updateRolPreview() {
-  const basico = parseMoneyString($('mor-basico').value);
-  const extra = parseFloat($('mor-extra').value.replace(',', '.')) || 0;
-  const noRem = parseMoneyString($('mor-no-remunerativo').value) || 0;
-  const preview = $('mor-preview');
-  if (isNaN(basico) || basico <= 0) {
-    preview.textContent = 'Completá el básico para ver el costo calculado.';
-    return;
-  }
-  const c = window.calcCostoManoDeObra({ basico, extraPct: extra, noRemunerativoMensual: noRem }, modeloIns.paramsMO);
-  preview.textContent = `Costo horario: ${fmtARS(c.costoHorario)}/hs · Jornal (${modeloIns.paramsMO.jornadaHoras}hs): ${fmtARS(c.costoJornal)}`;
-}
-
-function openEditarRolModal(rol) {
-  editingRolKey = rol.key;
+/* ===== Card de Mano de Obra: desglose del costo (sólo lectura) =====
+   No existía en ningún AP (ahí sólo se carga cantidad). Mismo criterio que
+   el detalle de Equipo: se muestra el cálculo término a término (fórmula +
+   cuenta con los números usados), no un formulario editable — para tocar el
+   básico, el extra, el no remunerativo o la fecha hay que ir a Mano de Obra
+   de la obra (mano-de-obra-obra.js, roles por obra). */
+function openDetalleRolModal(rol) {
   $('mor-nombre').textContent = rol.nombre;
-  $('mor-basico').value = formatMoneyString(rol.basico);
-  $('mor-extra').value = rol.extraPct ?? 0;
-  $('mor-no-remunerativo').value = formatMoneyString(rol.noRemunerativoMensual);
-  $('mor-fecha').value = rol.fecha || new Date().toISOString().slice(0, 10);
-  setCalcFormula($('mor-basico'), rol.basicoFormula);
-  setCalcFormula($('mor-extra'), rol.extraPctFormula);
-  setCalcFormula($('mor-no-remunerativo'), rol.noRemunerativoMensualFormula);
-  $('modal-mor-error').classList.add('hidden');
-  updateRolPreview();
+  $('mor-link-editar').href = `mano-de-obra-obra.html?obra=${encodeURIComponent(obraKey)}`;
+  const cont = $('mor-desglose');
+  if (!rol.basico) {
+    cont.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Esta categoría no tiene básico cargado en Mano de Obra de esta obra.</p>';
+  } else {
+    const paramsMO = modeloIns.paramsMO;
+    const c = window.calcCostoManoDeObra(rol, paramsMO);
+    const filas = [
+      filaDesglose('Básico efectivo', `Básico × (1 + Extra%)`,
+        `${fmtARS(rol.basico)} × (1 + ${rol.extraPct || 0}%)`, c.basicoEfectivo, '/hs'),
+      filaDesglose('Con Asistencia', `Básico efectivo × (1 + Asistencia%)`,
+        `${fmtARS(c.basicoEfectivo)} × (1 + ${paramsMO.asistenciaPct}%)`, c.conAsistencia, '/hs'),
+      filaDesglose('Con Cargas Sociales', `Con Asistencia × (1 + Cargas%)`,
+        `${fmtARS(c.conAsistencia)} × (1 + ${paramsMO.cargasPct}%)`, c.conCargas, '/hs'),
+    ];
+    if (rol.noRemunerativoMensual) {
+      filas.push(filaDesglose('No remunerativo (prorrateado)', `No remunerativo ÷ (días/mes × jornada)`,
+        `${fmtARS(rol.noRemunerativoMensual)} ÷ (${fmtNum(paramsMO.diasMes)} × ${fmtNum(paramsMO.jornadaHoras)})`, c.comidaPorHora, '/hs'));
+    }
+    filas.push(`<div class="ap-resumen-row total"><span>Costo horario</span><span>${fmtARS(c.costoHorario)}/hs</span></div>`);
+    if (paramsMO.comidaActivo) {
+      filas.push(filaDesglose(`Costo horario × jornada`, `Costo horario × jornada`,
+        `${fmtARS(c.costoHorario)} × ${fmtNum(paramsMO.jornadaHoras)}`, c.costoHorario * paramsMO.jornadaHoras, '/día'));
+      filas.push(filaDesglose('Comida (fija por día)', 'Monto fijo de la obra', fmtARS(c.comidaDia), c.comidaDia, '/día'));
+    }
+    filas.push(`<div class="ap-resumen-row total"><span>Jornal (${fmtNum(paramsMO.jornadaHoras)}hs)</span><span>${fmtARS(c.costoJornal)}/día</span></div>`);
+    cont.innerHTML = filas.join('');
+  }
   $('modal-mano-de-obra-editar').classList.remove('hidden');
-}
-
-async function saveEditarRolModal() {
-  const errEl = $('modal-mor-error');
-  const fecha = $('mor-fecha').value || new Date().toISOString().slice(0, 10);
-
-  const basicoInput = $('mor-basico');
-  if (basicoInput.value.trim().startsWith('=')) { basicoInput.blur(); updateRolPreview(); }
-  const basico = parseMoneyString(basicoInput.value);
-
-  const extraInput = $('mor-extra');
-  if (extraInput.value.trim().startsWith('=')) { extraInput.blur(); updateRolPreview(); }
-  const extraStr = extraInput.value.trim();
-  const extraPct = extraStr ? parseFloat(extraStr.replace(',', '.')) : 0;
-
-  const noRemInput = $('mor-no-remunerativo');
-  if (noRemInput.value.trim().startsWith('=')) { noRemInput.blur(); updateRolPreview(); }
-  const noRemStr = noRemInput.value.trim();
-  const noRemunerativoMensual = noRemStr ? parseMoneyString(noRemStr) : null;
-
-  if (isNaN(basico) || basico < 0) {
-    errEl.textContent = 'El básico no es válido.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  if (isNaN(extraPct) || extraPct < 0) {
-    errEl.textContent = 'El extra sobre básico no es válido.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-
-  const basicoFormula = getCalcFormula(basicoInput);
-  const extraPctFormula = getCalcFormula(extraInput);
-  const noRemunerativoMensualFormula = getCalcFormula(noRemInput);
-
-  try {
-    const data = { basico, extraPct, noRemunerativoMensual, fecha, basicoFormula, extraPctFormula, noRemunerativoMensualFormula };
-    await _fbPatch(`/obras/${obraKey}/roles/${editingRolKey}.json`, data);
-    const rol = modeloIns.catalogos.roles.find(r => r.key === editingRolKey);
-    Object.assign(rol, data);
-    $('modal-mano-de-obra-editar').classList.add('hidden');
-    showToast('Básico actualizado.');
-    renderTodo();
-  } catch (_) {
-    errEl.textContent = 'Error al guardar. Intentá de nuevo.';
-    errEl.classList.remove('hidden');
-  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -421,18 +380,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-ed-close').addEventListener('click', () => $('modal-equipo-detalle').classList.add('hidden'));
   $('modal-ed-cerrar').addEventListener('click', () => $('modal-equipo-detalle').classList.add('hidden'));
 
-  attachCalcInput($('mor-basico'));
-  attachMoneyInput($('mor-basico'));
-  attachCalcInput($('mor-extra'));
-  attachCalcInput($('mor-no-remunerativo'));
-  attachMoneyInput($('mor-no-remunerativo'));
-  ['mor-basico', 'mor-extra', 'mor-no-remunerativo'].forEach(id => {
-    $(id).addEventListener('input', updateRolPreview);
-    $(id).addEventListener('blur', updateRolPreview);
-  });
   $('modal-mor-close').addEventListener('click', () => $('modal-mano-de-obra-editar').classList.add('hidden'));
-  $('modal-mor-cancel').addEventListener('click', () => $('modal-mano-de-obra-editar').classList.add('hidden'));
-  $('modal-mor-save').addEventListener('click', saveEditarRolModal);
+  $('modal-mor-cerrar').addEventListener('click', () => $('modal-mano-de-obra-editar').classList.add('hidden'));
 
   await loadAll();
   await getDolarSnapshot().catch(() => {});

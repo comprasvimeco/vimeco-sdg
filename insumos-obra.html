@@ -156,7 +156,7 @@
       <div class="modal-body">
         <p style="font-weight:600; margin-bottom:.75rem;" id="ed-equipo-nombre"></p>
         <div id="ed-desglose"></div>
-        <p class="form-hint" style="margin-top:.75rem;">Para editar potencia, vida útil, uso anual o costo de este equipo, andá a <a href="equipos.html" target="_blank" rel="noopener">Equipos</a>.</p>
+        <p class="form-hint" style="margin-top:.75rem;">Para editar potencia, vida útil, uso anual o costo de este equipo, andá a <a href="equipos.html" target="_blank" rel="noopener">Equipos</a>. Para editar la tasa de interés, % de reparaciones, % de lubricantes o el precio del combustible de esta obra, andá a <a href="#" id="ed-link-params" target="_blank" rel="noopener">Equipos de la obra</a>.</p>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="modal-ed-cerrar">Cerrar</button>
@@ -164,7 +164,7 @@
     </div>
   </div>
 
-  <!-- Modal: Editar rol de Mano de Obra (básico, esta obra) -->
+  <!-- Modal: Detalle del costo de un rol de Mano de Obra (sólo lectura) -->
   <div class="modal-overlay hidden" id="modal-mano-de-obra-editar">
     <div class="modal modal--sm">
       <div class="modal-header">
@@ -172,32 +172,11 @@
         <button class="modal-close" id="modal-mor-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label for="mor-basico">Básico ($/hs) *</label>
-            <input type="text" id="mor-basico" class="form-control" placeholder="Ej: 7420">
-          </div>
-          <div class="form-group u-mb-0">
-            <label for="mor-extra">Extra sobre básico (%)</label>
-            <input type="text" id="mor-extra" class="form-control" placeholder="0">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label for="mor-no-remunerativo">No remunerativo ($/mes)</label>
-            <input type="text" id="mor-no-remunerativo" class="form-control" placeholder="Ej: 148000">
-          </div>
-          <div class="form-group u-mb-0">
-            <label for="mor-fecha">Fecha del valor</label>
-            <input type="date" id="mor-fecha" class="form-control">
-          </div>
-        </div>
-        <div class="alert alert-info" id="mor-preview"></div>
-        <div id="modal-mor-error" class="alert alert-error hidden"></div>
+        <div id="mor-desglose"></div>
+        <p class="form-hint" style="margin-top:.75rem;">Para editar el básico, el extra, el no remunerativo o la fecha de esta categoría, andá a <a href="#" id="mor-link-editar" target="_blank" rel="noopener">Mano de Obra de la obra</a>.</p>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" id="modal-mor-cancel">Cancelar</button>
-        <button class="btn btn-primary" id="modal-mor-save">Guardar</button>
+        <button class="btn btn-secondary" id="modal-mor-cerrar">Cerrar</button>
       </div>
     </div>
   </div>

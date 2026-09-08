@@ -17,7 +17,10 @@ window.calcCostoManoDeObra = function (rol, params) {
   const comidaPorHora = (rol.noRemunerativoMensual || 0) / (params.diasMes * params.jornadaHoras);
   const costoHorario = conCargas + comidaPorHora;
   const comidaDia = params.comidaActivo ? (params.comidaMonto || 0) : 0;
-  return { costoHorario, costoJornal: costoHorario * params.jornadaHoras + comidaDia, comidaPorHora, comidaDia };
+  return {
+    basicoEfectivo, conAsistencia, conCargas, comidaPorHora, comidaDia,
+    costoHorario, costoJornal: costoHorario * params.jornadaHoras + comidaDia,
+  };
 };
 
 // equipo: { costoUSD, vidaUtil, usoAnual, potencia, consumoCombustibleLtsPorHp }
