@@ -36,19 +36,33 @@ function crearLista(cfg) {
   const orden = c => (c.orden != null ? c.orden : (c.creadoEn || 0));
 
   const path = campoKey => `/obras/${obraKey}/${nodo}/${campoKey}.json`;
+  const pathLista = () => `/obras/${obraKey}/${nodo}.json`;
+
+  // key de la fila que se está arrastrando en esta lista puntual (Datos
+  // generales y Datos adicionales son dos instancias separadas de crearLista,
+  // cada una con su propio estado — no hay drag "global" que las mezcle).
+  let draggedKey = null;
+
+  function entradasOrdenadas() {
+    return Object.entries(datos()).sort((a, b) => orden(a[1]) - orden(b[1]));
+  }
 
   function render() {
     const container = $(contenedorId);
-    const entradas = Object.entries(datos()).sort((a, b) => orden(a[1]) - orden(b[1]));
+    const entradas = entradasOrdenadas();
     if (!entradas.length) {
       container.innerHTML = `<p class="text-muted" style="font-size:.85rem;">${escHtml(vacio)}</p>`;
       return;
     }
-    container.innerHTML = entradas.map(([campoKey, c]) => `
-      <div class="datos-extra-linea" data-key="${escHtml(campoKey)}">
+    container.innerHTML = entradas.map(([campoKey, c], idx) => `
+      <div class="datos-extra-linea" data-key="${escHtml(campoKey)}" draggable="true">
         <input type="text" class="form-control de-etiqueta" value="${escHtml(c.etiqueta || '')}" placeholder="${escHtml(placeholderEtiqueta)}">
         <input type="text" class="form-control de-valor" value="${escHtml(c.valor || '')}" placeholder="${escHtml(placeholderValor)}">
-        <button class="datos-extra-del" title="${escHtml(tituloBorrar)}">${icSvg('x')}</button>
+        <span class="datos-extra-acciones">
+          <button class="datos-extra-mover" data-dir="-1" title="Subir" ${idx === 0 ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+          <button class="datos-extra-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+          <button class="datos-extra-del" title="${escHtml(tituloBorrar)}">${icSvg('x')}</button>
+        </span>
       </div>`).join('');
 
     container.querySelectorAll('.datos-extra-linea').forEach(row => {
@@ -60,6 +74,16 @@ function crearLista(cfg) {
       valor.addEventListener('blur', () => update(campoKey, { valor: valor.value.trim() }));
       valor.addEventListener('keydown', e => { if (e.key === 'Enter') valor.blur(); });
       row.querySelector('.datos-extra-del').addEventListener('click', () => borrar(campoKey));
+      row.querySelectorAll('.datos-extra-mover').forEach(btn => {
+        btn.addEventListener('click', () => mover(campoKey, parseInt(btn.dataset.dir, 10)));
+      });
+
+      row.addEventListener('dragstart', () => { draggedKey = campoKey; row.classList.add('dragging'); });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        draggedKey = null;
+        persistirOrdenDesdeDom();
+      });
     });
   }
 
@@ -68,6 +92,69 @@ function crearLista(cfg) {
     if (!actual) return;
     Object.assign(actual, cambios);
     _fbPatch(path(campoKey), cambios).catch(() => showToast('Error al guardar el dato.', 'error'));
+  }
+
+  // Igual criterio que moverLinea en Carga Fija: se renumeran todas las
+  // entradas y se persisten juntas, un solo PATCH multi-path sobre el nodo
+  // de la lista (no reescribe cada campo entero).
+  function mover(campoKey, dir) {
+    const entradas = entradasOrdenadas();
+    const idx = entradas.findIndex(([k]) => k === campoKey);
+    const otroIdx = idx + dir;
+    if (idx < 0 || otroIdx < 0 || otroIdx >= entradas.length) return;
+    const tmp = entradas[idx];
+    entradas[idx] = entradas[otroIdx];
+    entradas[otroIdx] = tmp;
+
+    const cambios = {};
+    entradas.forEach(([k, c], i) => { c.orden = i + 1; cambios[`${k}/orden`] = i + 1; });
+    render();
+    _fbPatch(pathLista(), cambios).catch(() => showToast('Error al guardar el orden.', 'error'));
+  }
+
+  /* Arrastrar para reordenar: mismo mecanismo que las líneas de Carga Fija.
+     El contenedor escucha `dragover` una sola vez (el nodo no se recrea entre
+     renders) y va moviendo la fila arrastrada en el DOM; recién en `dragend`
+     se lee el orden final y se persiste. */
+  function filaDespuesDe(container, y) {
+    const filas = [...container.querySelectorAll('.datos-extra-linea:not(.dragging)')];
+    return filas.reduce((masCercana, fila) => {
+      const box = fila.getBoundingClientRect();
+      const offset = y - box.top - box.height / 2;
+      if (offset < 0 && offset > masCercana.offset) return { offset, elemento: fila };
+      return masCercana;
+    }, { offset: -Infinity, elemento: null }).elemento;
+  }
+
+  function engancharDragContainer() {
+    const container = $(contenedorId);
+    container.addEventListener('dragover', e => {
+      if (!draggedKey) return;
+      e.preventDefault();
+      const dragging = container.querySelector('.datos-extra-linea.dragging');
+      if (!dragging) return;
+      const despuesDe = filaDespuesDe(container, e.clientY);
+      if (despuesDe == null) container.appendChild(dragging);
+      else container.insertBefore(dragging, despuesDe);
+    });
+  }
+
+  function persistirOrdenDesdeDom() {
+    const container = $(contenedorId);
+    const keysEnOrden = [...container.querySelectorAll('.datos-extra-linea[data-key]')].map(row => row.dataset.key);
+    const cambios = {};
+    let huboCambio = false;
+    keysEnOrden.forEach((key, i) => {
+      const c = datos()[key];
+      if (!c) return;
+      const nuevoOrden = i + 1;
+      if (orden(c) !== nuevoOrden) huboCambio = true;
+      c.orden = nuevoOrden;
+      cambios[`${key}/orden`] = nuevoOrden;
+    });
+    if (!huboCambio) return;
+    render();
+    _fbPatch(pathLista(), cambios).catch(() => showToast('Error al guardar el orden.', 'error'));
   }
 
   function agregar() {
@@ -90,6 +177,8 @@ function crearLista(cfg) {
     }
     showToast('Campo eliminado.');
   }
+
+  engancharDragContainer();
 
   return { render, agregar };
 }

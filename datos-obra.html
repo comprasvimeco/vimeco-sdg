@@ -10,10 +10,17 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .datos-extra-header, .datos-extra-linea { display: grid; grid-template-columns: 1fr 1.6fr 40px; gap: .5rem; align-items: center; }
+    .datos-extra-header, .datos-extra-linea { display: grid; grid-template-columns: 1fr 1.6fr 90px; gap: .5rem; align-items: center; }
     .datos-extra-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: 1px solid var(--gray-200); }
     .datos-extra-linea { padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .datos-extra-linea:last-child { border-bottom: none; }
+    .datos-extra-linea[draggable="true"] { cursor: grab; }
+    .datos-extra-linea.dragging { opacity: .4; }
+    .datos-extra-acciones { display: flex; align-items: center; justify-content: flex-end; gap: .1rem; }
+    .datos-extra-mover { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .3rem; }
+    .datos-extra-mover:hover:not(:disabled) { color: var(--primary); }
+    .datos-extra-mover:disabled { opacity: .25; cursor: default; }
+    .datos-extra-mover .icon { width: 15px; height: 15px; }
     .datos-extra-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
     .dolar-vivo-hint { display: flex; align-items: center; gap: .6rem; font-size: .85rem; color: var(--gray-600); margin-top: .35rem; }
     .dolar-vivo-hint button { background: none; border: none; color: var(--primary); cursor: pointer; padding: 0; font-size: .85rem; text-decoration: underline; }
