@@ -16,6 +16,8 @@
     .materiales-linea-header span:nth-child(3), .materiales-linea-header span:nth-child(5) { text-align: right; }
     .materiales-cantidad, .materiales-costo { text-align: right; white-space: nowrap; font-weight: 600; color: var(--gray-700); }
     .materiales-usados { color: var(--gray-500); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+    .insumo-nombre-btn { display: block; width: 100%; text-align: left; background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
+    .insumo-nombre-btn:hover { text-decoration: underline dotted; text-underline-offset: 2px; color: var(--primary); }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
 
@@ -94,6 +96,112 @@
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando insumos…</div></div>
 
+  <!-- Modal: Editar precio de un material (esta obra) -->
+  <div class="modal-overlay hidden" id="modal-material-editar-precio">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Precio del material</span>
+        <button class="modal-close" id="modal-mep-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group u-mb-0">
+          <label>Fuente (obra)</label>
+          <div class="linea-select-container" id="mep-fuente-container"></div>
+          <span class="form-hint" id="mep-fuente-hint"></span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mep-nombre">Nombre *</label>
+            <input type="text" id="mep-nombre" class="form-control">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="mep-unidad">Unidad *</label>
+            <input type="text" id="mep-unidad" class="form-control">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Precio *</label>
+          <div class="form-row">
+            <input type="text" id="mep-precio-usd" class="form-control" placeholder="USD, ej: 5 o =50*100">
+            <input type="text" id="mep-precio-ars" class="form-control" placeholder="$, ej: 5000">
+          </div>
+          <span class="form-hint" id="mep-precio-nota"></span>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mep-proveedor">Proveedor</label>
+            <input type="text" id="mep-proveedor" class="form-control" placeholder="Opcional">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="mep-fecha">Fecha</label>
+            <input type="date" id="mep-fecha" class="form-control">
+          </div>
+        </div>
+        <div id="modal-mep-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-mep-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-mep-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Desglose del costo diario de un equipo (sólo lectura) -->
+  <div class="modal-overlay hidden" id="modal-equipo-detalle">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Costo diario del equipo</span>
+        <button class="modal-close" id="modal-ed-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-weight:600; margin-bottom:.75rem;" id="ed-equipo-nombre"></p>
+        <div id="ed-desglose"></div>
+        <p class="form-hint" style="margin-top:.75rem;">Para editar potencia, vida útil, uso anual o costo de este equipo, andá a <a href="equipos.html" target="_blank" rel="noopener">Equipos</a>.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-ed-cerrar">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar rol de Mano de Obra (básico, esta obra) -->
+  <div class="modal-overlay hidden" id="modal-mano-de-obra-editar">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="mor-nombre">Mano de obra</span>
+        <button class="modal-close" id="modal-mor-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mor-basico">Básico ($/hs) *</label>
+            <input type="text" id="mor-basico" class="form-control" placeholder="Ej: 7420">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="mor-extra">Extra sobre básico (%)</label>
+            <input type="text" id="mor-extra" class="form-control" placeholder="0">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="mor-no-remunerativo">No remunerativo ($/mes)</label>
+            <input type="text" id="mor-no-remunerativo" class="form-control" placeholder="Ej: 148000">
+          </div>
+          <div class="form-group u-mb-0">
+            <label for="mor-fecha">Fecha del valor</label>
+            <input type="date" id="mor-fecha" class="form-control">
+          </div>
+        </div>
+        <div class="alert alert-info" id="mor-preview"></div>
+        <div id="modal-mor-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-mor-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-mor-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
 
   <script src="js/icons.js"></script>
@@ -102,6 +210,7 @@
   <script src="js/refs.js"></script>
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
+  <script src="js/searchable-select.js"></script>
   <script src="js/calcCostos.js"></script>
   <script src="js/insumosDatos.js"></script>
   <script src="js/calculadora-flotante.js"></script>
