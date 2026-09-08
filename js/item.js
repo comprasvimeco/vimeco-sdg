@@ -757,7 +757,7 @@ function renderManoDeObraSeccion(r) {
         <div class="ap-linea-mo con-costo" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}" data-calc-valor="${cantidad ?? 0}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}">
-          <span class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</span><span class="ap-linea-costo-total"${d ? calcAttrs(d.costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
+          <button type="button" class="ap-linea-costo-unit" title="Clic para ver el detalle del costo de esta categoría"${d ? calcAttrs(d.costoUnitario, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d ? calcAttrs(d.costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
         </div>`;
     }).join('');
   }
@@ -798,6 +798,10 @@ function renderManoDeObraSeccion(r) {
     const cantidadInput = row.querySelector('.linea-cantidad');
     const entry = Object.entries(lineas).find(([, l]) => l.tipo === 'manoDeObra' && l.refKey === rolKey);
     const linea = entry ? entry[1] : null;
+
+    const rol = roles.find(r => r.key === rolKey);
+    const costoUnit = row.querySelector('.ap-linea-costo-unit');
+    if (costoUnit && rol) costoUnit.addEventListener('click', () => openDetalleRolModal(rol));
 
     attachCalcInput(cantidadInput, linea ? linea.cantidadFormula : null);
     attachValorInput(cantidadInput, linea ? (linea.cantidad ?? null) : null);
@@ -1060,12 +1064,13 @@ async function saveEditarPrecioModal() {
 // generales (interés, % reparaciones, etc.) que se editan en Equipos. Debajo
 // de la fórmula (con nombres) va la misma cuenta con los números que se
 // usaron, para que se pueda verificar sin ir a buscarlos a otro lado.
-function filaDesglose(label, formula, cuenta, valor) {
-  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${escHtml(cuenta)}</span></span><span>${fmtARS(valor)}/día</span></div>`;
+function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
+  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${escHtml(cuenta)}</span></span><span>${fmtARS(valor)}${unidad}</span></div>`;
 }
 
 function openDetalleEquipoModal(equipo) {
   $('ed-equipo-nombre').textContent = `${equipo.tipo || ''} ${equipo.codigo || ''}`.trim();
+  $('ed-link-params').href = `equipos-obra.html?obra=${encodeURIComponent(activeVersion)}`;
   const d = window.calcDesgloseCostoEquipo(equipo, paramsEquipos, paramsMO.jornadaHoras, dolarObraActivo);
   const cont = $('ed-desglose');
   if (!d) {
@@ -1087,6 +1092,42 @@ function openDetalleEquipoModal(equipo) {
     ].join('');
   }
   $('modal-equipo-detalle').classList.remove('hidden');
+}
+
+// Desglose del costo de una categoría de Mano de Obra — sólo lectura, mismo
+// criterio que el de Equipos: fórmula + cuenta con los números usados. Para
+// tocar el básico, el extra, el no remunerativo o la fecha hay que ir a Mano
+// de Obra de la obra (roles por obra, no hay edición inline acá).
+function openDetalleRolModal(rol) {
+  $('mor-nombre').textContent = rol.nombre;
+  $('mor-link-editar').href = `mano-de-obra-obra.html?obra=${encodeURIComponent(activeVersion)}`;
+  const cont = $('mor-desglose');
+  if (!rol.basico) {
+    cont.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Esta categoría no tiene básico cargado en Mano de Obra de esta obra.</p>';
+  } else {
+    const c = window.calcCostoManoDeObra(rol, paramsMO);
+    const filas = [
+      filaDesglose('Básico efectivo', `Básico × (1 + Extra%)`,
+        `${fmtARS(rol.basico)} × (1 + ${rol.extraPct || 0}%)`, c.basicoEfectivo, '/hs'),
+      filaDesglose('Con Asistencia', `Básico efectivo × (1 + Asistencia%)`,
+        `${fmtARS(c.basicoEfectivo)} × (1 + ${paramsMO.asistenciaPct}%)`, c.conAsistencia, '/hs'),
+      filaDesglose('Con Cargas Sociales', `Con Asistencia × (1 + Cargas%)`,
+        `${fmtARS(c.conAsistencia)} × (1 + ${paramsMO.cargasPct}%)`, c.conCargas, '/hs'),
+    ];
+    if (rol.noRemunerativoMensual) {
+      filas.push(filaDesglose('No remunerativo (prorrateado)', `No remunerativo ÷ (días/mes × jornada)`,
+        `${fmtARS(rol.noRemunerativoMensual)} ÷ (${fmtNum(paramsMO.diasMes)} × ${fmtNum(paramsMO.jornadaHoras)})`, c.comidaPorHora, '/hs'));
+    }
+    filas.push(`<div class="ap-resumen-row total"><span>Costo horario</span><span>${fmtARS(c.costoHorario)}/hs</span></div>`);
+    if (paramsMO.comidaActivo) {
+      filas.push(filaDesglose(`Costo horario × jornada`, `Costo horario × jornada`,
+        `${fmtARS(c.costoHorario)} × ${fmtNum(paramsMO.jornadaHoras)}`, c.costoHorario * paramsMO.jornadaHoras, '/día'));
+      filas.push(filaDesglose('Comida (fija por día)', 'Monto fijo de la obra', fmtARS(c.comidaDia), c.comidaDia, '/día'));
+    }
+    filas.push(`<div class="ap-resumen-row total"><span>Jornal (${fmtNum(paramsMO.jornadaHoras)}hs)</span><span>${fmtARS(c.costoJornal)}/día</span></div>`);
+    cont.innerHTML = filas.join('');
+  }
+  $('modal-mano-de-obra-detalle').classList.remove('hidden');
 }
 
 async function deleteLinea(lineaKey) {
@@ -1231,6 +1272,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('modal-ed-close').addEventListener('click',  () => $('modal-equipo-detalle').classList.add('hidden'));
   $('modal-ed-cerrar').addEventListener('click', () => $('modal-equipo-detalle').classList.add('hidden'));
+
+  $('modal-mor-close').addEventListener('click',  () => $('modal-mano-de-obra-detalle').classList.add('hidden'));
+  $('modal-mor-cerrar').addEventListener('click', () => $('modal-mano-de-obra-detalle').classList.add('hidden'));
+
   attachCalcInput($('mep-precio-usd'));
   attachMoneyInput($('mep-precio-usd'));
   attachCalcInput($('mep-precio-ars'));
