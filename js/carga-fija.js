@@ -36,6 +36,7 @@ let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 5
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 let preciosObra = {};   // { materialKey: {precioUSD,...} } — resuelto de los precios por obra de esta obra
 let dolarObra = null;   // dólar propio de esta obra (/obras/{obraKey}/dolar)
+let draggedLineaKey = null;   // key de la línea que se está arrastrando (ver engancharDragLineas)
 
 // Gastos fijos + Coeficiente K de un saque: las líneas con base en el
 // presupuesto propio no se pueden valorizar sin el K, y el K sale de esa misma
@@ -80,6 +81,54 @@ function moverLinea(lineaKey, dir) {
     lineas[k].orden = i + 1;
     cambios[`${k}/orden`] = i + 1;
   });
+  renderTodo();
+  persistLineasMulti(cambios, 'Error al guardar el orden de los conceptos.');
+}
+
+/* ===== Arrastrar para reordenar =====
+   Además de las flechas ↑/↓, cada fila se puede arrastrar a su nueva
+   posición (igual idea que mover un ítem del Cómputo, pero acá al ser una
+   lista plana sin rubros el reordenamiento es por posición, no por grupo
+   destino). El contenedor escucha `dragover` una sola vez (se engancha en
+   DOMContentLoaded, no en cada render, porque el nodo del contenedor no se
+   recrea) y va moviendo la fila arrastrada en el DOM para dar el feedback
+   visual; recién en `dragend` se lee el orden final del DOM y se persiste,
+   con el mismo PATCH multi-path que usa moverLinea. */
+function filaCfDespuesDe(container, y) {
+  const filas = [...container.querySelectorAll('.cf-linea:not(.dragging)')];
+  return filas.reduce((masCercana, fila) => {
+    const box = fila.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > masCercana.offset) return { offset, elemento: fila };
+    return masCercana;
+  }, { offset: -Infinity, elemento: null }).elemento;
+}
+
+function engancharDragContainerCF() {
+  const container = $('lineas-carga-fija');
+  container.addEventListener('dragover', e => {
+    if (!draggedLineaKey) return;
+    e.preventDefault();
+    const dragging = container.querySelector('.cf-linea.dragging');
+    if (!dragging) return;
+    const despuesDe = filaCfDespuesDe(container, e.clientY);
+    if (despuesDe == null) container.appendChild(dragging);
+    else container.insertBefore(dragging, despuesDe);
+  });
+}
+
+function persistirOrdenDesdeDom() {
+  const container = $('lineas-carga-fija');
+  const keysEnOrden = [...container.querySelectorAll('.cf-linea[data-key]')].map(row => row.dataset.key);
+  const cambios = {};
+  let huboCambio = false;
+  keysEnOrden.forEach((key, i) => {
+    const nuevoOrden = i + 1;
+    if (lineas[key].orden !== nuevoOrden) huboCambio = true;
+    lineas[key].orden = nuevoOrden;
+    cambios[`${key}/orden`] = nuevoOrden;
+  });
+  if (!huboCambio) return;
   renderTodo();
   persistLineasMulti(cambios, 'Error al guardar el orden de los conceptos.');
 }
@@ -174,12 +223,14 @@ function renderLineas() {
     container.innerHTML = entradas.map(([lineaKey, l], idx) => {
       const tipo = l.tipo || 'monto';
       const total = cf.totalPorLinea[lineaKey];
+      const incidencia = cf.gastosFijos > 0 && total != null ? total / cf.gastosFijos : null;
       return `
-        <div class="cf-linea" data-key="${escHtml(lineaKey)}">
+        <div class="cf-linea" data-key="${escHtml(lineaKey)}" draggable="true">
           <input type="text" class="form-control cf-concepto" value="${escHtml(l.concepto || '')}" placeholder="Ej: Jefe de obra">
           ${tipoSelectHtml(tipo)}
           ${camposLineaHtml(lineaKey, l, tipo)}
           <span class="cf-linea-total"${calcAttrs(total, `cargafija:linea:${lineaKey}:total`, `${l.concepto || 'Concepto'} · Total`)}>${total != null ? fmtARS(total) : '—'}</span>
+          <span class="cf-linea-incidencia"${calcAttrs(incidencia != null ? incidencia * 100 : null, `cargafija:linea:${lineaKey}:incidencia`, `${l.concepto || 'Concepto'} · Incidencia %`)}>${fmtPct(incidencia)}</span>
           <span class="cf-linea-acciones">
             <button class="cf-linea-mover" data-dir="-1" title="Subir" ${idx === 0 ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
             <button class="cf-linea-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
@@ -195,6 +246,13 @@ function renderLineas() {
     const tipo = l.tipo || 'monto';
     const concepto = row.querySelector('.cf-concepto');
     const tipoSelect = row.querySelector('.cf-tipo');
+
+    row.addEventListener('dragstart', () => { draggedLineaKey = lineaKey; row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      draggedLineaKey = null;
+      persistirOrdenDesdeDom();
+    });
 
     concepto.addEventListener('blur', () => updateLinea(lineaKey, { concepto: concepto.value.trim() }));
     concepto.addEventListener('keydown', e => { if (e.key === 'Enter') concepto.blur(); });
@@ -908,6 +966,7 @@ async function loadAll() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  engancharDragContainerCF();
   $('btn-add-linea').addEventListener('click', addLinea);
   $('btn-importar-cf').addEventListener('click', abrirModalImportarCf);
   $('importar-cf-close').addEventListener('click', cerrarModalImportarCf);

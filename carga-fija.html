@@ -10,11 +10,14 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .cf-linea-header, .cf-linea { display: grid; grid-template-columns: 1.1fr 150px 90px 130px 80px 130px 90px; gap: .5rem; align-items: center; }
+    .cf-linea-header, .cf-linea { display: grid; grid-template-columns: 1.1fr 150px 90px 130px 80px 130px 70px 90px; gap: .5rem; align-items: center; }
     .cf-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: 1px solid var(--gray-200); }
     .cf-linea { padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .cf-linea:last-child { border-bottom: none; }
+    .cf-linea[draggable="true"] { cursor: grab; }
+    .cf-linea.dragging { opacity: .4; }
     .cf-linea-total { text-align: right; font-weight: 600; color: var(--gray-700); white-space: nowrap; }
+    .cf-linea-incidencia { text-align: right; color: var(--gray-500); font-variant-numeric: tabular-nums; white-space: nowrap; }
     .cf-linea-acciones { display: flex; align-items: center; justify-content: flex-end; gap: .1rem; }
     .cf-linea-mover { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .3rem; }
     .cf-linea-mover:hover:not(:disabled) { color: var(--primary); }
@@ -66,7 +69,7 @@
       .cf-linea-header { display: none; }
       .cf-linea {
         grid-template-columns: 1fr 1fr;
-        grid-template-areas: "concepto concepto" "tipo tipo" "cant precio" "meses total" "acc acc";
+        grid-template-areas: "concepto concepto" "tipo tipo" "cant precio" "meses total" "incidencia acc";
         row-gap: .3rem; column-gap: .5rem; padding: .6rem 0;
       }
       .cf-linea > *:nth-child(1) { grid-area: concepto; }
@@ -76,7 +79,9 @@
       .cf-linea > *:nth-child(5) { grid-area: meses; }
       .cf-linea > *:nth-child(6) { grid-area: total; text-align: right; }
       .cf-linea > *:nth-child(6)::before { content: "Total: "; font-weight: 400; color: var(--gray-500); }
-      .cf-linea > *:nth-child(7) { grid-area: acc; justify-self: end; }
+      .cf-linea > *:nth-child(7) { grid-area: incidencia; text-align: left; }
+      .cf-linea > *:nth-child(7)::before { content: "Incidencia: "; font-weight: 400; color: var(--gray-500); }
+      .cf-linea > *:nth-child(8) { grid-area: acc; justify-self: end; }
 
       /* Bloque del Coeficiente K: label + control + aporte pasan de 3
          columnas a 1 columna apilada -- el control del medio (a veces
@@ -125,7 +130,7 @@
           <span class="form-hint">Completa la columna Meses de todos los conceptos de monto fijo; después cada línea se puede ajustar a mano.</span>
         </div>
         <div class="cf-linea-header">
-          <span>Concepto</span><span>Tipo</span><span>Cantidad / %</span><span>Precio unitario / Base</span><span>Meses</span><span style="text-align:right;">Total</span><span></span>
+          <span>Concepto</span><span>Tipo</span><span>Cantidad / %</span><span>Precio unitario / Base</span><span>Meses</span><span style="text-align:right;">Total</span><span style="text-align:right;">Incidencia</span><span></span>
         </div>
         <div id="lineas-carga-fija"></div>
         <div class="cf-total-fijos"><span>Total gastos fijos</span><span id="total-gastos-fijos">$ 0,00</span></div>
