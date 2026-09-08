@@ -33,9 +33,15 @@
       <div class="card-body">
         <div class="form-row">
           <div class="form-group">
+            <label for="param-combustible">Precio combustible ($/lt)</label>
+            <input type="text" id="param-combustible" class="form-control" placeholder="Ej: 1995">
+          </div>
+          <div class="form-group u-mb-0">
             <label for="param-interes">Tasa de interés anual (%)</label>
             <input type="text" id="param-interes" class="form-control" placeholder="Ej: 10">
           </div>
+        </div>
+        <div class="form-row">
           <div class="form-group">
             <label for="param-reparaciones">Reparaciones (% de amortización)</label>
             <input type="text" id="param-reparaciones" class="form-control" placeholder="Ej: 75">
@@ -44,10 +50,6 @@
             <label for="param-lubricantes">Lubricantes (% de combustible)</label>
             <input type="text" id="param-lubricantes" class="form-control" placeholder="Ej: 50">
           </div>
-        </div>
-        <div class="form-group u-mb-0" style="max-width:260px;">
-          <label for="param-combustible">Precio combustible ($/lt)</label>
-          <input type="text" id="param-combustible" class="form-control" placeholder="Ej: 1995">
         </div>
         <span class="form-hint">Se aplican solo a esta obra. Se guardan solos al salir del campo. El dólar usado para el costo de los equipos es el de la pestaña "Datos" de esta obra.</span>
       </div>

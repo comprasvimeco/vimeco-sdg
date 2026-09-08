@@ -41,6 +41,7 @@ async function saveParams() {
 function metaLine(e) {
   const parts = [];
   if (e.potencia)  parts.push(`${e.potencia} HP`);
+  if (e.consumoCombustibleLtsPorHp != null) parts.push(`${e.consumoCombustibleLtsPorHp} lts/HP·h`);
   if (e.usoAnual)  parts.push(`${e.usoAnual} hs/año`);
   if (e.vidaUtil)  parts.push(`vida útil ${e.vidaUtil} hs`);
   if (e.costoUSD)  parts.push(fmtUSDConEquivalente(e.costoUSD));
