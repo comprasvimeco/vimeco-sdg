@@ -535,6 +535,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     $(id).addEventListener('blur', updatePreview);
   });
 
+  ['param-asistencia', 'param-cargas', 'param-dias', 'param-jornada', 'param-seg-cap-pct', 'param-comida-monto']
+    .forEach(id => attachCalcInput($(id)));
   attachMoneyInput($('param-comida-monto'));
 
   $('param-asistencia').addEventListener('blur', saveParams);

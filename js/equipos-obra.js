@@ -189,6 +189,8 @@ async function loadAll() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  ['param-interes', 'param-reparaciones', 'param-lubricantes', 'param-combustible']
+    .forEach(id => attachCalcInput($(id)));
   attachMoneyInput($('param-combustible'));
   ['param-interes', 'param-reparaciones', 'param-lubricantes', 'param-combustible']
     .forEach(id => $(id).addEventListener('blur', saveParams));
