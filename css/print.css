@@ -154,11 +154,18 @@
    exportar.html) porque no hay un tamaño que sirva siempre: un plan con pocos
    ítems/períodos entra cómodo en A4, uno grande necesita A3 o A2 para que el
    pie (importes completos en pesos, no en miles) no se corte. Cada tamaño
-   tiene su propia cantidad de períodos por hoja en PERIODOS_POR_HOJA_TAMANO
-   (js/exportar.js) — más chica la hoja, menos períodos entran por bloque. */
-@page apaisada-a4 { size: A4 landscape; margin: 10mm 12mm 12mm; }
-@page apaisada-a3 { size: A3 landscape; margin: 10mm 12mm 12mm; }
-@page apaisada-a2 { size: A2 landscape; margin: 10mm 12mm 12mm; }
+   tiene su propia cantidad de períodos por hoja en HOJA_TAMANOS
+   (js/exportar.js) — más chica la hoja, menos períodos entran por bloque.
+
+   El tamaño va en milímetros explícitos (ancho alto), no con la palabra
+   clave "A2": Chrome no la reconoce como tamaño de página válido y, al
+   fallar silenciosamente, imprime con el tamaño por defecto del sistema
+   (vertical, chico) en vez de A2 apaisada. Con dimensiones explícitas
+   funciona igual para los tres tamaños y no depende de qué nombres soporte
+   cada navegador. */
+@page apaisada-a4 { size: 297mm 210mm; margin: 10mm 12mm 12mm; }
+@page apaisada-a3 { size: 420mm 297mm; margin: 10mm 12mm 12mm; }
+@page apaisada-a2 { size: 594mm 420mm; margin: 10mm 12mm 12mm; }
 .doc-seccion-apaisada-a4 { page: apaisada-a4; }
 .doc-seccion-apaisada-a3 { page: apaisada-a3; }
 .doc-seccion-apaisada-a2 { page: apaisada-a2; }
@@ -180,6 +187,18 @@
 .doc-seccion-apaisada-a4 { width: 273mm; }
 .doc-seccion-apaisada-a3 { width: 396mm; }
 .doc-seccion-apaisada-a2 { width: 570mm; }
+
+/* "Ajustar a una hoja" (checkbox junto al tamaño, en exportar.html): en vez
+   de repartir el ancho fijo de la hoja entre todos los períodos — que los
+   achica hasta ilegibles si hay muchos —, la tabla arma un solo bloque con
+   todos los períodos en su ancho natural y prolijo (columnas de período con
+   15mm fijos, ver bloquePlanTrabajos en js/exportar.js) y después se escala
+   entera con `zoom` (ajustarPlanAUnaHoja) para entrar en una sola página del
+   tamaño elegido. Por eso acá se le saca el ancho fijo a la sección: si se
+   la dejara en 396mm, el propio layout la comprimiría antes de poder medir
+   cuánto mide "de verdad" sin apretarse. */
+.doc-seccion-apaisada.doc-plan-ajustar { width: max-content; }
+.doc-tabla-plan-ajustar { table-layout: auto; width: auto; }
 
 .doc-plan-bloque + .doc-plan-bloque { break-before: page; margin-top: 6mm; }
 .doc-plan-rango { font-size: 8pt; font-weight: 700; color: var(--primary-dark); margin-bottom: 1.5mm; }
@@ -250,6 +269,24 @@
 .exportar-check input { width: 16px; height: 16px; cursor: pointer; }
 #export-notas { font-family: inherit; }
 .exportar-acciones { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+
+/* Tamaño de hoja del Plan de trabajos: discreto, sólo aparece pegado a su
+   checkbox cuando la sección está tildada (renderSecciones en exportar.js) —
+   no tiene sentido elegir hoja para una sección que no va en el documento. */
+.exportar-item { display: inline-flex; align-items: center; }
+.exportar-hoja { display: inline-flex; align-items: center; gap: .35rem; margin-left: .6rem; }
+.hoja-segmented { display: inline-flex; border: 1.5px solid var(--gray-300); border-radius: 999px; overflow: hidden; }
+.hoja-btn {
+  border: none; background: none; padding: .2rem .55rem; font-size: .72rem; font-weight: 600;
+  color: var(--gray-500); cursor: pointer;
+}
+.hoja-btn + .hoja-btn { border-left: 1.5px solid var(--gray-300); }
+.hoja-btn.active { background: var(--primary); color: var(--white); }
+.hoja-ajustar-btn {
+  border: 1.5px solid var(--gray-300); border-radius: 999px; background: var(--white);
+  padding: .2rem .55rem; font-size: .72rem; font-weight: 600; color: var(--gray-500); cursor: pointer;
+}
+.hoja-ajustar-btn.active { background: var(--gray-700); color: var(--white); border-color: var(--gray-700); }
 
 /* ===== Impresión ===== */
 

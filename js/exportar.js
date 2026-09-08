@@ -59,17 +59,24 @@ function seccionesDisponibles() {
 // Períodos por hoja en el Plan de trabajos: el cronograma se corta en bloques
 // y cada uno repite las columnas fijas (ítem, cantidad, precio), igual que las
 // tres áreas de impresión de la planilla de referencia. La hoja "apaisada" es
-// elegible (A4/A3/A2, ver css/print.css y el select en exportar.html) porque
-// no hay un tamaño que sirva siempre — un plan chico entra cómodo en A4, uno
-// grande necesita más hoja para que el pie (importes completos en pesos, no
-// en miles) no se corte. Cada tamaño deja ~30-32 mm por columna de período,
-// suficiente para que "$ 772.197.031,78" entre en una sola línea.
-const PERIODOS_POR_HOJA_TAMANO = { A4: 4, A3: 8, A2: 13 };
-const hojaPlanElegida = () => (PERIODOS_POR_HOJA_TAMANO[config.hojaPlan] ? config.hojaPlan : 'A3');
-const periodosPorHoja = () => PERIODOS_POR_HOJA_TAMANO[hojaPlanElegida()];
+// elegible (botones A4/A3/A2 junto al checkbox de la sección, en
+// renderSecciones) porque no hay un tamaño que sirva siempre — un plan chico
+// entra cómodo en A4, uno grande necesita más hoja para que el pie (importes
+// completos en pesos, no en miles) no se corte. Cada tamaño deja ~30-32 mm
+// por columna de período, suficiente para que "$ 772.197.031,78" entre en
+// una sola línea. anchoMm/altoMm son el área útil de esa hoja (lado largo y
+// corto de la hoja apaisada, menos los 2×12mm / 10+12mm de margen de
+// css/print.css) — los usa ajustarPlanAUnaHoja para calcular el zoom.
+const HOJA_TAMANOS = {
+  A4: { periodos: 4,  anchoMm: 273, altoMm: 188 },
+  A3: { periodos: 8,  anchoMm: 396, altoMm: 275 },
+  A2: { periodos: 13, anchoMm: 570, altoMm: 398 },
+};
+const hojaPlanElegida = () => (HOJA_TAMANOS[config.hojaPlan] ? config.hojaPlan : 'A3');
+const periodosPorHoja = () => HOJA_TAMANOS[hojaPlanElegida()].periodos;
 
 let modelo = null;
-let config = { notas: null, hojaPlan: 'A3' };
+let config = { notas: null, hojaPlan: 'A3', hojaPlanAjustar: false };
 let incluidas = {};   // { seccionId: bool }
 
 /* ===== Formato del documento =====
@@ -538,11 +545,16 @@ function verFilasPlanExport() {
 const verFilasPlan = verFilasPlanExport();
 
 // Un bloque del cronograma: las columnas fijas + los períodos [desde, hasta).
-function bloquePlanTrabajos(desde, hasta) {
+// `ajustar` es el modo "Ajustar a una hoja": un solo bloque con todos los
+// períodos, en su ancho natural (sin repartir el ancho fijo de la hoja entre
+// columnas cada vez más angostas) — después ajustarPlanAUnaHoja() lo achica
+// entero con zoom para que entre en una sola página.
+function bloquePlanTrabajos(desde, hasta, ajustar) {
   const ths = [];
   for (let i = desde; i < hasta; i++) {
     const { nro, fecha } = etiquetaPeriodoDoc(i);
-    ths.push(`<th class="doc-plan-periodo">${nro}${fecha ? `<span class="doc-plan-fecha">${fecha}</span>` : ''}</th>`);
+    const w = ajustar ? ' style="width:15mm;"' : '';
+    ths.push(`<th class="doc-plan-periodo"${w}>${nro}${fecha ? `<span class="doc-plan-fecha">${fecha}</span>` : ''}</th>`);
   }
 
   const filas = plan.gruposRubro.map(g => {
@@ -624,7 +636,7 @@ function bloquePlanTrabajos(desde, hasta) {
     </tr>`;
 
   return `
-    <table class="doc-tabla doc-tabla-plan">
+    <table class="doc-tabla doc-tabla-plan${ajustar ? ' doc-tabla-plan-ajustar' : ''}">
       <thead>
         <tr>
           <th style="width:11mm;">Ítem</th>
@@ -659,14 +671,15 @@ const hayPlanCargado = () => !!plan && plan.acumPct.some(v => v > 0);
 function seccionPlanTrabajos() {
   if (!hayPlanCargado()) return `${membrete('Plan de trabajos')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
   const unidad = window.nombreUnidadPlan(planConfig).toLowerCase();
-  const porHoja = periodosPorHoja();
+  const ajustar = !!config.hojaPlanAjustar;
+  const porHoja = ajustar ? plan.n : periodosPorHoja();
   const bloques = [];
   for (let desde = 0; desde < plan.n; desde += porHoja) {
     const hasta = Math.min(desde + porHoja, plan.n);
     const rotulo = plan.n > porHoja
       ? `<p class="doc-plan-rango">${escHtml(unidadPlural().replace(/^./, c => c.toUpperCase()))} ${desde + 1} a ${hasta}</p>`
       : '';
-    bloques.push(`<div class="doc-plan-bloque">${rotulo}${bloquePlanTrabajos(desde, hasta)}</div>`);
+    bloques.push(`<div class="doc-plan-bloque">${rotulo}${bloquePlanTrabajos(desde, hasta, ajustar)}</div>`);
   }
   return `
     ${membrete('Plan de trabajos — cronograma de avance e inversiones')}
@@ -889,26 +902,97 @@ function renderDocumento() {
   doc.innerHTML = seccionesDisponibles()
     .map(s => {
       const clases = ['doc-seccion'];
-      if (s.apaisada) clases.push('doc-seccion-apaisada', `doc-seccion-apaisada-${hojaPlanElegida().toLowerCase()}`);
+      if (s.apaisada) {
+        clases.push('doc-seccion-apaisada', `doc-seccion-apaisada-${hojaPlanElegida().toLowerCase()}`);
+        if (s.id === 'plan' && config.hojaPlanAjustar) clases.push('doc-plan-ajustar');
+      }
       if (!incluidas[s.id]) clases.push('oculta');
       return `<section class="${clases.join(' ')}" data-seccion="${s.id}">${incluidas[s.id] ? s.render() : ''}</section>`;
     })
     .join('');
+  ajustarPlanAUnaHoja();
+}
+
+// "Ajustar a una hoja": el cronograma se armó (seccionPlanTrabajos) como un
+// único bloque con todos los períodos, en su ancho natural — más ancho y más
+// alto que la hoja elegida si hay muchos ítems o períodos. Acá se mide ese
+// bloque ya renderizado y se lo achica entero con `zoom` (a diferencia de
+// `transform: scale`, sí reduce el lugar que ocupa en el flujo/paginado) hasta
+// que entra en el área útil de la hoja, sin agrandar si ya entraba justo.
+function ajustarPlanAUnaHoja() {
+  const PX_POR_MM = 96 / 25.4;   // conversión física fija de CSS, no depende del DPI de pantalla
+  const seccion = document.querySelector('.doc-seccion[data-seccion="plan"]');
+  if (!seccion || !incluidas.plan || !config.hojaPlanAjustar) return;
+  const bloque = seccion.querySelector('.doc-plan-bloque');
+  if (!bloque) return;
+
+  bloque.style.zoom = 1;
+  const dims = HOJA_TAMANOS[hojaPlanElegida()];
+  const anchoDisponiblePx = dims.anchoMm * PX_POR_MM;
+  const altoPrevios = Array.from(seccion.children)
+    .filter(el => el !== bloque)
+    .reduce((a, el) => a + el.offsetHeight, 0);
+  const altoDisponiblePx = dims.altoMm * PX_POR_MM - altoPrevios;
+
+  const escalaX = anchoDisponiblePx / bloque.scrollWidth;
+  const escalaY = altoDisponiblePx / bloque.scrollHeight;
+  const escala = Math.min(1, escalaX, escalaY);
+  bloque.style.zoom = escala > 0 && isFinite(escala) ? escala : 1;
+}
+
+// El Plan de trabajos es la única sección con hoja elegible: al lado de su
+// checkbox (y sólo si está tildado) van, discretos, el tamaño de hoja
+// (A4/A3/A2) y el ajuste a una sola hoja — no tiene sentido mostrarlos si la
+// sección no va en el documento.
+function controlesHojaPlan() {
+  const elegida = hojaPlanElegida();
+  const botonesTam = Object.keys(HOJA_TAMANOS).map(t =>
+    `<button type="button" class="hoja-btn${t === elegida ? ' active' : ''}" data-tam="${t}">${t}</button>`
+  ).join('');
+  return `
+    <span class="exportar-hoja" title="Tamaño de hoja del cronograma">
+      <span class="hoja-segmented">${botonesTam}</span>
+      <button type="button" class="hoja-ajustar-btn${config.hojaPlanAjustar ? ' active' : ''}" title="Ajustar todo a una sola hoja, achicando proporcionalmente">⤢ 1 hoja</button>
+    </span>`;
 }
 
 function renderSecciones() {
   $('exportar-secciones').innerHTML = seccionesDisponibles().map(s => `
-    <label class="exportar-check">
-      <input type="checkbox" data-seccion="${s.id}" ${incluidas[s.id] ? 'checked' : ''}>
-      <span>${escHtml(s.label)}</span>
-    </label>`).join('');
+    <span class="exportar-item">
+      <label class="exportar-check">
+        <input type="checkbox" data-seccion="${s.id}" ${incluidas[s.id] ? 'checked' : ''}>
+        <span>${escHtml(s.label)}</span>
+      </label>
+      ${s.id === 'plan' && incluidas[s.id] ? controlesHojaPlan() : ''}
+    </span>`).join('');
 
   $('exportar-secciones').querySelectorAll('input[type="checkbox"]').forEach(chk => {
     chk.addEventListener('change', () => {
       incluidas[chk.dataset.seccion] = chk.checked;
+      renderSecciones();
       renderDocumento();
     });
   });
+
+  $('exportar-secciones').querySelectorAll('.hoja-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.tam === config.hojaPlan) return;
+      config.hojaPlan = btn.dataset.tam;
+      renderSecciones();
+      renderDocumento();
+      persistConfig({ hojaPlan: config.hojaPlan });
+    });
+  });
+
+  const btnAjustar = $('exportar-secciones').querySelector('.hoja-ajustar-btn');
+  if (btnAjustar) {
+    btnAjustar.addEventListener('click', () => {
+      config.hojaPlanAjustar = !config.hojaPlanAjustar;
+      renderSecciones();
+      renderDocumento();
+      persistConfig({ hojaPlanAjustar: config.hojaPlanAjustar });
+    });
+  }
 }
 
 /* ===== Configuración del documento (se guarda en la obra) ===== */
@@ -937,14 +1021,6 @@ function engancharConfig() {
   }
 
   guardar(notas, 'notas');
-
-  const hojaPlan = $('export-hoja-plan');
-  hojaPlan.value = hojaPlanElegida();
-  hojaPlan.addEventListener('change', () => {
-    config.hojaPlan = hojaPlan.value;
-    renderDocumento();
-    persistConfig({ hojaPlan: hojaPlan.value });
-  });
 }
 
 /* ===== Carga ===== */
@@ -969,7 +1045,7 @@ async function loadAll() {
     plan = window.calcPlanAvance(
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
-  config = { notas: null, hojaPlan: 'A3', ...(exportData || {}) };
+  config = { notas: null, hojaPlan: 'A3', hojaPlanAjustar: false, ...(exportData || {}) };
   SECCIONES.forEach(s => { incluidas[s.id] = !SECCIONES_INTERNAS.includes(s.id); });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;

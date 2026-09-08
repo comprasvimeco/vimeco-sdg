@@ -12,9 +12,12 @@
                     en ese período. La fila tiene que sumar 100%.
      % en Obra    = % en Ítem × incidencia del ítem sobre el total
      Cantidad     = % en Ítem × cantidad de contrato del ítem
-     Monto        = % en Obra × total × (1 − anticipo)   ← neto de anticipo,
-                    mismo criterio que "Certif. $"; sumado entre todos los
-                    ítems de un período da exactamente ese importe
+     Monto        = % en Ítem × precio del ítem   ← mismo criterio que
+                    "Cantidad": si el % en Ítem suma 100% en la obra, el
+                    Monto tiene que sumar exactamente el precio del ítem.
+                    No lleva el descuento del anticipo — eso es sólo de
+                    "Certif. $" (la plata que se le gira al contratista),
+                    no de cuánto ítem se ejecutó.
      Certif. %    = suma de "% en Obra" de todas las filas, por período
      Certif. $    = Certif. % × total × (1 − anticipo)   ← el anticipo ya se
                     cobró al inicio, así que se amortiza sobre cada certificado
@@ -105,7 +108,7 @@
           x.pctItem.push(f);
           x.pctObra.push(f * x.incidencia);
           x.pctCant.push(f * x.cantidad);
-          x.pctMonto.push(f * x.precioTotal * (1 - anticipoFrac));
+          x.pctMonto.push(f * x.precioTotal);
         }
         x.suma = x.pctItem.reduce((a, v) => a + v, 0);
       });
