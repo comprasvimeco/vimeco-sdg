@@ -149,11 +149,19 @@
 
 /* El cronograma es la única sección que sale apaisada: aun cortado en bloques
    de columnas necesita el lado largo de la hoja. Se hace con una página con
-   nombre (@page apaisada) para no voltear el resto del documento. Es A3 (no
-   A4) porque el pie lleva los importes completos en pesos, no en miles: en
-   A4 no entran sin cortarse. */
-@page apaisada { size: A3 landscape; margin: 10mm 12mm 12mm; }
-.doc-seccion-apaisada { page: apaisada; }
+   nombre (@page apaisada-*) para no voltear el resto del documento, que sigue
+   en A4. El tamaño lo elige quien exporta (select "Tamaño de hoja" en
+   exportar.html) porque no hay un tamaño que sirva siempre: un plan con pocos
+   ítems/períodos entra cómodo en A4, uno grande necesita A3 o A2 para que el
+   pie (importes completos en pesos, no en miles) no se corte. Cada tamaño
+   tiene su propia cantidad de períodos por hoja en PERIODOS_POR_HOJA_TAMANO
+   (js/exportar.js) — más chica la hoja, menos períodos entran por bloque. */
+@page apaisada-a4 { size: A4 landscape; margin: 10mm 12mm 12mm; }
+@page apaisada-a3 { size: A3 landscape; margin: 10mm 12mm 12mm; }
+@page apaisada-a2 { size: A2 landscape; margin: 10mm 12mm 12mm; }
+.doc-seccion-apaisada-a4 { page: apaisada-a4; }
+.doc-seccion-apaisada-a3 { page: apaisada-a3; }
+.doc-seccion-apaisada-a2 { page: apaisada-a2; }
 
 /* En la hoja apaisada el alto es el recurso escaso: el membrete va compacto
    para que la tabla del cronograma no se lleve una fila sola a la hoja
@@ -164,11 +172,14 @@
 .doc-seccion-apaisada .doc-titulo { font-size: 10pt; margin-bottom: 1.5mm; }
 .doc-seccion-apaisada .doc-subtitulo { margin: 0 0 2.5mm; font-size: 7.5pt; }
 
-/* En pantalla la vista previa de esa sección se ensancha al útil de una A3
-   apaisada (420 − 2×12 de margen) y desborda la hoja vertical, que scrollea:
-   lleva su propio fondo blanco para que la parte desbordada no quede sobre el
-   fondo de la app. En papel toma el ancho de su propia página. */
-.doc-seccion-apaisada { width: 396mm; background: #fff; }
+/* En pantalla la vista previa de esa sección se ensancha al útil de cada hoja
+   apaisada (lado largo − 2×12mm de margen) y desborda la hoja vertical, que
+   scrollea: lleva su propio fondo blanco para que la parte desbordada no
+   quede sobre el fondo de la app. En papel toma el ancho de su propia página. */
+.doc-seccion-apaisada { background: #fff; }
+.doc-seccion-apaisada-a4 { width: 273mm; }
+.doc-seccion-apaisada-a3 { width: 396mm; }
+.doc-seccion-apaisada-a2 { width: 570mm; }
 
 .doc-plan-bloque + .doc-plan-bloque { break-before: page; margin-top: 6mm; }
 .doc-plan-rango { font-size: 8pt; font-weight: 700; color: var(--primary-dark); margin-bottom: 1.5mm; }
@@ -185,9 +196,15 @@
    fuente en vez de apuntarles por posición, que se rompe apenas se agrega o
    reordena una fila. */
 .doc-tabla-plan tr.doc-fila-monto td { font-size: 6.5pt; }
-/* Filas opcionales "% en Obra" / "Cantidad" / "Monto" de cada ítem — opt-in
-   en la pantalla (checkboxes pa-ver-obra/pa-ver-cant/pa-ver-monto), mismo
-   tratamiento visual que su equivalente pa-fila-sub de la grilla. */
+/* Columna angosta con el nombre de cada fila del bloque de un ítem (igual
+   que la columna H de la hoja Excel). */
+.doc-tabla-plan td.doc-fila-label { font-size: 6.3pt; color: #6b7280; white-space: nowrap; }
+/* "% en Item" es lo único que se carga a mano — sale resaltada arriba del
+   bloque del ítem. Debajo, sólo las opcionales que estén tildadas en pantalla
+   (checkboxes pa-ver-obra/pa-ver-cant/pa-ver-monto), sin repetir los datos
+   fijos del ítem (van con rowspan en la fila de arriba). */
+.doc-tabla-plan tr.doc-fila-pctitem td.doc-fila-label,
+.doc-tabla-plan tr.doc-fila-pctitem td.doc-pctitem-num { font-weight: 700; background: #eef1f5; }
 .doc-tabla-plan tr.doc-fila-sub td { background: #fbfcfd; color: #6b7280; font-style: italic; }
 .doc-plan-periodo { font-size: 6.5pt; }
 .doc-plan-fecha { display: block; font-weight: 400; font-size: 6pt; color: #6b7280; }

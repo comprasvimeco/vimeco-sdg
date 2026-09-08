@@ -59,13 +59,17 @@ function seccionesDisponibles() {
 // Períodos por hoja en el Plan de trabajos: el cronograma se corta en bloques
 // y cada uno repite las columnas fijas (ítem, cantidad, precio), igual que las
 // tres áreas de impresión de la planilla de referencia. La hoja "apaisada" es
-// A3 (ver css/print.css) porque el pie lleva los importes completos en pesos,
-// no en miles — ocho es lo que deja ~32 mm por columna, suficiente para que
-// "$ 772.197.031,78" entre en una sola línea sin achicarse ni cortarse.
-const PERIODOS_POR_HOJA = 8;
+// elegible (A4/A3/A2, ver css/print.css y el select en exportar.html) porque
+// no hay un tamaño que sirva siempre — un plan chico entra cómodo en A4, uno
+// grande necesita más hoja para que el pie (importes completos en pesos, no
+// en miles) no se corte. Cada tamaño deja ~30-32 mm por columna de período,
+// suficiente para que "$ 772.197.031,78" entre en una sola línea.
+const PERIODOS_POR_HOJA_TAMANO = { A4: 4, A3: 8, A2: 13 };
+const hojaPlanElegida = () => (PERIODOS_POR_HOJA_TAMANO[config.hojaPlan] ? config.hojaPlan : 'A3');
+const periodosPorHoja = () => PERIODOS_POR_HOJA_TAMANO[hojaPlanElegida()];
 
 let modelo = null;
-let config = { notas: null };
+let config = { notas: null, hojaPlan: 'A3' };
 let incluidas = {};   // { seccionId: bool }
 
 /* ===== Formato del documento =====
@@ -552,40 +556,44 @@ function bloquePlanTrabajos(desde, hasta) {
         <td colspan="2"></td>
         <td class="doc-num">${docARS(g.precioTotal)}</td>
         <td class="doc-num">${docPct(g.incidencia)}</td>
+        <td></td>
         ${celdasRubro.join('')}
       </tr>`;
 
+    // Cada ítem ocupa un solo bloque de filas, como en la planilla: los datos
+    // fijos (nº, designación, unidad, cantidad, precio, incid.) se escriben
+    // una sola vez con rowspan y "% en Item" — lo único que se carga a mano —
+    // sale resaltado arriba; debajo, sólo las filas opt-in que estén tildadas
+    // en pantalla (checkboxes pa-ver-obra/cant/monto), sin repetir los datos.
     const filasItems = g.lineas.map(x => {
-      const celdas = [];
-      for (let i = desde; i < hasta; i++) celdas.push(`<td class="doc-num">${pctDoc(x.pctItem[i])}</td>`);
+      const celdasItem = [];
+      for (let i = desde; i < hasta; i++) celdasItem.push(`<td class="doc-num doc-pctitem-num">${pctDoc(x.pctItem[i])}</td>`);
+
+      const subFilas = [];
+      if (verFilasPlan.obra) subFilas.push(['% en Obra', i => pctDoc(x.pctObra[i])]);
+      if (verFilasPlan.cant) subFilas.push(['Cantidad', i => cantDoc(x.pctCant[i])]);
+      if (verFilasPlan.monto) subFilas.push(['Monto', i => montoDoc(x.pctMonto[i])]);
+      const rs = subFilas.length ? ` rowspan="${1 + subFilas.length}"` : '';
+
       const principal = `
-        <tr>
-          <td class="doc-centro doc-item">${escHtml(x.numero)}</td>
-          <td>${escHtml(x.linea.nombre || '')}</td>
-          <td class="doc-centro">${escHtml(x.linea.unidad || '')}</td>
-          <td class="doc-num">${docCant(x.cantidad)}</td>
-          <td class="doc-num">${docARS(x.precioTotal)}</td>
-          <td class="doc-num">${docPct(x.incidencia)}</td>
-          ${celdas.join('')}
+        <tr class="doc-fila-pctitem">
+          <td class="doc-centro doc-item"${rs}>${escHtml(x.numero)}</td>
+          <td${rs}>${escHtml(x.linea.nombre || '')}</td>
+          <td class="doc-centro"${rs}>${escHtml(x.linea.unidad || '')}</td>
+          <td class="doc-num"${rs}>${docCant(x.cantidad)}</td>
+          <td class="doc-num"${rs}>${docARS(x.precioTotal)}</td>
+          <td class="doc-num"${rs}>${docPct(x.incidencia)}</td>
+          <td class="doc-centro doc-fila-label">% en Item</td>
+          ${celdasItem.join('')}
         </tr>`;
 
-      const extra = [];
-      if (verFilasPlan.obra) {
+      const extra = subFilas.map(([label, valorDe]) => {
         const c = [];
-        for (let i = desde; i < hasta; i++) c.push(`<td class="doc-num">${pctDoc(x.pctObra[i])}</td>`);
-        extra.push(`<tr class="doc-fila-sub"><td colspan="6">% en Obra</td>${c.join('')}</tr>`);
-      }
-      if (verFilasPlan.cant) {
-        const c = [];
-        for (let i = desde; i < hasta; i++) c.push(`<td class="doc-num">${cantDoc(x.pctCant[i])}</td>`);
-        extra.push(`<tr class="doc-fila-sub"><td colspan="6">Cantidad</td>${c.join('')}</tr>`);
-      }
-      if (verFilasPlan.monto) {
-        const c = [];
-        for (let i = desde; i < hasta; i++) c.push(`<td class="doc-num">${montoDoc(x.pctMonto[i])}</td>`);
-        extra.push(`<tr class="doc-fila-sub"><td colspan="6">Monto</td>${c.join('')}</tr>`);
-      }
-      return principal + extra.join('');
+        for (let i = desde; i < hasta; i++) c.push(`<td class="doc-num">${valorDe(i)}</td>`);
+        return `<tr class="doc-fila-sub"><td class="doc-centro doc-fila-label">${escHtml(label)}</td>${c.join('')}</tr>`;
+      }).join('');
+
+      return principal + extra;
     }).join('');
 
     return filaRubro + filasItems;
@@ -594,7 +602,7 @@ function bloquePlanTrabajos(desde, hasta) {
   const filaPie = (label, valores, formato, clase) => {
     const celdas = [];
     for (let i = desde; i < hasta; i++) celdas.push(`<td class="doc-num">${formato(valores[i])}</td>`);
-    return `<tr class="${clase || ''}"><td colspan="6">${escHtml(label)}</td>${celdas.join('')}</tr>`;
+    return `<tr class="${clase || ''}"><td colspan="7">${escHtml(label)}</td>${celdas.join('')}</tr>`;
   };
 
   // Total y anticipo, en las mismas columnas Precio/Incid. que cada ítem —
@@ -606,13 +614,13 @@ function bloquePlanTrabajos(desde, hasta) {
       <td colspan="4">Total del presupuesto</td>
       <td class="doc-num">${docARS(plan.total)}</td>
       <td class="doc-num">${docPct(1)}</td>
-      <td colspan="${nPeriodos}"></td>
+      <td colspan="${nPeriodos + 1}"></td>
     </tr>`;
   const filaAnticipo = `
     <tr class="doc-fila-subtotal">
       <td colspan="4">Anticipo financiero (${docPct(plan.anticipoFrac)})</td>
       <td class="doc-num">${docARS(plan.anticipoMonto)}</td>
-      <td colspan="${nPeriodos + 1}"></td>
+      <td colspan="${nPeriodos + 2}"></td>
     </tr>`;
 
   return `
@@ -625,11 +633,12 @@ function bloquePlanTrabajos(desde, hasta) {
           <th style="width:16mm;">Cant.</th>
           <th style="width:28mm;">Precio</th>
           <th style="width:14mm;">Incid.</th>
+          <th style="width:14mm;"></th>
           ${ths.join('')}
         </tr>
       </thead>
       <tbody>
-        ${filas || '<tr><td colspan="6" class="doc-centro">Sin ítems en el Cómputo.</td></tr>'}
+        ${filas || '<tr><td colspan="7" class="doc-centro">Sin ítems en el Cómputo.</td></tr>'}
         ${filaTotalPrecio}
         ${filaAnticipo}
         ${filaPie('Certificación parcial %', plan.parcialPct, v => docPct(v), 'doc-fila-subtotal')}
@@ -650,10 +659,11 @@ const hayPlanCargado = () => !!plan && plan.acumPct.some(v => v > 0);
 function seccionPlanTrabajos() {
   if (!hayPlanCargado()) return `${membrete('Plan de trabajos')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
   const unidad = window.nombreUnidadPlan(planConfig).toLowerCase();
+  const porHoja = periodosPorHoja();
   const bloques = [];
-  for (let desde = 0; desde < plan.n; desde += PERIODOS_POR_HOJA) {
-    const hasta = Math.min(desde + PERIODOS_POR_HOJA, plan.n);
-    const rotulo = plan.n > PERIODOS_POR_HOJA
+  for (let desde = 0; desde < plan.n; desde += porHoja) {
+    const hasta = Math.min(desde + porHoja, plan.n);
+    const rotulo = plan.n > porHoja
       ? `<p class="doc-plan-rango">${escHtml(unidadPlural().replace(/^./, c => c.toUpperCase()))} ${desde + 1} a ${hasta}</p>`
       : '';
     bloques.push(`<div class="doc-plan-bloque">${rotulo}${bloquePlanTrabajos(desde, hasta)}</div>`);
@@ -879,7 +889,7 @@ function renderDocumento() {
   doc.innerHTML = seccionesDisponibles()
     .map(s => {
       const clases = ['doc-seccion'];
-      if (s.apaisada) clases.push('doc-seccion-apaisada');
+      if (s.apaisada) clases.push('doc-seccion-apaisada', `doc-seccion-apaisada-${hojaPlanElegida().toLowerCase()}`);
       if (!incluidas[s.id]) clases.push('oculta');
       return `<section class="${clases.join(' ')}" data-seccion="${s.id}">${incluidas[s.id] ? s.render() : ''}</section>`;
     })
@@ -927,6 +937,14 @@ function engancharConfig() {
   }
 
   guardar(notas, 'notas');
+
+  const hojaPlan = $('export-hoja-plan');
+  hojaPlan.value = hojaPlanElegida();
+  hojaPlan.addEventListener('change', () => {
+    config.hojaPlan = hojaPlan.value;
+    renderDocumento();
+    persistConfig({ hojaPlan: hojaPlan.value });
+  });
 }
 
 /* ===== Carga ===== */
@@ -951,7 +969,7 @@ async function loadAll() {
     plan = window.calcPlanAvance(
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
-  config = { notas: null, ...(exportData || {}) };
+  config = { notas: null, hojaPlan: 'A3', ...(exportData || {}) };
   SECCIONES.forEach(s => { incluidas[s.id] = !SECCIONES_INTERNAS.includes(s.id); });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
