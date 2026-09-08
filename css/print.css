@@ -147,46 +147,56 @@
 
 /* ===== Plan de trabajos ===== */
 
-/* El cronograma es la única sección que sale apaisada: aun cortado en bloques
-   de columnas necesita el lado largo de la hoja. Se hace con una página con
-   nombre (@page apaisada-*) para no voltear el resto del documento, que sigue
-   en A4. El tamaño lo elige quien exporta (select "Tamaño de hoja" en
-   exportar.html) porque no hay un tamaño que sirva siempre: un plan con pocos
-   ítems/períodos entra cómodo en A4, uno grande necesita A3 o A2 para que el
-   pie (importes completos en pesos, no en miles) no se corte. Cada tamaño
-   tiene su propia cantidad de períodos por hoja en HOJA_TAMANOS
-   (js/exportar.js) — más chica la hoja, menos períodos entran por bloque.
+/* El cronograma es la única sección con hoja e impresión propias — se hace
+   con páginas con nombre (@page hoja-*) para no voltear ni cambiar el tamaño
+   del resto del documento, que sigue en A4 vertical. Tamaño (A4/A3/A2) y
+   orientación (horizontal/vertical) los elige quien exporta (botones junto
+   al checkbox de la sección, en exportar.html) porque no hay una combinación
+   que sirva siempre: un plan con pocos ítems/períodos entra cómodo en A4, uno
+   grande necesita A3 o A2 apaisada para que el pie (importes completos en
+   pesos, no en miles) no se corte, y vertical achica mucho el ancho para
+   períodos (conviene combinarlo con "Ajustar a una hoja"). Cada combinación
+   tiene su propia cantidad de períodos por bloque en HOJA_TAMANOS
+   (js/exportar.js) — más angosta la hoja, menos períodos entran.
 
    El tamaño va en milímetros explícitos (ancho alto), no con la palabra
    clave "A2": Chrome no la reconoce como tamaño de página válido y, al
    fallar silenciosamente, imprime con el tamaño por defecto del sistema
-   (vertical, chico) en vez de A2 apaisada. Con dimensiones explícitas
-   funciona igual para los tres tamaños y no depende de qué nombres soporte
-   cada navegador. */
-@page apaisada-a4 { size: 297mm 210mm; margin: 10mm 12mm 12mm; }
-@page apaisada-a3 { size: 420mm 297mm; margin: 10mm 12mm 12mm; }
-@page apaisada-a2 { size: 594mm 420mm; margin: 10mm 12mm 12mm; }
-.doc-seccion-apaisada-a4 { page: apaisada-a4; }
-.doc-seccion-apaisada-a3 { page: apaisada-a3; }
-.doc-seccion-apaisada-a2 { page: apaisada-a2; }
+   (vertical, chico) en vez de A2. Con dimensiones explícitas funciona igual
+   para los tres tamaños y no depende de qué nombres soporte cada navegador. */
+@page hoja-a4-h { size: 297mm 210mm; margin: 10mm 12mm 12mm; }
+@page hoja-a4-v { size: 210mm 297mm; margin: 10mm 12mm 12mm; }
+@page hoja-a3-h { size: 420mm 297mm; margin: 10mm 12mm 12mm; }
+@page hoja-a3-v { size: 297mm 420mm; margin: 10mm 12mm 12mm; }
+@page hoja-a2-h { size: 594mm 420mm; margin: 10mm 12mm 12mm; }
+@page hoja-a2-v { size: 420mm 594mm; margin: 10mm 12mm 12mm; }
+.doc-seccion-hoja-a4-h { page: hoja-a4-h; }
+.doc-seccion-hoja-a4-v { page: hoja-a4-v; }
+.doc-seccion-hoja-a3-h { page: hoja-a3-h; }
+.doc-seccion-hoja-a3-v { page: hoja-a3-v; }
+.doc-seccion-hoja-a2-h { page: hoja-a2-h; }
+.doc-seccion-hoja-a2-v { page: hoja-a2-v; }
 
-/* En la hoja apaisada el alto es el recurso escaso: el membrete va compacto
-   para que la tabla del cronograma no se lleve una fila sola a la hoja
-   siguiente. */
+/* En esta hoja el alto es el recurso escaso: el membrete va compacto para que
+   la tabla del cronograma no se lleve una fila sola a la hoja siguiente. */
 .doc-seccion-apaisada .doc-membrete { padding-bottom: 2mm; margin-bottom: 2.5mm; }
 .doc-seccion-apaisada .doc-membrete-datos { font-size: 7pt; }
 .doc-seccion-apaisada .doc-membrete-logo { width: 34mm; }
 .doc-seccion-apaisada .doc-titulo { font-size: 10pt; margin-bottom: 1.5mm; }
 .doc-seccion-apaisada .doc-subtitulo { margin: 0 0 2.5mm; font-size: 7.5pt; }
 
-/* En pantalla la vista previa de esa sección se ensancha al útil de cada hoja
-   apaisada (lado largo − 2×12mm de margen) y desborda la hoja vertical, que
-   scrollea: lleva su propio fondo blanco para que la parte desbordada no
-   quede sobre el fondo de la app. En papel toma el ancho de su propia página. */
+/* En pantalla la vista previa de esa sección se ensancha al útil de la hoja
+   elegida (el lado que sea "ancho" según la orientación, − 2×12mm de margen)
+   y desborda la hoja vertical de la app, que scrollea: lleva su propio fondo
+   blanco para que la parte desbordada no quede sobre el fondo de la app. En
+   papel toma el ancho de su propia página. */
 .doc-seccion-apaisada { background: #fff; }
-.doc-seccion-apaisada-a4 { width: 273mm; }
-.doc-seccion-apaisada-a3 { width: 396mm; }
-.doc-seccion-apaisada-a2 { width: 570mm; }
+.doc-seccion-hoja-a4-h { width: 273mm; }
+.doc-seccion-hoja-a4-v { width: 186mm; }
+.doc-seccion-hoja-a3-h { width: 396mm; }
+.doc-seccion-hoja-a3-v { width: 273mm; }
+.doc-seccion-hoja-a2-h { width: 570mm; }
+.doc-seccion-hoja-a2-v { width: 396mm; }
 
 /* "Ajustar a una hoja" (checkbox junto al tamaño, en exportar.html): en vez
    de repartir el ancho fijo de la hoja entre todos los períodos — que los

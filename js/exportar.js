@@ -56,27 +56,51 @@ function seccionesDisponibles() {
   });
 }
 
-// Períodos por hoja en el Plan de trabajos: el cronograma se corta en bloques
-// y cada uno repite las columnas fijas (ítem, cantidad, precio), igual que las
-// tres áreas de impresión de la planilla de referencia. La hoja "apaisada" es
-// elegible (botones A4/A3/A2 junto al checkbox de la sección, en
-// renderSecciones) porque no hay un tamaño que sirva siempre — un plan chico
-// entra cómodo en A4, uno grande necesita más hoja para que el pie (importes
-// completos en pesos, no en miles) no se corte. Cada tamaño deja ~30-32 mm
-// por columna de período, suficiente para que "$ 772.197.031,78" entre en
-// una sola línea. anchoMm/altoMm son el área útil de esa hoja (lado largo y
-// corto de la hoja apaisada, menos los 2×12mm / 10+12mm de margen de
-// css/print.css) — los usa ajustarPlanAUnaHoja para calcular el zoom.
+// Tamaño y orientación de hoja del Plan de trabajos: el cronograma se corta
+// en bloques y cada uno repite las columnas fijas (ítem, cantidad, precio),
+// igual que las tres áreas de impresión de la planilla de referencia. Los dos
+// se eligen con los botones junto al checkbox de la sección (renderSecciones)
+// porque no hay una combinación que sirva siempre — un plan chico entra
+// cómodo en A4, uno grande necesita más hoja para que el pie (importes
+// completos en pesos, no en miles) no se corte, y vertical sólo tiene sentido
+// con pocos períodos o junto con "Ajustar a una hoja".
+//
+// ladoLargoMm/ladoCortoMm son los dos lados de la hoja (A4 = 297×210, etc.);
+// cuál es "ancho" y cuál "alto" depende de la orientación. periodosH/V son la
+// cantidad de períodos por bloque en cada orientación — apuntan a dejar
+// ~30-32 mm por columna, suficiente para que "$ 772.197.031,78" entre en una
+// sola línea (con tan poco ancho disponible en vertical, A4-V da apenas 1: es
+// una combinación posible pero angosta, para plegar con "Ajustar a una
+// hoja"). MARGEN_LR_MM/MARGEN_TB_MM son los márgenes de css/print.css.
 const HOJA_TAMANOS = {
-  A4: { periodos: 4,  anchoMm: 273, altoMm: 188 },
-  A3: { periodos: 8,  anchoMm: 396, altoMm: 275 },
-  A2: { periodos: 13, anchoMm: 570, altoMm: 398 },
+  A4: { ladoLargoMm: 297, ladoCortoMm: 210, periodosH: 4,  periodosV: 1 },
+  A3: { ladoLargoMm: 420, ladoCortoMm: 297, periodosH: 8,  periodosV: 4 },
+  A2: { ladoLargoMm: 594, ladoCortoMm: 420, periodosH: 13, periodosV: 8 },
 };
+const MARGEN_LR_MM = 12 + 12;
+const MARGEN_TB_MM = 10 + 12;
+
 const hojaPlanElegida = () => (HOJA_TAMANOS[config.hojaPlan] ? config.hojaPlan : 'A3');
-const periodosPorHoja = () => HOJA_TAMANOS[hojaPlanElegida()].periodos;
+const hojaPlanOrientacionElegida = () => (config.hojaPlanOrientacion === 'vertical' ? 'vertical' : 'horizontal');
+
+// Medidas de la combinación tamaño+orientación actual: ancho/alto de hoja,
+// área útil (para el zoom de "Ajustar a una hoja") y períodos por bloque.
+function dimsHojaPlan() {
+  const t = HOJA_TAMANOS[hojaPlanElegida()];
+  const horizontal = hojaPlanOrientacionElegida() === 'horizontal';
+  const anchoMm = horizontal ? t.ladoLargoMm : t.ladoCortoMm;
+  const altoMm = horizontal ? t.ladoCortoMm : t.ladoLargoMm;
+  return {
+    anchoMm, altoMm,
+    anchoUtilMm: anchoMm - MARGEN_LR_MM,
+    altoUtilMm: altoMm - MARGEN_TB_MM,
+    periodos: horizontal ? t.periodosH : t.periodosV,
+  };
+}
+const periodosPorHoja = () => dimsHojaPlan().periodos;
 
 let modelo = null;
-let config = { notas: null, hojaPlan: 'A3', hojaPlanAjustar: false };
+let config = { notas: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false };
 let incluidas = {};   // { seccionId: bool }
 
 /* ===== Formato del documento =====
@@ -903,7 +927,8 @@ function renderDocumento() {
     .map(s => {
       const clases = ['doc-seccion'];
       if (s.apaisada) {
-        clases.push('doc-seccion-apaisada', `doc-seccion-apaisada-${hojaPlanElegida().toLowerCase()}`);
+        const orientCorta = hojaPlanOrientacionElegida() === 'vertical' ? 'v' : 'h';
+        clases.push('doc-seccion-apaisada', `doc-seccion-hoja-${hojaPlanElegida().toLowerCase()}-${orientCorta}`);
         if (s.id === 'plan' && config.hojaPlanAjustar) clases.push('doc-plan-ajustar');
       }
       if (!incluidas[s.id]) clases.push('oculta');
@@ -921,18 +946,24 @@ function renderDocumento() {
 // que entra en el área útil de la hoja, sin agrandar si ya entraba justo.
 function ajustarPlanAUnaHoja() {
   const PX_POR_MM = 96 / 25.4;   // conversión física fija de CSS, no depende del DPI de pantalla
+  // Colchón contra redondeos entre esta medición en pantalla y la paginación
+  // real de Chrome al imprimir — sin esto, un plan que mide justo-justo puede
+  // igual desbordar dos o tres filas del pie a una segunda hoja.
+  const MARGEN_SEGURIDAD_MM = 4;
   const seccion = document.querySelector('.doc-seccion[data-seccion="plan"]');
   if (!seccion || !incluidas.plan || !config.hojaPlanAjustar) return;
   const bloque = seccion.querySelector('.doc-plan-bloque');
   if (!bloque) return;
 
   bloque.style.zoom = 1;
-  const dims = HOJA_TAMANOS[hojaPlanElegida()];
-  const anchoDisponiblePx = dims.anchoMm * PX_POR_MM;
-  const altoPrevios = Array.from(seccion.children)
-    .filter(el => el !== bloque)
-    .reduce((a, el) => a + el.offsetHeight, 0);
-  const altoDisponiblePx = dims.altoMm * PX_POR_MM - altoPrevios;
+  const dims = dimsHojaPlan();
+  const anchoDisponiblePx = (dims.anchoUtilMm - MARGEN_SEGURIDAD_MM) * PX_POR_MM;
+  // La altura ya ocupada por el membrete/título/subtítulo antes de la tabla:
+  // se mide la posición real del bloque (getBoundingClientRect), no la suma
+  // de offsetHeight de sus hermanos — offsetHeight no incluye los márgenes
+  // entre ellos, y esa diferencia es justamente lo que sobraba en el pie.
+  const altoPreviosPx = bloque.getBoundingClientRect().top - seccion.getBoundingClientRect().top;
+  const altoDisponiblePx = (dims.altoUtilMm - MARGEN_SEGURIDAD_MM) * PX_POR_MM - altoPreviosPx;
 
   const escalaX = anchoDisponiblePx / bloque.scrollWidth;
   const escalaY = altoDisponiblePx / bloque.scrollHeight;
@@ -942,16 +973,21 @@ function ajustarPlanAUnaHoja() {
 
 // El Plan de trabajos es la única sección con hoja elegible: al lado de su
 // checkbox (y sólo si está tildado) van, discretos, el tamaño de hoja
-// (A4/A3/A2) y el ajuste a una sola hoja — no tiene sentido mostrarlos si la
-// sección no va en el documento.
+// (A4/A3/A2), la orientación y el ajuste a una sola hoja — no tiene sentido
+// mostrarlos si la sección no va en el documento.
 function controlesHojaPlan() {
-  const elegida = hojaPlanElegida();
+  const tam = hojaPlanElegida();
+  const orient = hojaPlanOrientacionElegida();
   const botonesTam = Object.keys(HOJA_TAMANOS).map(t =>
-    `<button type="button" class="hoja-btn${t === elegida ? ' active' : ''}" data-tam="${t}">${t}</button>`
+    `<button type="button" class="hoja-btn hoja-tam-btn${t === tam ? ' active' : ''}" data-tam="${t}">${t}</button>`
+  ).join('');
+  const botonesOrient = [['horizontal', '↔', 'Horizontal (apaisada)'], ['vertical', '↕', 'Vertical']].map(([v, icono, titulo]) =>
+    `<button type="button" class="hoja-btn hoja-orient-btn${v === orient ? ' active' : ''}" data-orientacion="${v}" title="${titulo}">${icono}</button>`
   ).join('');
   return `
-    <span class="exportar-hoja" title="Tamaño de hoja del cronograma">
+    <span class="exportar-hoja" title="Tamaño y orientación de hoja del cronograma">
       <span class="hoja-segmented">${botonesTam}</span>
+      <span class="hoja-segmented">${botonesOrient}</span>
       <button type="button" class="hoja-ajustar-btn${config.hojaPlanAjustar ? ' active' : ''}" title="Ajustar todo a una sola hoja, achicando proporcionalmente">⤢ 1 hoja</button>
     </span>`;
 }
@@ -974,13 +1010,23 @@ function renderSecciones() {
     });
   });
 
-  $('exportar-secciones').querySelectorAll('.hoja-btn').forEach(btn => {
+  $('exportar-secciones').querySelectorAll('.hoja-tam-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       if (btn.dataset.tam === config.hojaPlan) return;
       config.hojaPlan = btn.dataset.tam;
       renderSecciones();
       renderDocumento();
       persistConfig({ hojaPlan: config.hojaPlan });
+    });
+  });
+
+  $('exportar-secciones').querySelectorAll('.hoja-orient-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.orientacion === hojaPlanOrientacionElegida()) return;
+      config.hojaPlanOrientacion = btn.dataset.orientacion;
+      renderSecciones();
+      renderDocumento();
+      persistConfig({ hojaPlanOrientacion: config.hojaPlanOrientacion });
     });
   });
 
@@ -1045,7 +1091,7 @@ async function loadAll() {
     plan = window.calcPlanAvance(
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
-  config = { notas: null, hojaPlan: 'A3', hojaPlanAjustar: false, ...(exportData || {}) };
+  config = { notas: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, ...(exportData || {}) };
   SECCIONES.forEach(s => { incluidas[s.id] = !SECCIONES_INTERNAS.includes(s.id); });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
