@@ -35,7 +35,7 @@ const SECCIONES = [
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
   { id: 'gastosfijos', label: 'Gastos fijos de la obra', render: seccionGastosFijos },
   { id: 'equipos',     label: 'Amortización de equipos', render: seccionEquipos },
-  { id: 'insumos',     label: 'Insumos (materiales, equipos, mano de obra)', render: seccionInsumos },
+  { id: 'insumos',     label: 'Insumos', render: seccionInsumos },
 ];
 
 // Secciones internas de la empresa: existen para poder imprimirlas cuando uno
@@ -100,7 +100,7 @@ function dimsHojaPlan() {
 const periodosPorHoja = () => dimsHojaPlan().periodos;
 
 let modelo = null;
-let config = { notas: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false };
+let config = { notas: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false };
 let incluidas = {};   // { seccionId: bool }
 
 /* ===== Formato del documento =====
@@ -484,22 +484,44 @@ function seccionEquipos() {
    del módulo compartido js/insumosDatos.js, para que pantalla y PDF salgan
    iguales. Sirve como base de pedido de compra/acopio, no para el
    comitente. */
-function filaInsumoDoc(f) {
-  const usadosTexto = f.usados.map(u => u.nombre).join(', ');
+// Sin desglose: una fila por insumo, con el total consolidado de toda la
+// obra — para pedir compra/acopio sin entrar en de qué ítem sale cada cantidad.
+function filaInsumoDocSimple(f) {
   return `
     <tr>
       <td>${escHtml(f.nombre)}</td>
       <td class="doc-centro">${escHtml(f.unidad)}</td>
       <td class="doc-num">${docCant(f.cantidad)}</td>
-      <td>${escHtml(usadosTexto)}</td>
       <td class="doc-num">${f.costoTotal != null ? docARS(f.costoTotal) : '—'}</td>
     </tr>`;
+}
+
+// Con desglose: la fila del insumo (total) seguida de una fila por cada ítem
+// en el que se usa, con la cantidad y el costo que le corresponde a ese ítem
+// — mismo costoUnitario del insumo, aplicado a la porción de cada uno.
+function filaInsumoDocDesglose(f) {
+  const principal = `
+    <tr class="doc-fila-subtotal">
+      <td>${escHtml(f.nombre)}</td>
+      <td class="doc-centro">${escHtml(f.unidad)}</td>
+      <td class="doc-num">${docCant(f.cantidad)}</td>
+      <td class="doc-num">${f.costoTotal != null ? docARS(f.costoTotal) : '—'}</td>
+    </tr>`;
+  const usos = f.usados.map(u => `
+    <tr class="doc-fila-sub">
+      <td>${escHtml(u.nombre)}</td>
+      <td></td>
+      <td class="doc-num">${docCant(u.cantidad)}</td>
+      <td class="doc-num">${f.costoUnitario != null ? docARS(f.costoUnitario * u.cantidad) : '—'}</td>
+    </tr>`).join('');
+  return principal + usos;
 }
 
 function tablaInsumos(titulo, colCantidad, resultado, vacio, avisoSinPrecio) {
   if (!resultado.filas.length) {
     return `<h3 class="doc-grafico-titulo">${escHtml(titulo)}</h3><p class="doc-centro">${escHtml(vacio)}</p>`;
   }
+  const filaFn = config.insumosDesglose ? filaInsumoDocDesglose : filaInsumoDocSimple;
   return `
     <h3 class="doc-grafico-titulo">${escHtml(titulo)}</h3>
     <table class="doc-tabla">
@@ -508,13 +530,12 @@ function tablaInsumos(titulo, colCantidad, resultado, vacio, avisoSinPrecio) {
           <th>Denominación</th>
           <th style="width:16mm;">Unidad</th>
           <th style="width:24mm;">${escHtml(colCantidad)}</th>
-          <th>Usado en</th>
           <th style="width:30mm;">Costo estimado</th>
         </tr>
       </thead>
       <tbody>
-        ${resultado.filas.map(filaInsumoDoc).join('')}
-        <tr class="doc-fila-total"><td colspan="4">Total estimado</td><td class="doc-num">${docARS(resultado.costoTotal)}</td></tr>
+        ${resultado.filas.map(filaFn).join('')}
+        <tr class="doc-fila-total"><td colspan="3">Total estimado</td><td class="doc-num">${docARS(resultado.costoTotal)}</td></tr>
       </tbody>
     </table>
     ${resultado.faltaPrecio ? `<p class="doc-notas">${escHtml(avisoSinPrecio)}</p>` : ''}`;
@@ -1019,6 +1040,20 @@ function controlesHojaPlan() {
     </span>`;
 }
 
+// Al lado del checkbox de Insumos (y sólo si está tildado) va el nivel de
+// detalle: sin desglose (una fila por insumo, total de la obra) o con
+// desglose (esa fila más una por cada ítem en el que se usa).
+function controlesInsumos() {
+  const desglose = !!config.insumosDesglose;
+  const botones = [[false, 'Sin desglose'], [true, 'Con desglose']].map(([v, label]) =>
+    `<button type="button" class="hoja-btn insumos-desglose-btn${desglose === v ? ' active' : ''}" data-desglose="${v}">${label}</button>`
+  ).join('');
+  return `
+    <span class="exportar-hoja" title="Nivel de detalle de la tabla de insumos">
+      <span class="hoja-segmented">${botones}</span>
+    </span>`;
+}
+
 function renderSecciones() {
   $('exportar-secciones').innerHTML = seccionesDisponibles().map(s => `
     <span class="exportar-item">
@@ -1027,6 +1062,7 @@ function renderSecciones() {
         <span>${escHtml(s.label)}</span>
       </label>
       ${s.id === 'plan' && incluidas[s.id] ? controlesHojaPlan() : ''}
+      ${s.id === 'insumos' && incluidas[s.id] ? controlesInsumos() : ''}
     </span>`).join('');
 
   $('exportar-secciones').querySelectorAll('input[type="checkbox"]').forEach(chk => {
@@ -1066,6 +1102,17 @@ function renderSecciones() {
       persistConfig({ hojaPlanAjustar: config.hojaPlanAjustar });
     });
   }
+
+  $('exportar-secciones').querySelectorAll('.insumos-desglose-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.desglose === 'true';
+      if (val === !!config.insumosDesglose) return;
+      config.insumosDesglose = val;
+      renderSecciones();
+      renderDocumento();
+      persistConfig({ insumosDesglose: val });
+    });
+  });
 }
 
 /* ===== Configuración del documento (se guarda en la obra) ===== */
@@ -1118,7 +1165,7 @@ async function loadAll() {
     plan = window.calcPlanAvance(
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
-  config = { notas: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, ...(exportData || {}) };
+  config = { notas: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false, ...(exportData || {}) };
   SECCIONES.forEach(s => { incluidas[s.id] = !SECCIONES_INTERNAS.includes(s.id); });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;

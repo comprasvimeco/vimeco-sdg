@@ -107,6 +107,7 @@
   border-color: var(--primary-dark);
 }
 .doc-tabla tr.doc-fila-subtotal td { font-weight: 700; background: #f5f6f8; }
+.doc-tabla tr.doc-fila-sub td { background: #fbfcfd; color: #6b7280; font-style: italic; }
 
 /* ===== Análisis de Precio ===== */
 
@@ -234,7 +235,6 @@
    fijos del ítem (van con rowspan en la fila de arriba). */
 .doc-tabla-plan tr.doc-fila-pctitem td.doc-fila-label,
 .doc-tabla-plan tr.doc-fila-pctitem td.doc-pctitem-num { font-weight: 700; background: #eef1f5; }
-.doc-tabla-plan tr.doc-fila-sub td { background: #fbfcfd; color: #6b7280; font-style: italic; }
 .doc-plan-periodo { font-size: 6.5pt; }
 .doc-plan-fecha { display: block; font-weight: 400; font-size: 6pt; color: #6b7280; }
 
@@ -335,9 +335,9 @@
   .doc-tabla tr.doc-fila-seccion td,
   .doc-tabla tr.doc-fila-total td,
   .doc-tabla tr.doc-fila-subtotal td,
+  .doc-tabla tr.doc-fila-sub td,
   .doc-tabla-plan tr.doc-fila-pctitem td.doc-fila-label,
-  .doc-tabla-plan tr.doc-fila-pctitem td.doc-pctitem-num,
-  .doc-tabla-plan tr.doc-fila-sub td {
+  .doc-tabla-plan tr.doc-fila-pctitem td.doc-pctitem-num {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
