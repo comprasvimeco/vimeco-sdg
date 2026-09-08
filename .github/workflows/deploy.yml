@@ -29,8 +29,6 @@ jobs:
           node-version: '20'
       - name: Build
         run: node build.js
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       # El bump se guarda en el repo por comodidad (el hook de commit lo lee),
       # pero no es lo que se publica: eso sale del working tree, que ya quedó
       # bumpeado por el Build. Por eso este paso NO puede tumbar el deploy —
@@ -39,21 +37,18 @@ jobs:
       # El `continue-on-error` de este paso hace que salga en verde en la
       # lista de runs aunque git pull/push adentro fallen — así se vio "success"
       # en 30+ runs seguidos mientras el push venía siendo rechazado en
-      # silencio (2026-09 al 2026-09-08: app.html se quedó clavado en v105,
-      # cada deploy volvía a bumpear v105→v106 sin avanzar nunca, aunque la
-      # lista de Actions no mostraba ni un solo error). Por eso ahora, si el
-      # pull/push falla, se emite un `::warning::` explícito — sí se ve en el
-      # resumen del run sin tener que entrar a este paso puntual.
+      # silencio. Por eso, si el pull/push falla, se emite un `::warning::`
+      # explícito — sí se ve en el resumen del run sin entrar a este paso.
       #
-      # Causa real encontrada el 2026-09-08 (vía la API de Actions, endpoint
-      # de annotations, sin necesitar gh cli ni token de admin): el checkout
-      # de arriba no tenía `fetch-depth`, así que clonaba shallow (depth 1).
-      # Un `git pull --rebase` sobre un clone shallow falla siempre que el
-      # remoto se movió — y acá siempre se movió, porque el propio Build ya
-      # dejó app.html modificado en el working tree antes de este paso. Se
-      # repitió en 4 runs seguidos (v141→v144) con el mismo warning exacto.
-      # Fix: `fetch-depth: 0` en el checkout. Si el warning vuelve a aparecer
-      # con el checkout ya en fetch-depth: 0, ahí sí revisar Settings →
+      # Causa real encontrada el 2026-09-08 (leyendo el log del paso, no solo
+      # el `::warning::` genérico): el propio Build dejaba `js/config.js`
+      # modificado sin comitear (inyección de GEMINI_API_KEY, ver más abajo),
+      # y `git pull --rebase` se negaba con "cannot pull with rebase: You have
+      # unstaged changes" — nada que ver con el checkout ni con permisos.
+      # Fix: la inyección de la key se corre como paso aparte, DESPUÉS de este
+      # commit, así el working tree queda limpio (igual al commit) cuando
+      # corren git pull/push. Si el warning reaparece habiendo confirmado que
+      # el working tree está limpio acá, recién ahí revisar Settings →
       # Actions → General → "Workflow permissions" (Read and write) y la
       # protección de la rama main (tiene que permitir el push directo de
       # github-actions[bot]).
@@ -75,6 +70,12 @@ jobs:
             echo "::warning::Bump de versión: el push fue rechazado, app.html quedó desactualizado en el repo (el deploy salió igual, ya bumpeado en el artifact). Revisar Workflow permissions y protección de main."
             exit 0
           fi
+      # Recién acá, con el commit del bump ya hecho, se pisa config.js con la
+      # key real — nunca se comitea (placeholder en el repo a propósito).
+      - name: Inject Gemini API key
+        run: node build.js --inject-key
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
