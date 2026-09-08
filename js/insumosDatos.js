@@ -15,8 +15,8 @@
    días-equipo: cantidad del Cómputo × cantidad de la receta ÷ rendimiento.
 
    Mano de obra: mismo criterio que Equipos pero por categoría (rol) — se
-   consolidan días-hombre. No incluye el adicional de Seguridad y Capataz
-   (ese es un ajuste por AP, no por categoría).
+   consolidan días-hombre. El adicional de Seguridad y Capataz (paramsMO) se
+   agrega como una fila más de Mano de Obra, ver calcularCapataz más abajo.
 
    Recibe un objeto con la misma forma que el `modelo` de presupuestoDatos.js
    (o un subconjunto equivalente): { obraKey, catalogos: { items, materiales,
@@ -103,14 +103,20 @@
   }
 
   /* Capatacía (adicional "Seguridad y Capataz" de paramsMO): a diferencia de
-     Materiales/Equipos/Mano de Obra, no es una entidad de la receta — es un %
-     sobre el costo diario de mano de obra de CADA AP, calculado igual que en
+     Materiales/Equipos, no es una entidad de la receta — es un % sobre el
+     costo diario de mano de obra de CADA AP, calculado igual que en
      calcCostoUnitarioItem (calcCostos.js) pero recorriendo el Cómputo para
-     sumar el monto de toda la obra. Devuelve null si el adicional no está
-     activo en esta obra (no tiene sentido mostrar una fila en 0 siempre).
-     Devuelve { pct, costoTotal, usados: [{ nombre, cantidad }] } — acá
-     `cantidad` de cada usado es el monto en pesos que aporta esa línea, para
-     el desglose por ítem. */
+     sumar el monto de toda la obra. Se muestra como una fila más de Mano de
+     Obra (misma tabla, mismo desglose por ítem al hover/toggle — no una
+     categoría aparte). No tiene una cantidad física (kg, día): la fila usa
+     unidad '%' con la cantidad = el % aplicado, y el desglose por ítem
+     (`usados`) guarda directamente el monto en pesos que aporta cada uno en
+     vez de una cantidad × costoUnitario — por eso `usadosMoneda: true`, para
+     que quien pinte la tabla (web y PDF) sepa que ese desglose es plata y no
+     cantidad×unidad como el resto de las filas.
+     Devuelve null si el adicional no está activo en la obra, o si está
+     activo pero ningún AP lo termina aplicando (no tiene sentido una fila
+     en $0 siempre). */
   function calcularCapataz(modelo) {
     const paramsMO = modelo.paramsMO;
     if (!paramsMO.seguridadCapatazActivo) return null;
@@ -140,13 +146,24 @@
       costoTotal += monto;
       usados.push({ nombre: linea.nombre || '(sin nombre)', cantidad: monto });
     });
+    if (!costoTotal) return null;
 
-    return { pct, costoTotal, usados };
+    return {
+      key: 'capataz',
+      nombre: 'Capatacía (Seguridad y Capataz)',
+      unidad: '%',
+      cantidad: pct,
+      costoUnitario: null,
+      costoTotal,
+      usados,
+      usadosMoneda: true,
+    };
   }
 
-  // Devuelve { materiales, equipos, manoDeObra, capataz }, los primeros tres
-  // { filas: [{ key, nombre, unidad, cantidad, costoUnitario, costoTotal, usados }], costoTotal, faltaPrecio },
-  // capataz: null (adicional inactivo en la obra) o { pct, costoTotal, usados }.
+  // Devuelve { materiales, equipos, manoDeObra }, cada uno
+  // { filas: [{ key, nombre, unidad, cantidad, costoUnitario, costoTotal, usados }], costoTotal, faltaPrecio }.
+  // manoDeObra.filas incluye, al final, la fila de Capatacía si el adicional
+  // está activo en la obra y algún AP la termina aplicando (ver calcularCapataz).
   window.calcularInsumosObra = function (modelo) {
     const materiales = armarGrupo(
       consolidar(modelo, 'material', modelo.catalogos.materiales, (linea, rl) => linea.cantidad * rl.cantidad)
@@ -177,7 +194,13 @@
         costoUnitario: g.entidad.basico ? window.calcCostoManoDeObra(g.entidad, modelo.paramsMO).costoJornal : null,
       }));
 
-    return { materiales, equipos, manoDeObra, capataz: calcularCapataz(modelo) };
+    const capataz = calcularCapataz(modelo);
+    if (capataz) {
+      manoDeObra.filas.push(capataz);
+      manoDeObra.costoTotal += capataz.costoTotal;
+    }
+
+    return { materiales, equipos, manoDeObra };
   };
 
 })();

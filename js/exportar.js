@@ -498,7 +498,10 @@ function filaInsumoDocSimple(f) {
 
 // Con desglose: la fila del insumo (total) seguida de una fila por cada ítem
 // en el que se usa, con la cantidad y el costo que le corresponde a ese ítem
-// — mismo costoUnitario del insumo, aplicado a la porción de cada uno.
+// — mismo costoUnitario del insumo, aplicado a la porción de cada uno. Excepción:
+// filas con `usadosMoneda` (la Capatacía dentro de Mano de Obra) no tienen una
+// cantidad física que multiplicar por un costoUnitario — cada `usado` ya trae
+// directamente el monto en pesos que aporta ese ítem.
 function filaInsumoDocDesglose(f) {
   const principal = `
     <tr class="doc-fila-subtotal">
@@ -511,8 +514,8 @@ function filaInsumoDocDesglose(f) {
     <tr class="doc-fila-sub">
       <td>${escHtml(u.nombre)}</td>
       <td></td>
-      <td class="doc-num">${docCant(u.cantidad)}</td>
-      <td class="doc-num">${f.costoUnitario != null ? docARS(f.costoUnitario * u.cantidad) : '—'}</td>
+      <td class="doc-num">${f.usadosMoneda ? '—' : docCant(u.cantidad)}</td>
+      <td class="doc-num">${f.usadosMoneda ? docARS(u.cantidad) : (f.costoUnitario != null ? docARS(f.costoUnitario * u.cantidad) : '—')}</td>
     </tr>`).join('');
   return principal + usos;
 }
@@ -541,34 +544,6 @@ function tablaInsumos(titulo, colCantidad, resultado, vacio, avisoSinPrecio) {
     ${resultado.faltaPrecio ? `<p class="doc-notas">${escHtml(avisoSinPrecio)}</p>` : ''}`;
 }
 
-// Capatacía (adicional "Seguridad y Capataz"): no es una entidad de receta
-// como los otros tres, así que no encaja en tablaInsumos/filaInsumoDoc* (esas
-// asumen que "cantidad" y "costoUnitario" son de la misma naturaleza en la
-// fila principal y en el desglose). Tabla propia, misma estética doc-tabla.
-// `cap` es null cuando el adicional no está activo en la obra — no se pinta nada.
-function tablaCapataz(cap) {
-  if (!cap) return '';
-  const desglose = config.insumosDesglose && cap.usados.length
-    ? `
-    <table class="doc-tabla" style="margin-top:.3rem;">
-      <thead><tr><th>Ítem</th><th style="width:35mm;">Monto</th></tr></thead>
-      <tbody>
-        ${cap.usados.map(u => `
-        <tr class="doc-fila-sub">
-          <td>${escHtml(u.nombre)}</td>
-          <td class="doc-num">${docARS(u.cantidad)}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>` : '';
-  return `
-    <h3 class="doc-grafico-titulo">Capatacía</h3>
-    <table class="doc-tabla">
-      <thead><tr><th>Denominación</th><th style="width:24mm;">% MO</th><th style="width:30mm;">Monto</th></tr></thead>
-      <tbody><tr><td>Capatacía</td><td class="doc-num">${docCant(cap.pct)}%</td><td class="doc-num">${docARS(cap.costoTotal)}</td></tr></tbody>
-    </table>
-    ${desglose}`;
-}
-
 function seccionInsumos() {
   const insumos = window.calcularInsumosObra(modelo);
   return `
@@ -581,8 +556,7 @@ function seccionInsumos() {
       'Algunos equipos no tienen costo calculable en esta obra — no se incluyen en el total estimado.')}
     ${tablaInsumos('Mano de obra necesaria', 'Días necesarios', insumos.manoDeObra,
       'Sin mano de obra para mostrar.',
-      'Algunas categorías no tienen básico cargado en esta obra — no se incluyen en el total estimado.')}
-    ${tablaCapataz(insumos.capataz)}`;
+      'Algunas categorías no tienen básico cargado en esta obra — no se incluyen en el total estimado.')}`;
 }
 
 /* ===== Plan de trabajos y curva de inversión ===== */

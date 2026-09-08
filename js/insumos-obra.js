@@ -46,7 +46,7 @@ function renderTabla(containerId, resumenId, resultado, opts) {
     const costoStr = f.costoTotal != null ? fmtARS(f.costoTotal) : '—';
     const usadosTexto = f.usados.map(u => u.nombre).join(', ');
     const usadosTitle = f.usados
-      .map(u => `${u.nombre}: ${fmtNum(u.cantidad)} ${f.unidad}`)
+      .map(u => f.usadosMoneda ? `${u.nombre}: ${fmtARS(u.cantidad)}` : `${u.nombre}: ${fmtNum(u.cantidad)} ${f.unidad}`)
       .join('\n');
     return `
       <div class="materiales-linea">
@@ -63,28 +63,6 @@ function renderTabla(containerId, resumenId, resultado, opts) {
   resumen.innerHTML = `
     <div class="ap-resumen-row total"><span>${opts.labelTotal}</span><span${calcAttrs(resultado.costoTotal, `${opts.calcNs}:total`, opts.labelTotal)}>${fmtARS(resultado.costoTotal)}</span></div>
     ${resultado.faltaPrecio ? `<p class="form-hint" style="margin-top:.5rem;">${opts.avisoSinPrecio}</p>` : ''}`;
-}
-
-/* Capatacía no es una tabla de entidades (es un único % aplicado sobre toda
-   la obra) — se pinta aparte de renderTabla, con el desglose por ítem como
-   lista en vez de tooltip. `cap` es null cuando el adicional está inactivo
-   en esta obra: la card entera se oculta. */
-function renderCapataz(cap) {
-  const card = $('card-capataz');
-  if (!cap) { card.style.display = 'none'; return; }
-  card.style.display = '';
-
-  const filas = ordenPorCosto
-    ? [...cap.usados].sort((a, b) => b.cantidad - a.cantidad)
-    : cap.usados;
-  const desglose = filas.length
-    ? filas.map(u => `<div class="ap-resumen-row"><span>${escHtml(u.nombre)}</span><span>${fmtARS(u.cantidad)}</span></div>`).join('')
-    : '<p class="text-muted" style="font-size:.85rem;">Todavía no hay ítems con capatacía aplicada.</p>';
-
-  $('resumen-capataz').innerHTML = `
-    <div class="ap-resumen-row"><span>% MO</span><span>${fmtNum(cap.pct)}%</span></div>
-    <div class="ap-resumen-row total"><span>Monto</span><span${calcAttrs(cap.costoTotal, 'capataz:total', 'Capatacía · Monto')}>${fmtARS(cap.costoTotal)}</span></div>
-    <div style="margin-top:.75rem;"><strong style="font-size:.8rem;color:var(--gray-500);">Desglose por ítem</strong>${desglose}</div>`;
 }
 
 function renderTodo() {
@@ -116,8 +94,6 @@ function renderTodo() {
     vacio: 'Todavía no hay mano de obra para mostrar — cargá líneas en el Cómputo vinculadas a un ítem con mano de obra en su receta.',
     avisoSinPrecio: 'Algunas categorías no tienen básico cargado en Mano de Obra de esta obra — no se incluyen en el costo total.',
   });
-
-  renderCapataz(insumos.capataz);
 }
 
 async function loadAll() {
