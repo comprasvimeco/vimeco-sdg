@@ -605,6 +605,9 @@ function duplicarLinea(lineaKey, aux) {
 
 async function deleteLinea(lineaKey, aux) {
   const t = tienda(aux);
+  const linea = t.datos[lineaKey];
+  const ok = await showConfirm('Eliminar ítem', `¿Eliminar "${linea && linea.nombre || '(sin nombre)'}"?`);
+  if (!ok) return;
   delete t.datos[lineaKey];
   renderTodo();
   try {
