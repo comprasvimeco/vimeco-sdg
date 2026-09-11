@@ -970,8 +970,8 @@ function loadMepPrecioFields(mat, obraKey) {
   const p = (mat.precios || {})[obraKey];
   $('mep-precio-usd').value = p ? formatMoneyString(p.precioUSD) : '';
   $('mep-precio-ars').value = p ? formatMoneyString(p.precioARS) : '';
-  setCalcFormula($('mep-precio-usd'), p ? p.precioFormula : null);
-  setCalcFormula($('mep-precio-ars'), null);
+  setCalcFormula($('mep-precio-usd'), p && p.precioFormulaMoneda === 'USD' ? p.precioFormula : null);
+  setCalcFormula($('mep-precio-ars'), p && p.precioFormulaMoneda === 'ARS' ? p.precioFormula : null);
   $('mep-proveedor').value = p ? (p.proveedor || '') : '';
   $('mep-fecha').value = p ? (p.fecha || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
   $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';

@@ -84,8 +84,8 @@ function onFuenteChange(material, obraKey) {
   const p = obraKey && material && material.precios ? material.precios[obraKey] : null;
   $('material-precio-usd').value = p ? formatMoneyString(p.precioUSD) : '';
   $('material-precio-ars').value = p ? formatMoneyString(p.precioARS) : '';
-  setCalcFormula($('material-precio-usd'), p ? p.precioFormula : null);
-  setCalcFormula($('material-precio-ars'), null);
+  setCalcFormula($('material-precio-usd'), p && p.precioFormulaMoneda === 'USD' ? p.precioFormula : null);
+  setCalcFormula($('material-precio-ars'), p && p.precioFormulaMoneda === 'ARS' ? p.precioFormula : null);
   $('material-proveedor').value = p ? (p.proveedor || '') : '';
   $('material-fecha').value = p ? (p.fecha || todayIso()) : todayIso();
   $('material-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
