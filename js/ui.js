@@ -45,12 +45,13 @@ const HEADER_GROUPS = [
   },
   {
     id: 'cyp', label: 'CyP', tabs: [
-      { id: 'computo',     label: 'Cómputo',     href: 'computo.html' },
-      { id: 'carga-fija',  label: 'Carga Fija',  href: 'carga-fija.html' },
-      { id: 'presupuesto', label: 'Presupuesto', href: 'presupuesto.html' },
-      { id: 'plan-avance', label: 'Plan de Avance', href: 'plan-avance.html' },
-      { id: 'insumos',     label: 'Insumos',     href: 'insumos-obra.html' },
-      { id: 'exportar',    label: 'Exportar',    href: 'exportar.html' },
+      { id: 'computo',          label: 'Cómputo',           href: 'computo.html' },
+      { id: 'analisis-precio',  label: 'Análisis de Precio', href: 'item.html' },
+      { id: 'carga-fija',       label: 'Carga Fija',        href: 'carga-fija.html' },
+      { id: 'presupuesto',      label: 'Presupuesto',       href: 'presupuesto.html' },
+      { id: 'plan-avance',      label: 'Plan de Avance',    href: 'plan-avance.html' },
+      { id: 'insumos',          label: 'Insumos',           href: 'insumos-obra.html' },
+      { id: 'exportar',         label: 'Exportar',          href: 'exportar.html' },
     ],
   },
 ];
@@ -64,6 +65,7 @@ window.renderHeaderTabs = function (obraKey, active) {
     el.innerHTML = HEADER_GROUPS.map(g =>
       `<a class="header-tab${g.id === grupo.id ? ' active' : ''}" href="${g.tabs[0].href}${q}">${g.label}</a>`
     ).join('');
+    el.classList.remove('hidden');
   }
 
   const sub = document.getElementById('header-subtabs');
@@ -71,8 +73,39 @@ window.renderHeaderTabs = function (obraKey, active) {
     sub.innerHTML = `<div class="subtabs">${grupo.tabs.map(t =>
       `<a class="subtab${t.id === active ? ' active' : ''}" href="${t.href}${q}">${t.label}</a>`
     ).join('')}</div>`;
+    sub.classList.remove('hidden');
   }
 };
+
+// -- Offsets de las barras fijas (header, sub-pestañas, y en item.html la
+// barra terciaria de A.P.) — se miden en vivo porque en mobile el header
+// cambia de alto según cuánto contenido envuelva, y las sub-pestañas recién
+// tienen contenido después de renderHeaderTabs (fetch de la obra de por
+// medio). CSS los lee como var(--header-h) / var(--subtabs-h) para apilar
+// cada barra sticky justo debajo de la anterior sin pisarse. */
+(function () {
+  const root = document.documentElement;
+  const header = document.querySelector('.app-header');
+  if (!header) return;
+  const subtabs = document.getElementById('header-subtabs');
+
+  function medir(el) {
+    return el && !el.classList.contains('hidden') ? el.offsetHeight : 0;
+  }
+  function actualizar() {
+    root.style.setProperty('--header-h', medir(header) + 'px');
+    root.style.setProperty('--subtabs-h', medir(subtabs) + 'px');
+  }
+  actualizar();
+
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(actualizar);
+    ro.observe(header);
+    if (subtabs) ro.observe(subtabs);
+  } else {
+    window.addEventListener('resize', actualizar);
+  }
+})();
 
 window.showConfirm = function (title, msg) {
   return new Promise(resolve => {

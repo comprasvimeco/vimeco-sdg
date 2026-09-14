@@ -123,10 +123,22 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .header-tab.active { color: var(--white); background: rgba(255,255,255,.18); }
 /* Barra de sub-pestañas: segundo nivel de navegación dentro de la obra
    (ver renderHeaderTabs en js/ui.js). El fondo ocupa todo el ancho; las
-   pastillas se alinean con el contenido de .app-main. */
-.subtabs-bar { background: rgba(255,255,255,.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid rgba(26,58,92,.1); box-shadow: 0 2px 8px -4px rgba(26,58,92,.18); }
+   pastillas se alinean con el contenido de .app-main. Fija debajo del
+   header (--header-h la calcula js/ui.js con ResizeObserver, porque en
+   mobile el header cambia de alto según cuánto contenido envuelva). */
+.subtabs-bar { background: rgba(255,255,255,.7); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid rgba(26,58,92,.1); box-shadow: 0 2px 8px -4px rgba(26,58,92,.18); position: sticky; top: var(--header-h, 60px); z-index: 99; }
 .subtabs { max-width: 1320px; margin: 0 auto; padding: .45rem 1.5rem; display: flex; align-items: center; gap: .2rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
 .subtabs::-webkit-scrollbar { display: none; }
+
+/* Barra terciaria (sólo item.html): números de A.P. de la obra, para saltar
+   directo a cualquiera sin pasar por el Cómputo. Se apila debajo de la
+   barra de sub-pestañas (--subtabs-h, mismo mecanismo de ResizeObserver). */
+.ap-terciario-bar { background: var(--white); border-bottom: 1px solid var(--gray-200); box-shadow: 0 2px 8px -4px rgba(26,58,92,.12); position: sticky; top: calc(var(--header-h, 60px) + var(--subtabs-h, 0px)); z-index: 98; }
+.ap-terciario { max-width: 1320px; margin: 0 auto; padding: .4rem 1.5rem; display: flex; align-items: center; gap: .25rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
+.ap-terciario::-webkit-scrollbar { display: none; }
+.ap-terciario-chip { flex-shrink: 0; font-size: .8rem; font-weight: 600; color: var(--gray-600); text-decoration: none; padding: .25rem .6rem; border-radius: 999px; white-space: nowrap; transition: background .15s, color .15s; }
+.ap-terciario-chip:hover { background: var(--gray-100); color: var(--primary); }
+.ap-terciario-chip.active { background: var(--primary); color: var(--white); }
 .subtab { color: var(--gray-600); font-size: .82rem; font-weight: 600; text-decoration: none; padding: .35rem .8rem; border-radius: 999px; white-space: nowrap; flex-shrink: 0; transition: background .15s, color .15s; }
 .subtab:hover { color: var(--primary); background: rgba(26,58,92,.07); }
 .subtab.active { color: var(--white); background: var(--primary); }
@@ -375,6 +387,8 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
   .header-tab { flex-shrink: 0; font-size: .78rem; padding: .35rem .7rem; }
   .subtabs { padding: .4rem .75rem; }
   .subtab { font-size: .78rem; padding: .3rem .6rem; }
+  .ap-terciario { padding: .35rem .75rem; }
+  .ap-terciario-chip { font-size: .75rem; padding: .22rem .5rem; }
   .header-dolar { font-size: .72rem; padding: .25rem .5rem; }
   .hdr-decimales-valor { font-size: .72rem; }
   .hdr-moneda-btn { font-size: .72rem; padding: .24rem .42rem; }

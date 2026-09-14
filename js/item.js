@@ -19,6 +19,10 @@ const auxParam = params.get('aux');
 const nodoLinea = auxParam ? 'auxiliares' : 'computo';
 const keyLinea = auxParam || lineaParam;
 const modoVincular = !itemKey && !!keyLinea && !!obraParam;
+// Entrada genérica desde el menú ("Análisis de Precio" en las sub-pestañas
+// de la obra, sin venir de una línea puntual del Cómputo): aterriza en el
+// primer A.P. del Cómputo de esa obra — ver irAlPrimerAP().
+const modoDefault = !itemKey && !keyLinea && !!obraParam;
 
 let item = null;
 let versionesObra = {};    // { obraKey: { rendimiento, rendimientoFormula, lineas } }
@@ -185,6 +189,29 @@ async function autoCrearYVincular() {
   }
 }
 
+// Sin línea de origen (se entró desde "Análisis de Precio" del menú): busca
+// el primer A.P. del Cómputo de la obra, en el mismo orden que Cómputo, y
+// redirige ahí — mismo mecanismo de "resolver e ir" que autoCrearYVincular.
+async function irAlPrimerAP() {
+  try {
+    const [computoData, rubrosComputoData, auxiliaresData, obra] = await Promise.all([
+      _fbGet(`/obras/${obraParam}/computo.json`),
+      _fbGet(`/obras/${obraParam}/rubrosComputo.json`),
+      _fbGet(`/obras/${obraParam}/auxiliares.json`),
+      _fbGet(`/obras/${obraParam}.json`),
+    ]);
+    const ordenadas = window.numerarComputo(obra, rubrosComputoData, computoData).lineasEnOrden
+      .concat(window.numerarAuxiliares(auxiliaresData).map(a => ({ ...a, aux: true })));
+    if (!ordenadas.length) {
+      document.body.innerHTML = `<p style="padding:2rem;">Este Cómputo todavía no tiene ítems cargados. <a href="computo.html?obra=${encodeURIComponent(obraParam)}">Ir a Cómputo</a>.</p>`;
+      return;
+    }
+    window.location.replace(hrefParaLinea(ordenadas[0]));
+  } catch (_) {
+    document.body.innerHTML = '<p style="padding:2rem;">Error al buscar el primer Análisis de Precio. Volvé al Cómputo e intentá de nuevo.</p>';
+  }
+}
+
 // -- Encabezado: nombre/unidad/numeración en vivo desde la línea de Cómputo -
 
 // Si este AP tiene una línea propia en el Cómputo de esta obra (itemKey
@@ -211,7 +238,7 @@ function ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData) 
   lineasOrdenadas = window.numerarComputo(obrasFull[obraParam], rubrosComputoData, computoData)
     .lineasEnOrden
     .concat(window.numerarAuxiliares(auxiliaresData).map(a => ({ ...a, aux: true })))
-    .map(l => ({ key: l.key, itemKey: l.itemKey || null, numeracion: l.codigo, aux: !!l.aux }));
+    .map(l => ({ key: l.key, itemKey: l.itemKey || null, numeracion: l.codigo, nombre: l.nombre || '', aux: !!l.aux }));
   apNavIndex = lineasOrdenadas.findIndex(l => l.itemKey === itemKey);
 
   const entry = todasLineas.find(l => l.itemKey === itemKey);
@@ -250,6 +277,24 @@ function irAApVecino(dir) {
   const destino = lineasOrdenadas[apNavIndex + dir];
   if (!destino) return;
   window.location.href = hrefParaLinea(destino);
+}
+
+// Menú terciario: tira de números de A.P. de toda la obra (mismo orden y
+// mismos vecinos que las flechas de renderApNav), para saltar directo a
+// cualquiera sin ir línea por línea.
+function renderApTerciario() {
+  const bar = $('ap-terciario-bar');
+  if (lineasOrdenadas.length <= 1) {
+    bar.classList.add('hidden');
+    bar.innerHTML = '';
+    return;
+  }
+  bar.classList.remove('hidden');
+  bar.innerHTML = '<div class="ap-terciario">' + lineasOrdenadas.map((l, i) =>
+    `<a class="ap-terciario-chip${i === apNavIndex ? ' active' : ''}" href="${hrefParaLinea(l)}" title="${escHtml(l.nombre || '(sin nombre)')}">${escHtml(l.numeracion || '—')}</a>`
+  ).join('') + '</div>';
+  const activo = bar.querySelector('.ap-terciario-chip.active');
+  if (activo) activo.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 
 function renderDatos() {
@@ -1180,6 +1225,7 @@ function populateRubroSelect() {
 }
 
 async function loadAll() {
+  if (modoDefault) { await irAlPrimerAP(); return; }
   if (modoVincular) { await autoCrearYVincular(); return; }
   if (!itemKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta el ítem (?key=...).</p>';
@@ -1223,9 +1269,13 @@ async function loadAll() {
   // refrescarFormulasVivas). No bloquea el resto de la carga.
   if (obraParam) escucharKObraEnVivo(obraParam);
 
-  if (obraParam) ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData);
+  if (obraParam) {
+    ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData);
+    renderHeaderTabs(obraParam, 'analisis-precio');
+  }
   renderDatos();
   renderApNav();
+  renderApTerciario();
 
   const versionInicial = resolverVersionInicial();
   if (!versionInicial) {

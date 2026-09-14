@@ -310,7 +310,7 @@
   body { margin: 0; }
 
   /* Todo lo que es la app y no el documento */
-  .app-header, .subtabs-bar, .toast-container, .no-print,
+  .app-header, .subtabs-bar, .ap-terciario-bar, .toast-container, .no-print,
   .calc-flotante, .calc-flotante-launcher { display: none !important; }
 
   .app-main { padding: 0 !important; margin: 0 !important; max-width: none !important; }
