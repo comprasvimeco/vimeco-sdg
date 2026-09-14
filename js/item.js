@@ -492,6 +492,9 @@ function activarVersion(key) {
   renderUsarBase();
   renderTodasLasLineas();
   calcularKObra(key).then(() => { if (activeVersion === key) renderTodasLasLineas(); });
+  // Notas del AP: módulo aparte (js/postits.js), no toca lineas/rendimiento ni
+  // el motor de cálculo. Se reinicia cada vez que cambia la obra activa.
+  if (window._postitsInit) window._postitsInit($('postits-grid'), { itemKey, basePath: basePath() });
   detenerListenerVersion = window._fbListen(basePath(), snap => {
     if (activeVersion !== key) return;
     aplicarSnapshotRemoto(snap);
