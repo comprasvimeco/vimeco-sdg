@@ -21,6 +21,37 @@
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
 
+    /* ===== Modo "ficha técnica": misma fila-por-insumo, pero con las
+       columnas propias de cada card (precio/proveedor, parámetros de equipo,
+       básico/extra) en vez de cantidad/usado en. Cada tabla tiene su propio
+       ancho de columnas porque la ficha de cada tipo es distinta. ===== */
+    .ficha-linea { display: grid; gap: .6rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
+    .ficha-linea:last-child { border-bottom: none; }
+    .ficha-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: none !important; }
+    .ficha-linea .num { text-align: right; white-space: nowrap; font-weight: 600; color: var(--gray-700); }
+    .ficha-linea-header .num { text-align: right; }
+    .precio-alerta { color: var(--warning); margin-left: .3rem; cursor: default; }
+
+    /* Ancho de columnas por tabla — sólo desktop: en mobile gana la regla de
+       una sola columna de más abajo (si esto no estuviera en un media query,
+       le ganaría por especificidad aunque el ancho de pantalla sea chico). */
+    @media (min-width: 701px) {
+      .ficha-materiales .ficha-linea, .ficha-materiales .ficha-linea-header { grid-template-columns: 1.3fr 70px 100px 100px 1fr 90px 120px; }
+      .ficha-equipos .ficha-linea, .ficha-equipos .ficha-linea-header { grid-template-columns: 1.3fr 60px 110px 100px 100px 100px 120px; }
+      .ficha-mo .ficha-linea, .ficha-mo .ficha-linea-header { grid-template-columns: 1.4fr 100px 80px 130px 90px 120px; }
+    }
+
+    @media (max-width: 700px) {
+      .ficha-linea-header { display: none; }
+      /* Una columna: con labels largos ("Consumo (l/HP·h)", "No remunerativo
+         ($/mes)") dos por fila no entraba sin que el nowrap de .num pisara
+         la celda de al lado. */
+      .ficha-linea { grid-template-columns: 1fr; row-gap: .3rem; padding: .6rem 0; }
+      .ficha-linea > *:first-child { font-weight: 600; }
+      .ficha-linea > *:not(:first-child)::before { content: attr(data-label) ": "; font-weight: 400; color: var(--gray-500); }
+      .ficha-linea .num { text-align: left; white-space: normal; }
+    }
+
     /* ===== MOBILE: misma grilla de ancho fijo que Cómputo -- se reacomoda en
        varias filas por línea, misma info, sin tocar el HTML/JS. ===== */
     @media (max-width: 700px) {
@@ -59,9 +90,15 @@
   <nav class="subtabs-bar" id="header-subtabs"></nav>
 
   <main class="app-main" id="main-content" style="display:none;">
-    <div class="form-group" style="display:flex;align-items:center;gap:.5rem;margin-bottom:1rem;">
-      <input type="checkbox" id="chk-orden-costo" style="width:auto;">
-      <label for="chk-orden-costo" style="margin:0;">Ordenar por costo (mayor a menor)</label>
+    <div style="display:flex;flex-wrap:wrap;gap:1.25rem;margin-bottom:1rem;">
+      <div class="form-group u-mb-0" style="display:flex;align-items:center;gap:.5rem;">
+        <input type="checkbox" id="chk-orden-costo" style="width:auto;">
+        <label for="chk-orden-costo" style="margin:0;">Ordenar por costo (mayor a menor)</label>
+      </div>
+      <div class="form-group u-mb-0" style="display:flex;align-items:center;gap:.5rem;">
+        <input type="checkbox" id="chk-modo-ficha" style="width:auto;">
+        <label for="chk-modo-ficha" style="margin:0;">Ver ficha técnica (precio/proveedor, parámetros de equipo, básico) en vez de cantidad y uso</label>
+      </div>
     </div>
 
     <div class="card">

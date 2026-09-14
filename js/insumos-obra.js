@@ -19,7 +19,14 @@ const obraKey = params.get('obra');
 let obra = null;
 let modeloIns = null;   // forma de presupuestoDatos.js: ver js/insumosDatos.js
 let ordenPorCosto = false;   // false: orden natural de cada tabla (nombre/código/orden); true: costo estimado, mayor a menor
+let modoFicha = false;   // false: cantidad/usado en (consumo); true: datos propios de la card (precio, parámetros, básico)
 let obrasMap = {};   // { obraKey: nombre } — para el desplegable "Fuente (obra)" del precio de Material
+
+const fmtFecha = iso => {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+};
 
 /* Catálogo de cada tabla, para resolver la entidad real al tocar el nombre
    de una fila (abrirCardInsumo) — 'materiales'/'equipos' van directo al
@@ -39,6 +46,7 @@ function catalogoDe(calcNs) {
 function renderTabla(containerId, resumenId, resultado, opts) {
   const container = $(containerId);
   const resumen = $(resumenId);
+  container.className = '';
 
   if (!resultado.filas.length) {
     container.innerHTML = `<p class="text-muted" style="font-size:.85rem;">${opts.vacio}</p>`;
@@ -55,25 +63,20 @@ function renderTabla(containerId, resumenId, resultado, opts) {
     ? [...resultado.filas].sort((a, b) => (b.costoTotal || 0) - (a.costoTotal || 0))
     : resultado.filas;
 
-  const titulos = {
-    materiales: 'Clic para ver/editar el precio de este material en esta obra',
-    equipos: 'Clic para ver el detalle del costo diario de este equipo',
-    manoDeObra: 'Clic para ver el cálculo del costo de esta categoría en esta obra',
-  };
-
   const filasHtml = filas.map(f => {
     const costoStr = f.costoTotal != null ? fmtARS(f.costoTotal) : '—';
     const usadosTexto = f.usados.map(u => u.nombre).join(', ');
     const usadosTitle = f.usados
       .map(u => f.usadosMoneda ? `${u.nombre}: ${fmtARS(u.cantidad)}` : `${u.nombre}: ${fmtNum(u.cantidad)} ${f.unidad}`)
       .join('\n');
-    const tieneEntidad = catalogoDe(opts.calcNs).some(c => c.key === f.key);
-    const nombreHtml = tieneEntidad
-      ? `<button type="button" class="insumo-nombre-btn" data-calc-ns="${opts.calcNs}" data-key="${escHtml(f.key)}" title="${escHtml(titulos[opts.calcNs] || '')}">${escHtml(f.nombre)}</button>`
+    const entidad = catalogoDe(opts.calcNs).find(c => c.key === f.key);
+    const nombreHtml = entidad
+      ? `<button type="button" class="insumo-nombre-btn" data-calc-ns="${opts.calcNs}" data-key="${escHtml(f.key)}" title="${escHtml(titulosCard[opts.calcNs] || '')}">${escHtml(f.nombre)}</button>`
       : `<span>${escHtml(f.nombre)}</span>`;
+    const marcaHtml = opts.calcNs === 'materiales' ? marcaPrecioMaterial(entidad) : '';
     return `
       <div class="materiales-linea">
-        ${nombreHtml}
+        <span>${nombreHtml}${marcaHtml}</span>
         <span>${escHtml(f.unidad)}</span>
         <span class="materiales-cantidad"${calcAttrs(f.cantidad, `${opts.calcNs}:${f.key}:cantidad`, `${f.nombre} · ${opts.colCantidad}`)}>${fmtNum(f.cantidad)}</span>
         <span class="materiales-usados" title="${escHtml(usadosTitle)}">${escHtml(usadosTexto)}</span>
@@ -82,6 +85,137 @@ function renderTabla(containerId, resumenId, resultado, opts) {
   }).join('');
 
   container.innerHTML = header + filasHtml;
+
+  container.querySelectorAll('.insumo-nombre-btn').forEach(btn => {
+    btn.addEventListener('click', () => abrirCardInsumo(btn.dataset.calcNs, btn.dataset.key));
+  });
+
+  resumen.innerHTML = `
+    <div class="ap-resumen-row total"><span>${opts.labelTotal}</span><span${calcAttrs(resultado.costoTotal, `${opts.calcNs}:total`, opts.labelTotal)}>${fmtARS(resultado.costoTotal)}</span></div>
+    ${resultado.faltaPrecio ? `<p class="form-hint" style="margin-top:.5rem;">${opts.avisoSinPrecio}</p>` : ''}`;
+}
+
+const DIAS_PRECIO_VENCIDO = 30;
+
+/* Marca (⚠, con tooltip) para un material cuyo precio usado en el costo no
+   es confiable a simple vista: no es el propio de esta obra (viene de
+   fallback de otra obra, ver resolverPreciosObra en calcCostos.js) y/o tiene
+   más de DIAS_PRECIO_VENCIDO días de cargado. Sin motivo, no se marca nada —
+   la falta total de precio ya se ve en el costo en "—". */
+function marcaPrecioMaterial(entidad) {
+  if (!entidad) return '';
+  const precioPropio = entidad.precios && entidad.precios[obraKey];
+  const precioUsado = modeloIns.preciosObra[entidad.key];
+  const motivos = [];
+  if (!precioUsado) {
+    motivos.push('sin precio cargado en ninguna obra');
+  } else {
+    if (!precioPropio) {
+      const def = window.precioDefaultDe(entidad);
+      const fuente = def ? (obrasMap[def.obraKey] || def.obraKey) : 'otra obra';
+      motivos.push(`sin precio propio de esta obra — usando el de ${fuente}`);
+    }
+    if (precioUsado.fecha) {
+      const dias = Math.floor((Date.now() - new Date(precioUsado.fecha + 'T00:00:00').getTime()) / 86400000);
+      if (dias > DIAS_PRECIO_VENCIDO) motivos.push(`precio cargado hace ${dias} días`);
+    }
+  }
+  if (!motivos.length) return '';
+  return ` <span class="precio-alerta" title="${escHtml(motivos.join(' · '))}">⚠</span>`;
+}
+
+const titulosCard = {
+  materiales: 'Clic para ver/editar el precio de este material en esta obra',
+  equipos: 'Clic para ver el detalle del costo diario de este equipo',
+  manoDeObra: 'Clic para ver el cálculo del costo de esta categoría en esta obra',
+};
+
+/* Columnas propias de cada card, para el modo ficha técnica (ver
+   renderTablaFicha). `entidad` es la fila del catálogo (materiales/equipos/
+   roles) — puede faltar en la fila de Capatacía, que no es una entidad real. */
+function fichaColumnasMateriales(f, entidad) {
+  const precio = entidad ? modeloIns.preciosObra[entidad.key] : null;
+  return [
+    { label: 'Unidad', html: escHtml(f.unidad) },
+    { label: 'Precio (USD)', numeric: true, html: precio && precio.precioUSD != null ? fmtUSD(precio.precioUSD) : '—' },
+    { label: 'Precio ($)', numeric: true, html: precio && precio.precioARS != null ? fmtARSFijo(precio.precioARS) : '—' },
+    { label: 'Proveedor', html: precio && precio.proveedor ? escHtml(precio.proveedor) : '—' },
+    { label: 'Fecha', html: precio && precio.fecha ? fmtFecha(precio.fecha) : '—' },
+  ];
+}
+
+function fichaColumnasEquipos(f, entidad) {
+  return [
+    { label: 'HP', numeric: true, html: entidad && entidad.potencia != null ? fmtNum(entidad.potencia) : '—' },
+    { label: 'Consumo (l/HP·h)', numeric: true, html: entidad && entidad.consumoCombustibleLtsPorHp != null ? fmtNum(entidad.consumoCombustibleLtsPorHp) : '—' },
+    { label: 'Uso anual (hs)', numeric: true, html: entidad && entidad.usoAnual != null ? fmtNum(entidad.usoAnual) : '—' },
+    { label: 'Vida útil (hs)', numeric: true, html: entidad && entidad.vidaUtil != null ? fmtNum(entidad.vidaUtil) : '—' },
+    { label: 'Costo (USD)', numeric: true, html: entidad && entidad.costoUSD != null ? fmtUSD(entidad.costoUSD) : '—' },
+  ];
+}
+
+function fichaColumnasManoDeObra(f, entidad) {
+  return [
+    { label: 'Básico ($/hs)', numeric: true, html: entidad && entidad.basico != null ? fmtARSFijo(entidad.basico) : '—' },
+    { label: 'Extra (%)', numeric: true, html: entidad && entidad.extraPct != null ? `${fmtNum(entidad.extraPct)}%` : '—' },
+    { label: 'No remunerativo ($/mes)', numeric: true, html: entidad && entidad.noRemunerativoMensual != null ? fmtARSFijo(entidad.noRemunerativoMensual) : '—' },
+    { label: 'Fecha', html: entidad && entidad.fecha ? fmtFecha(entidad.fecha) : '—' },
+  ];
+}
+
+/* Asistencia/Cargas/Comida no son de cada rol sino parámetros de la obra
+   entera (paramsMO) — repetirlos en cada fila de la tabla sería redundante,
+   así que en modo ficha se muestran una sola vez arriba de la tabla de Mano
+   de Obra. */
+function notaParamsMO() {
+  const p = modeloIns.paramsMO;
+  const partes = [`Asistencia perfecta ${fmtNum(p.asistenciaPct)}%`, `Cargas Sociales + ART ${fmtNum(p.cargasPct)}%`];
+  if (p.comidaActivo) partes.push(`Comida ${fmtARSFijo(p.comidaMonto)}/día`);
+  return `<p class="form-hint" style="margin-bottom:.6rem;">Parámetros de esta obra, iguales para todos los roles: ${partes.join(' · ')}.</p>`;
+}
+
+/* Pinta una tabla en modo ficha técnica: misma fila por insumo que
+   renderTabla, pero con las columnas de `opts.columnas(f, entidad)` en vez
+   de cantidad/usado en. */
+function renderTablaFicha(containerId, resumenId, resultado, opts) {
+  const container = $(containerId);
+  const resumen = $(resumenId);
+  container.className = opts.claseFicha;
+
+  if (!resultado.filas.length) {
+    container.innerHTML = `<p class="text-muted" style="font-size:.85rem;">${opts.vacio}</p>`;
+    resumen.innerHTML = '';
+    return;
+  }
+
+  const filas = ordenPorCosto
+    ? [...resultado.filas].sort((a, b) => (b.costoTotal || 0) - (a.costoTotal || 0))
+    : resultado.filas;
+
+  const filasConCols = filas.map(f => {
+    const entidad = catalogoDe(opts.calcNs).find(c => c.key === f.key);
+    return { f, entidad, cols: opts.columnas(f, entidad) };
+  });
+
+  const headerCols = filasConCols[0].cols.map(c => `<span${c.numeric ? ' class="num"' : ''}>${escHtml(c.label)}</span>`).join('');
+  const header = `<div class="ficha-linea ficha-linea-header"><span>${escHtml(opts.colNombre)}</span>${headerCols}<span class="num">Costo estimado</span></div>`;
+
+  const filasHtml = filasConCols.map(({ f, entidad, cols }) => {
+    const nombreHtml = entidad
+      ? `<button type="button" class="insumo-nombre-btn" data-calc-ns="${opts.calcNs}" data-key="${escHtml(f.key)}" title="${escHtml(titulosCard[opts.calcNs] || '')}">${escHtml(f.nombre)}</button>`
+      : `<span>${escHtml(f.nombre)}</span>`;
+    const marcaHtml = opts.calcNs === 'materiales' ? marcaPrecioMaterial(entidad) : '';
+    const costoStr = f.costoTotal != null ? fmtARS(f.costoTotal) : '—';
+    const colsHtml = cols.map(c => `<span${c.numeric ? ' class="num"' : ''} data-label="${escHtml(c.label)}">${c.html}</span>`).join('');
+    return `
+      <div class="ficha-linea">
+        <span>${nombreHtml}${marcaHtml}</span>
+        ${colsHtml}
+        <span class="num" data-label="Costo estimado"${f.costoTotal != null ? calcAttrs(f.costoTotal, `${opts.calcNs}:${f.key}:costo`, `${f.nombre} · Costo`) : ''}>${costoStr}</span>
+      </div>`;
+  }).join('');
+
+  container.innerHTML = (opts.notaExtra || '') + header + filasHtml;
 
   container.querySelectorAll('.insumo-nombre-btn').forEach(btn => {
     btn.addEventListener('click', () => abrirCardInsumo(btn.dataset.calcNs, btn.dataset.key));
@@ -102,29 +236,37 @@ function abrirCardInsumo(calcNs, key) {
 
 function renderTodo() {
   const insumos = window.calcularInsumosObra(modeloIns);
+  const render = modoFicha ? renderTablaFicha : renderTabla;
 
-  renderTabla('lineas-materiales', 'resumen', insumos.materiales, {
+  render('lineas-materiales', 'resumen', insumos.materiales, {
     calcNs: 'materiales',
     colNombre: 'Material',
     colCantidad: 'Cantidad necesaria',
+    columnas: fichaColumnasMateriales,
+    claseFicha: 'ficha-materiales',
     labelTotal: 'Costo total estimado de materiales',
     vacio: 'Todavía no hay materiales para mostrar — cargá líneas en el Cómputo vinculadas a un ítem con receta de materiales.',
     avisoSinPrecio: 'Algunos materiales no tienen precio cargado para esta obra — no se incluyen en el costo total.',
   });
 
-  renderTabla('lineas-equipos', 'resumen-equipos', insumos.equipos, {
+  render('lineas-equipos', 'resumen-equipos', insumos.equipos, {
     calcNs: 'equipos',
     colNombre: 'Equipo',
     colCantidad: 'Días de uso',
+    columnas: fichaColumnasEquipos,
+    claseFicha: 'ficha-equipos',
     labelTotal: 'Costo total estimado de equipos',
     vacio: 'Todavía no hay equipos para mostrar — cargá líneas en el Cómputo vinculadas a un ítem con equipos en su receta.',
     avisoSinPrecio: 'Algunos equipos no tienen costo calculable en esta obra (falta costo, vida útil, uso anual o el dólar de la obra) — no se incluyen en el costo total.',
   });
 
-  renderTabla('lineas-mano-de-obra', 'resumen-mano-de-obra', insumos.manoDeObra, {
+  render('lineas-mano-de-obra', 'resumen-mano-de-obra', insumos.manoDeObra, {
     calcNs: 'manoDeObra',
     colNombre: 'Categoría',
     colCantidad: 'Días necesarios',
+    columnas: fichaColumnasManoDeObra,
+    claseFicha: 'ficha-mo',
+    notaExtra: modoFicha ? notaParamsMO() : '',
     labelTotal: 'Costo total estimado de mano de obra',
     vacio: 'Todavía no hay mano de obra para mostrar — cargá líneas en el Cómputo vinculadas a un ítem con mano de obra en su receta.',
     avisoSinPrecio: 'Algunas categorías no tienen básico cargado en Mano de Obra de esta obra — no se incluyen en el costo total.',
@@ -365,6 +507,11 @@ function openDetalleRolModal(rol) {
 document.addEventListener('DOMContentLoaded', async () => {
   $('chk-orden-costo').addEventListener('change', e => {
     ordenPorCosto = e.target.checked;
+    if (modeloIns) renderTodo();
+  });
+
+  $('chk-modo-ficha').addEventListener('change', e => {
+    modoFicha = e.target.checked;
     if (modeloIns) renderTodo();
   });
 
