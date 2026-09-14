@@ -274,6 +274,16 @@
     };
   };
 
+  // Ítems que efectivamente aparecen en el Cómputo (rubros) o en algún
+  // análisis auxiliar de esta obra — la base común para saber qué equipos y
+  // qué materiales usa realmente la obra (nada de catálogo global).
+  function itemKeysUsadosEnObra(modelo) {
+    const itemKeys = new Set();
+    modelo.rubros.forEach(r => r.lineas.forEach(l => { if (l.itemKey) itemKeys.add(l.itemKey); }));
+    modelo.auxiliares.forEach(a => { if (a.itemKey) itemKeys.add(a.itemKey); });
+    return itemKeys;
+  }
+
   // Equipos que efectivamente aparecen en algún análisis de precio de esta
   // obra —presupuesto o auxiliar—, con su desglose de costo diario. No es el
   // catálogo global de equipos: sólo los que un A.P de esta obra referencia,
@@ -281,12 +291,8 @@
   // Excel arma sus bloques. Usado para la sección "Amortización de equipos"
   // de la exportación (PDF y Excel), ver [[project_desglose_amortizacion_equipos]].
   window.equiposUsadosEnObra = function (modelo) {
-    const itemKeys = new Set();
-    modelo.rubros.forEach(r => r.lineas.forEach(l => { if (l.itemKey) itemKeys.add(l.itemKey); }));
-    modelo.auxiliares.forEach(a => { if (a.itemKey) itemKeys.add(a.itemKey); });
-
     const refKeys = new Set();
-    itemKeys.forEach(itemKey => {
+    itemKeysUsadosEnObra(modelo).forEach(itemKey => {
       const ap = window.analisisDePrecioDe(modelo, itemKey);
       if (!ap) return;
       ap.equipos.forEach(e => { if (e.refKey) refKeys.add(e.refKey); });
@@ -299,6 +305,23 @@
         equipo,
         desglose: window.calcDesgloseCostoEquipo(equipo, modelo.paramsEquipos, modelo.paramsMO.jornadaHoras, modelo.dolarObra),
       }));
+  };
+
+  // Materiales que efectivamente aparecen en algún análisis de precio de
+  // esta obra —presupuesto o auxiliar—, con el mismo criterio que
+  // equiposUsadosEnObra. Usado por la hoja "Materiales" del Excel: antes
+  // exportaba el catálogo entero (de consulta general), pero eso mezclaba
+  // precios de otras obras sin relación con esta y hacía la hoja gigante —
+  // se acota a lo que el A.P de esta obra realmente busca con VLOOKUP.
+  window.materialesUsadosEnObra = function (modelo) {
+    const refKeys = new Set();
+    itemKeysUsadosEnObra(modelo).forEach(itemKey => {
+      const ap = window.analisisDePrecioDe(modelo, itemKey);
+      if (!ap) return;
+      ap.materiales.forEach(m => { if (m.refKey) refKeys.add(m.refKey); });
+    });
+
+    return modelo.catalogos.materiales.filter(m => refKeys.has(m.key));
   };
 
 })();

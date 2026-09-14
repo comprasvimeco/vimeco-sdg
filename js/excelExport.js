@@ -331,11 +331,24 @@
   }
 
   /* ===== Hoja Materiales =====
-     El catálogo entero con el precio que rige para esta obra: el propio de la
-     obra si lo tiene cargado, si no el más reciente de todas (lo mismo que
-     resuelve resolverPreciosObra para la pantalla). El precio en pesos es la
-     fuente de verdad; sólo cuando el material no lo tiene guardado se
-     reconstruye desde el dólar, y ahí sí queda como fórmula. */
+     Sólo los materiales que algún A.P de esta obra —presupuesto o
+     auxiliar— referencia (window.materialesUsadosEnObra, mismo criterio que
+     la hoja Equipos), con el precio que rige para esta obra: el propio si lo
+     tiene cargado, si no el más reciente de todas (lo mismo que resuelve
+     resolverPreciosObra para la pantalla). El precio en pesos es la fuente
+     de verdad; sólo cuando el material no lo tiene guardado se reconstruye
+     desde el dólar.
+
+     Un material puede tener el precio cargado como fórmula "=.../k" (Carga
+     Fija de la obra, referencia viva — ver calc.js y el comentario largo de
+     precioVigenteMaterial en calcCostos.js): ahí el precioARS/precioUSD
+     guardados son sólo la foto del día que se guardó, y quedan viejos en
+     cuanto cambia el K de la obra. Por eso acá se reevalúa con
+     window.precioVigenteMaterial en vez de leer directo el número guardado
+     — mismo valor que ve la pantalla del A.P, y el que corresponde escribir
+     en la hoja (no hay forma de que sea una fórmula viva de Excel sin
+     volverse circular con el propio K, que sale del costo del Cómputo con
+     precios SIEMPRE congelados — ver presupuestoDatos.js). */
 
   function hojaMateriales(ws, ctx, ref) {
     const m = ctx.modelo;
@@ -356,22 +369,34 @@
     ws.getRow(r).height = 28;
     r++;
 
-    const materiales = m.catalogos.materiales.slice()
+    const materiales = window.materialesUsadosEnObra(m).slice()
       .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
     const nombres = nombresUnicos(materiales, e => e.nombre);
 
     const primera = r;
     materiales.forEach(mat => {
       const precio = m.preciosObra[mat.key] || null;
+      // Precio cargado con fórmula "=.../k" (referencia viva a la Carga
+      // Fija de la obra): el ARS guardado es sólo la foto del día que se
+      // guardó, se reevalúa con el K vigente — ver el comentario de arriba.
+      const formulaViva = !!(precio && precio.precioFormula && precio.precioFormulaMoneda &&
+        window.formulaTieneRefs && window.formulaTieneRefs(precio.precioFormula));
+      const precioVivoARS = precio ? window.precioVigenteMaterial(precio, m.dolarObra) : null;
       ws.getCell(r, 2).value = nombres[mat.key];
       ws.getCell(r, 3).value = mat.unidad || '';
       ws.getCell(r, 3).alignment = { horizontal: 'center' };
-      ws.getCell(r, 4).value = precio ? num(precio.precioUSD) : null;
+      // El $ (columna E) es la fuente de verdad; el U$D es sólo ayuda de
+      // lectura. Con fórmula viva se deriva del $ ya reevaluado en vez de
+      // mostrar el U$D congelado, para no mezclar una foto vieja con un
+      // número al día en la misma fila.
+      ws.getCell(r, 4).value = formulaViva
+        ? f(`=E${r}/${ref.dolar}`)
+        : (precio ? num(precio.precioUSD) : null);
       ws.getCell(r, 4).numFmt = FMT_CANT;
       // Sin precioARS guardado (datos anteriores al campo dual) el precio en
       // pesos sale del dólar de la obra, igual que en calcCostoUnitarioItem.
-      ws.getCell(r, 5).value = precio && precio.precioARS != null
-        ? num(precio.precioARS)
+      ws.getCell(r, 5).value = precioVivoARS != null
+        ? num(precioVivoARS)
         : (precio && precio.precioUSD ? f(`=D${r}*${ref.dolar}`) : null);
       ws.getCell(r, 5).numFmt = FMT_ARS;
       ws.getCell(r, 6).value = precio ? (precio.proveedor || '') : '';
@@ -383,7 +408,7 @@
       r++;
     });
 
-    if (r === primera) { ws.getCell(r, 2).value = 'Sin materiales en la Biblioteca.'; r++; }
+    if (r === primera) { ws.getCell(r, 2).value = 'Esta obra no usa materiales en ningún análisis de precio.'; r++; }
     const ultima = r - 1;
     bordear(ws, primera, 2, ultima, 7);
 

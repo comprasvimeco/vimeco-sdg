@@ -95,6 +95,55 @@ window.resolverPreciosObra = function (materiales, obraKey) {
 // costo/precio de una línea puntual. Si no fuera así, un material con precio
 // "=X/k" volvería circular al K del que él mismo depende — ver el comentario
 // largo en precioUnitarioMaterial.
+// Precio en pesos "vigente" de un material a partir de la entrada resuelta
+// por resolverPreciosObra: {precioUSD, precioARS, precioFormula,
+// precioFormulaMoneda}. Usado por calcCostoUnitarioItem para costear cada
+// línea Y por la exportación a Excel (hojaMateriales en excelExport.js) para
+// que la hoja "Materiales" muestre el mismo número que ve la pantalla, no
+// una foto vieja — ver el comentario largo más abajo sobre por qué el precio
+// guardado puede haber quedado desactualizado.
+//
+// opts.preciosCongelados: true fuerza el número guardado, ignorando
+// cualquier fórmula "k"/"us" — usarlo al sumar el costoComputo que alimenta
+// el cálculo del propio Coeficiente K (Carga Fija, Presupuesto, Plan de
+// Avance, K de obra del A.P., y la hoja A.P. del Excel), nunca al mostrar el
+// costo/precio de una línea puntual. Si no fuera así, un material con precio
+// "=X/k" volvería circular al K del que él mismo depende.
+window.precioVigenteMaterial = function (precio, dolarValor, opts) {
+  opts = opts || {};
+  if (!precio) return null;
+  // Precio cargado con una fórmula que depende de "k"/"us" (referencia
+  // viva, ver calc.js) y guardada con precioFormulaMoneda (materiales.js,
+  // item.js, cotizaciones-ia.js): se reevalúa acá en vez de usar el número
+  // congelado, así el precio queda al día en TODA pantalla que cuestee
+  // este material. El número guardado (precioARS/precioUSD) es sólo la foto
+  // de lo que dio la fórmula el día que se guardó — si el K de la obra
+  // cambió después (se editó Carga Fija), esa foto quedó vieja. Precios sin
+  // referencias vivas (o cargados antes de precioFormulaMoneda) siempre
+  // fueron una foto fija — no cambian con nada de esto. Necesita que la
+  // pantalla haya cargado calc.js/refs.js (formulaTieneRefs) con el K de la
+  // obra ya puesto (window.setRefK) — presupuesto.html y exportar.html lo
+  // hacen; si alguna otra no lo carga, cae derecho al precio congelado en
+  // vez de romper.
+  if (!opts.preciosCongelados && precio.precioFormula && precio.precioFormulaMoneda &&
+      window.formulaTieneRefs && window.formulaTieneRefs(precio.precioFormula)) {
+    try {
+      const v = window.evalFormula(precio.precioFormula.slice(1));
+      if (!isNaN(v)) {
+        if (precio.precioFormulaMoneda === 'ARS') return v;
+        if (precio.precioFormulaMoneda === 'USD' && dolarValor != null) return v * dolarValor;
+      }
+    } catch (_) { /* ej. "k" sin Carga Fija disponible en esta pantalla: cae al precio congelado */ }
+  }
+  // El precio en pesos cargado es la fuente de verdad; el dólar es sólo
+  // ayuda de cálculo. Se reconvierte desde USD sólo si el material no
+  // tiene precioARS guardado (datos viejos, antes del campo dual).
+  if (precio.precioARS != null) return precio.precioARS;
+  const venta = dolarValor;
+  if (!precio.precioUSD || venta == null) return null;
+  return precio.precioUSD * venta;
+};
+
 window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO, preciosObra, dolarValor, opts) {
   preciosObra = preciosObra || {};
   opts = opts || {};
@@ -105,40 +154,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
   }
   function precioUnitarioMaterial(mat) {
     if (!mat) return null;
-    const precio = preciosObra[mat.key];
-    if (!precio) return null;
-    // Precio cargado con una fórmula que depende de "k"/"us" (referencia
-    // viva, ver calc.js) y guardada con precioFormulaMoneda (materiales.js,
-    // item.js, cotizaciones-ia.js): se reevalúa acá en vez de usar el número
-    // congelado, así el precio queda al día en TODA pantalla que cuestee
-    // este material — EXCEPTO cuando este mismo material entra a la cuenta
-    // que va a determinar el propio K (opts.preciosCongelados): el K sale de
-    // costoComputo, así que si costoComputo ya usara un precio que depende de
-    // K, el K se estaría mirando al espejo. Ahí se usa el precio congelado, a
-    // propósito, y recién con ESE K ya resuelto se vuelve a costear la línea
-    // puntual (sin la bandera) para que el precio final cierre exacto. Precios
-    // sin referencias vivas (o viejos, sin precioFormulaMoneda) siempre fueron
-    // una foto fija — no cambian con nada de esto. Necesita que la pantalla
-    // haya cargado calc.js/refs.js (formulaTieneRefs) — presupuesto.html y
-    // exportar.html lo hacen; si alguna otra no lo carga, cae derecho al
-    // precio congelado en vez de romper.
-    if (!opts.preciosCongelados && precio.precioFormula && precio.precioFormulaMoneda &&
-        window.formulaTieneRefs && window.formulaTieneRefs(precio.precioFormula)) {
-      try {
-        const v = window.evalFormula(precio.precioFormula.slice(1));
-        if (!isNaN(v)) {
-          if (precio.precioFormulaMoneda === 'ARS') return v;
-          if (precio.precioFormulaMoneda === 'USD' && dolarValor != null) return v * dolarValor;
-        }
-      } catch (_) { /* ej. "k" sin Carga Fija disponible en esta pantalla: cae al precio congelado */ }
-    }
-    // El precio en pesos cargado es la fuente de verdad; el dólar es sólo
-    // ayuda de cálculo. Se reconvierte desde USD sólo si el material no
-    // tiene precioARS guardado (datos viejos, antes del campo dual).
-    if (precio.precioARS != null) return precio.precioARS;
-    const venta = dolarValor;
-    if (!precio.precioUSD || venta == null) return null;
-    return precio.precioUSD * venta;
+    return window.precioVigenteMaterial(preciosObra[mat.key], dolarValor, opts);
   }
   // costoUnitario acá es el precio de LA UNIDAD del material/equipo/rol
   // (ej. $/kg, costo diario del equipo, costo del jornal) — no el costo
