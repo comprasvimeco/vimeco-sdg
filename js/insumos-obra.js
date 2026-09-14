@@ -76,7 +76,7 @@ function renderTabla(containerId, resumenId, resultado, opts) {
     const marcaHtml = opts.calcNs === 'materiales' ? marcaPrecioMaterial(entidad) : '';
     return `
       <div class="materiales-linea">
-        <span>${nombreHtml}${marcaHtml}</span>
+        <span class="insumo-nombre-cell">${nombreHtml}${marcaHtml}</span>
         <span>${escHtml(f.unidad)}</span>
         <span class="materiales-cantidad"${calcAttrs(f.cantidad, `${opts.calcNs}:${f.key}:cantidad`, `${f.nombre} · ${opts.colCantidad}`)}>${fmtNum(f.cantidad)}</span>
         <span class="materiales-usados" title="${escHtml(usadosTitle)}">${escHtml(usadosTexto)}</span>
@@ -209,7 +209,7 @@ function renderTablaFicha(containerId, resumenId, resultado, opts) {
     const colsHtml = cols.map(c => `<span${c.numeric ? ' class="num"' : ''} data-label="${escHtml(c.label)}">${c.html}</span>`).join('');
     return `
       <div class="ficha-linea">
-        <span>${nombreHtml}${marcaHtml}</span>
+        <span class="insumo-nombre-cell">${nombreHtml}${marcaHtml}</span>
         ${colsHtml}
         <span class="num" data-label="Costo estimado"${f.costoTotal != null ? calcAttrs(f.costoTotal, `${opts.calcNs}:${f.key}:costo`, `${f.nombre} · Costo`) : ''}>${costoStr}</span>
       </div>`;

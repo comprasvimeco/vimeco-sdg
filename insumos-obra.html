@@ -18,6 +18,12 @@
     .materiales-usados { color: var(--gray-500); font-size: .85rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
     .insumo-nombre-btn { display: block; width: 100%; text-align: left; background: none; border: none; padding: 0; margin: 0; font: inherit; color: inherit; cursor: pointer; }
     .insumo-nombre-btn:hover { text-decoration: underline dotted; text-underline-offset: 2px; color: var(--primary); }
+    /* Envuelve nombre + marca de precio (⚠) para que la marca quede al lado
+       del nombre, no debajo — el botón de nombre es width:100% (ocupa toda
+       la celda como área de clic), así que sin flex cualquier cosa después
+       de él cae a la línea siguiente. */
+    .insumo-nombre-cell { display: flex; align-items: baseline; gap: .3rem; min-width: 0; }
+    .insumo-nombre-cell .insumo-nombre-btn, .insumo-nombre-cell > span:first-child { width: auto; flex: 1 1 auto; min-width: 0; }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
 
@@ -30,7 +36,7 @@
     .ficha-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: none !important; }
     .ficha-linea .num { text-align: right; white-space: nowrap; font-weight: 600; color: var(--gray-700); }
     .ficha-linea-header .num { text-align: right; }
-    .precio-alerta { color: var(--warning); margin-left: .3rem; cursor: default; }
+    .precio-alerta { color: var(--warning); flex: 0 0 auto; cursor: default; }
 
     /* Ancho de columnas por tabla — sólo desktop: en mobile gana la regla de
        una sola columna de más abajo (si esto no estuviera en un media query,
@@ -92,12 +98,12 @@
   <main class="app-main" id="main-content" style="display:none;">
     <div style="display:flex;flex-wrap:wrap;gap:1.25rem;margin-bottom:1rem;">
       <div class="form-group u-mb-0" style="display:flex;align-items:center;gap:.5rem;">
-        <input type="checkbox" id="chk-orden-costo" style="width:auto;">
-        <label for="chk-orden-costo" style="margin:0;">Ordenar por costo (mayor a menor)</label>
+        <input type="checkbox" id="chk-orden-costo" style="width:auto;" title="Ordenar por costo, de mayor a menor">
+        <label for="chk-orden-costo" style="margin:0;">Ordenar por costo</label>
       </div>
       <div class="form-group u-mb-0" style="display:flex;align-items:center;gap:.5rem;">
-        <input type="checkbox" id="chk-modo-ficha" style="width:auto;">
-        <label for="chk-modo-ficha" style="margin:0;">Ver ficha técnica (precio/proveedor, parámetros de equipo, básico) en vez de cantidad y uso</label>
+        <input type="checkbox" id="chk-modo-ficha" style="width:auto;" title="Precio/proveedor, parámetros de equipo, básico — en vez de cantidad y uso">
+        <label for="chk-modo-ficha" style="margin:0;">Datos del insumo</label>
       </div>
     </div>
 
