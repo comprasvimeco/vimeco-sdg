@@ -174,6 +174,22 @@ function notaParamsMO() {
   return `<p class="form-hint" style="margin-bottom:.6rem;">Parámetros de esta obra, iguales para todos los roles: ${partes.join(' · ')}.</p>`;
 }
 
+/* Mismo criterio que notaParamsMO: tasa de interés, % de Reparaciones y
+   Repuestos, % de Lubricantes y precio del combustible son de la obra
+   (paramsEquipos, ver equipos-obra.js) — no de cada equipo — así que en modo
+   ficha se muestran una sola vez arriba de la tabla de Equipos en vez de
+   repetidos en cada fila. */
+function notaParamsEquipos() {
+  const p = modeloIns.paramsEquipos;
+  const partes = [
+    `Tasa de interés ${fmtNum(p.tasaInteresPct)}%`,
+    `Reparaciones y Repuestos ${fmtNum(p.reparacionesPct)}% de Amortización`,
+    `Lubricantes ${fmtNum(p.lubricantesPct)}% de Combustibles`,
+    `Combustible ${fmtARSFijo(p.precioCombustibleLitro)}/lt`,
+  ];
+  return `<p class="form-hint" style="margin-bottom:.6rem;">Parámetros de esta obra, iguales para todos los equipos: ${partes.join(' · ')}.</p>`;
+}
+
 /* Pinta una tabla en modo ficha técnica: misma fila por insumo que
    renderTabla, pero con las columnas de `opts.columnas(f, entidad)` en vez
    de cantidad/usado en. */
@@ -255,6 +271,7 @@ function renderTodo() {
     colCantidad: 'Días de uso',
     columnas: fichaColumnasEquipos,
     claseFicha: 'ficha-equipos',
+    notaExtra: modoFicha ? notaParamsEquipos() : '',
     labelTotal: 'Costo total estimado de equipos',
     vacio: 'Todavía no hay equipos para mostrar — cargá líneas en el Cómputo vinculadas a un ítem con equipos en su receta.',
     avisoSinPrecio: 'Algunos equipos no tienen costo calculable en esta obra (falta costo, vida útil, uso anual o el dólar de la obra) — no se incluyen en el costo total.',
