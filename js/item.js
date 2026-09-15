@@ -146,7 +146,7 @@ const HINTS = {
 
 function labelFor(tipo, entidad) {
   if (tipo === 'material') return entidad.nombre;
-  if (tipo === 'equipo') return `${entidad.tipo || ''} ${entidad.codigo || ''}`.trim();
+  if (tipo === 'equipo') return `${entidad.tipo || ''}${entidad.potencia ? ` ${entidad.potencia} HP` : ''}`.trim();
   return entidad.nombre;
 }
 
@@ -1117,7 +1117,7 @@ function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
 }
 
 function openDetalleEquipoModal(equipo) {
-  $('ed-equipo-nombre').textContent = `${equipo.tipo || ''} ${equipo.codigo || ''}`.trim();
+  $('ed-equipo-nombre').textContent = `${equipo.tipo || ''}${equipo.potencia ? ` ${equipo.potencia} HP` : ''}`.trim();
   $('ed-link-params').href = `equipos-obra.html?obra=${encodeURIComponent(activeVersion)}`;
   const d = window.calcDesgloseCostoEquipo(equipo, paramsEquipos, paramsMO.jornadaHoras, dolarObraActivo);
   const cont = $('ed-desglose');

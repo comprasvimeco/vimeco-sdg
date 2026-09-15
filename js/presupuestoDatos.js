@@ -219,7 +219,7 @@
 
     // Nombre con el que se conoce cada insumo, igual que en la pantalla del AP.
     const nombreDe = (tipo, e) => tipo === 'equipo'
-      ? `${e.tipo || ''} ${e.codigo || ''}`.trim()
+      ? `${e.tipo || ''}${e.potencia ? ` ${e.potencia} HP` : ''}`.trim()
       : (e.nombre || '');
 
     function filas(tipo) {

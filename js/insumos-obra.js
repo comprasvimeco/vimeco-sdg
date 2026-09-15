@@ -456,7 +456,7 @@ function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
 }
 
 function openDetalleEquipoModal(equipo) {
-  $('ed-equipo-nombre').textContent = `${equipo.tipo || ''} ${equipo.codigo || ''}`.trim();
+  $('ed-equipo-nombre').textContent = `${equipo.tipo || ''}${equipo.potencia ? ` ${equipo.potencia} HP` : ''}`.trim();
   $('ed-link-params').href = `equipos-obra.html?obra=${encodeURIComponent(obraKey)}`;
   const d = window.calcDesgloseCostoEquipo(equipo, modeloIns.paramsEquipos, modeloIns.paramsMO.jornadaHoras, modeloIns.dolarObra);
   const cont = $('ed-desglose');
