@@ -1153,6 +1153,11 @@ function engancharConfig() {
   guardar(notas, 'notas');
 }
 
+function setLogoExpandido(abierto) {
+  $('logo-body').classList.toggle('hidden', !abierto);
+  $('logo-toggle').classList.toggle('expandido', abierto);
+}
+
 function engancharLogo() {
   const preview = $('export-logo-preview');
   const input = $('export-logo-input');
@@ -1163,6 +1168,10 @@ function engancharLogo() {
     btnReset.classList.toggle('hidden', !config.logo);
   }
   refrescar();
+  // Sutil por defecto: colapsado salvo que la obra ya tenga un logo propio.
+  setLogoExpandido(!!config.logo);
+  $('logo-toggle').addEventListener('click', () => setLogoExpandido($('logo-body').classList.contains('hidden')));
+  $('export-logo-elegir').addEventListener('click', () => input.click());
 
   input.addEventListener('change', () => {
     const archivo = input.files[0];

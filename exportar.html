@@ -41,13 +41,16 @@
         </div>
 
         <div class="form-group">
-          <label for="export-logo-input">Logo del membrete</label>
-          <div class="export-logo-row">
+          <span class="u-pointer ap-toggle-title" id="logo-toggle">
+            <span class="ap-chevron" id="logo-chevron">&#9656;</span> Logo del membrete
+          </span>
+          <div class="export-logo-row hidden" id="logo-body">
             <img id="export-logo-preview" class="export-logo-preview" alt="Logo actual del membrete">
-            <input type="file" class="form-control" id="export-logo-input" accept="image/png,image/jpeg">
+            <button type="button" class="btn btn-sm btn-outline btn-icon" id="export-logo-elegir" title="Cambiar logo" aria-label="Cambiar logo"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+            <input type="file" id="export-logo-input" accept="image/png,image/jpeg" hidden>
             <button type="button" class="btn btn-outline btn-sm hidden" id="export-logo-reset">Restaurar predeterminado</button>
+            <p class="form-hint">Se guarda en la obra y reemplaza el logo VIMECO en el PDF y el Excel. PNG o JPG.</p>
           </div>
-          <p class="form-hint">Se guarda en la obra y reemplaza el logo VIMECO en el PDF y el Excel. PNG o JPG.</p>
         </div>
 
         <div class="exportar-acciones">

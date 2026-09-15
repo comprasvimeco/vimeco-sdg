@@ -81,9 +81,12 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .form-control:disabled { background: var(--gray-100); color: var(--gray-400); cursor: not-allowed; }
 .form-hint { display: block; font-size: .75rem; color: var(--gray-400); margin-top: .3rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-.export-logo-row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
-.export-logo-row .form-control { width: auto; flex: 1 1 220px; }
-.export-logo-preview { height: 36px; width: auto; max-width: 140px; flex-shrink: 0; object-fit: contain; background: var(--gray-100); border-radius: var(--radius); }
+.ap-toggle-title { display: inline-flex; align-items: center; gap: .35rem; user-select: none; font-size: .82rem; font-weight: 600; color: var(--gray-600); text-transform: uppercase; letter-spacing: .04em; }
+.ap-chevron { display: inline-block; font-size: .7rem; color: var(--gray-500); transition: transform .15s ease; }
+.ap-toggle-title.expandido .ap-chevron { transform: rotate(90deg); }
+.export-logo-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-top: .5rem; }
+.export-logo-row .form-hint { width: 100%; margin: 0; }
+.export-logo-preview { height: 32px; width: auto; max-width: 140px; flex-shrink: 0; object-fit: contain; background: var(--gray-100); border-radius: var(--radius); }
 
 /* ===== BUTTONS ===== */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; padding: .6rem 1.25rem; border: none; border-radius: var(--radius); font-size: .88rem; font-weight: 600; cursor: pointer; transition: all .15s; text-decoration: none; white-space: nowrap; position: relative; overflow: hidden; box-shadow: 0 2px 6px -2px rgba(26,58,92,.3); }
