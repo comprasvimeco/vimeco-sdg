@@ -1468,7 +1468,12 @@
     // Sin valores cacheados en el archivo: Excel recalcula todo al abrirlo.
     wb.calcProperties.fullCalcOnLoad = true;
 
-    const logoId = wb.addImage({ base64: LOGO_BASE64.split(',')[1], extension: 'png' });
+    // ctx.logo es el logo elegido en Exportar (por defecto el de VIMECO, ver
+    // logoActual() en exportar.js); puede ser PNG o JPG según lo que se suba.
+    const logoMatch = /^data:image\/(png|jpe?g);base64,(.*)$/is.exec(ctx.logo || LOGO_BASE64);
+    const logoExtension = logoMatch ? logoMatch[1].toLowerCase().replace('jpg', 'jpeg') : 'png';
+    const logoBase64 = logoMatch ? logoMatch[2] : LOGO_BASE64.split(',')[1];
+    const logoId = wb.addImage({ base64: logoBase64, extension: logoExtension });
 
     // Las hojas se crean en el orden en que se leen; se llenan después, en el
     // orden en que se necesitan las direcciones de celda de las anteriores.

@@ -100,7 +100,7 @@ function dimsHojaPlan() {
 const periodosPorHoja = () => dimsHojaPlan().periodos;
 
 let modelo = null;
-let config = { notas: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false };
+let config = { notas: null, logo: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false };
 let incluidas = {};   // { seccionId: bool }
 
 /* ===== Formato del documento =====
@@ -180,11 +180,18 @@ function filasMembrete() {
   return window.filasEncabezado(modelo.obra, modelo.encabezado);
 }
 
+// El logo por defecto es el de VIMECO; se puede reemplazar por obra (por
+// ejemplo al presentar en consorcio) desde el panel "Documento" de esta
+// pantalla — ver engancharLogo(). Se guarda en config.logo, igual que notas.
+function logoActual() {
+  return config.logo || LOGO_BASE64;
+}
+
 function membrete(titulo) {
   const filas = filasMembrete();
   return `
     <div class="doc-membrete">
-      <div class="doc-membrete-logo"><img src="${LOGO_BASE64}" alt="VIMECO S.A."></div>
+      <div class="doc-membrete-logo"><img src="${logoActual()}" alt="VIMECO S.A."></div>
       <dl class="doc-membrete-datos">
         ${filas.map(f => `<dt>${escHtml(f.etiqueta)}:</dt><dd>${escHtml(f.valor)}</dd>`).join('')}
       </dl>
@@ -1146,6 +1153,43 @@ function engancharConfig() {
   guardar(notas, 'notas');
 }
 
+function engancharLogo() {
+  const preview = $('export-logo-preview');
+  const input = $('export-logo-input');
+  const btnReset = $('export-logo-reset');
+
+  function refrescar() {
+    preview.src = logoActual();
+    btnReset.classList.toggle('hidden', !config.logo);
+  }
+  refrescar();
+
+  input.addEventListener('change', () => {
+    const archivo = input.files[0];
+    input.value = '';
+    if (!archivo) return;
+    if (!/^image\/(png|jpe?g)$/i.test(archivo.type)) {
+      showToast('El logo tiene que ser una imagen PNG o JPG.', 'error');
+      return;
+    }
+    const lector = new FileReader();
+    lector.onload = () => {
+      config.logo = lector.result;
+      refrescar();
+      renderDocumento();
+      persistConfig({ logo: config.logo });
+    };
+    lector.readAsDataURL(archivo);
+  });
+
+  btnReset.addEventListener('click', () => {
+    config.logo = null;
+    refrescar();
+    renderDocumento();
+    persistConfig({ logo: null });
+  });
+}
+
 /* ===== Carga ===== */
 
 async function loadAll() {
@@ -1168,13 +1212,14 @@ async function loadAll() {
     plan = window.calcPlanAvance(
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
-  config = { notas: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false, ...(exportData || {}) };
+  config = { notas: null, logo: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false, ...(exportData || {}) };
   SECCIONES.forEach(s => { incluidas[s.id] = !SECCIONES_INTERNAS.includes(s.id); });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
   renderHeaderTabs(obraKey, 'exportar');
   renderSecciones();
   engancharConfig();
+  engancharLogo();
   renderDocumento();
 
   $('main-loading').style.display = 'none';
@@ -1194,6 +1239,7 @@ function contextoExcel() {
     titulo: 'Cómputo y presupuesto',
     notas: config.notas != null ? config.notas : NOTAS_DEFAULT,
     totalEnLetras: importeEnLetras(modelo.total),
+    logo: logoActual(),
   };
 }
 
