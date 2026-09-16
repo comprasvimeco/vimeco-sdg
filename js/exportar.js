@@ -686,11 +686,13 @@ function bloquePlanTrabajos(desde, hasta, ajustar) {
   // así se ve de un vistazo, antes de bajar a las certificaciones, contra qué
   // monto se está certificando (el total de la obra, no el neto a certificar).
   const nPeriodos = hasta - desde;
+  // Precio + Incid. en una sola celda (colspan 2): el total de la obra no
+  // entra en el ancho de una columna pensada para el precio de un ítem, y la
+  // incidencia de "100%" ahí no aporta nada que no diga ya el total.
   const filaTotalPrecio = `
     <tr class="doc-fila-total">
       <td colspan="4">Total del presupuesto</td>
-      <td class="doc-num">${docARS(plan.total)}</td>
-      <td class="doc-num">${docPct(1)}</td>
+      <td class="doc-num" colspan="2">${docARS(plan.total)} (${docPct(1)})</td>
       <td colspan="${nPeriodos + 1}"></td>
     </tr>`;
   const filaAnticipo = `
@@ -826,8 +828,7 @@ function bloqueRemanentes(desde, hasta, ajustar) {
   const filaTotalPrecio = `
     <tr class="doc-fila-total">
       <td colspan="4">Total del presupuesto</td>
-      <td class="doc-num">${docARS(plan.total)}</td>
-      <td class="doc-num">${docPct(1)}</td>
+      <td class="doc-num" colspan="2">${docARS(plan.total)} (${docPct(1)})</td>
       <td colspan="${nPeriodos + 1}"></td>
     </tr>`;
 
