@@ -328,7 +328,7 @@ function opcionesUsarComoBase() {
     Object.entries(it.versionesObra || {}).forEach(([obraK, v]) => {
       if (key === itemKey && obraK === activeVersion) return; // no copiarse a sí mismo
       if (!v.lineas || !Object.keys(v.lineas).length) return; // nada para copiar
-      opciones.push({ value: `${key}::${obraK}`, label: it.nombre || '(sin nombre)', sublabel: obrasMap[obraK] || obraK, version: v });
+      opciones.push({ value: `${key}::${obraK}`, label: it.nombre || '(sin nombre)', sublabel: obrasMap[obraK] || obraK, unidad: it.unidad, version: v });
     });
   });
   return opciones.sort((a, b) => a.label.localeCompare(b.label, 'es'));
@@ -342,7 +342,7 @@ function renderUsarBase() {
   wrap.innerHTML = b
     ? `<div class="ap-base-nota">
          ${icSvg('copy')}
-         <span class="ap-base-nota-texto">Se usó <strong>${escHtml(b.itemNombre || '(sin nombre)')}</strong>${b.obraNombre ? ` de <strong>${escHtml(b.obraNombre)}</strong>` : ''} como base${b.copiadoEn ? ` · ${fmtFechaCorta(b.copiadoEn)}` : ''}</span>
+         <span class="ap-base-nota-texto">Se usó <strong>${escHtml(b.itemNombre || '(sin nombre)')}</strong>${b.unidad ? ` (unidad: ${escHtml(b.unidad)})` : ''}${b.obraNombre ? ` de <strong>${escHtml(b.obraNombre)}</strong>` : ''} como base${b.copiadoEn ? ` · ${fmtFechaCorta(b.copiadoEn)}` : ''}</span>
          <button class="btn btn-sm btn-outline" id="btn-usar-como-base">Cambiar</button>
          <button class="ap-base-nota-del" id="btn-quitar-base-nota" title="Quitar esta nota">${icSvg('x')}</button>
        </div>`
@@ -408,7 +408,7 @@ async function seleccionarUsarComoBase(value, opciones) {
     lineas: JSON.parse(JSON.stringify(src.lineas || {})),
     // Queda registrado de dónde salió la receta: se muestra como nota en la
     // pantalla y sobrevive a la recarga. No condiciona ningún cálculo.
-    baseUsada: { itemNombre: opt.label, obraNombre: opt.sublabel, copiadoEn: Date.now() },
+    baseUsada: { itemNombre: opt.label, obraNombre: opt.sublabel, unidad: opt.unidad || null, copiadoEn: Date.now() },
   };
   try {
     // PATCH y no PUT: `lineas` se reemplaza entero igual (es un hijo nombrado)
@@ -578,29 +578,23 @@ function renderVersionTabs() {
 function renderVersionRendimiento() {
   const wrap = $('version-rendimiento');
   wrap.classList.remove('hidden');
-  wrap.innerHTML = `<span>Rendimiento en esta obra: <strong>${escHtml(fmtNum(rendimientoActivo))}</strong> uds./jornada</span>
-    <button class="version-rendimiento-edit" id="btn-editar-rend-obra" title="Editar rendimiento de esta obra">${icSvg('edit')}</button>`;
-  $('btn-editar-rend-obra').addEventListener('click', () => {
-    wrap.innerHTML = `<input type="text" class="form-control" id="rend-obra-input" style="max-width:140px;" value="${escHtml(String(rendimientoActivo))}">`;
-    const input = $('rend-obra-input');
-    attachCalcInput(input, rendimientoFormulaActiva);
-    attachValorInput(input, rendimientoActivo);
-    input.focus();
-    input.select();
-    const guardar = () => {
-      if (input.value.trim().startsWith('=')) input.blur();
-      const n = valorCampo(input);
-      if (n != null && !isNaN(n) && n > 0) {
-        rendimientoActivo = n;
-        rendimientoFormulaActiva = getCalcFormula(input);
-        persistRendimiento({ rendimiento: n, rendimientoFormula: rendimientoFormulaActiva });
-      }
-      renderVersionRendimiento();
-      renderTodasLasLineas();
-    };
-    input.addEventListener('blur', guardar);
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  wrap.innerHTML = `<span>Rendimiento en esta obra:</span>
+    <input type="text" class="form-control" id="rend-obra-input" style="max-width:140px;"${calcAttrs(rendimientoActivo, 'ap:rendimiento', 'Rendimiento')}>
+    <span>uds./jornada</span>`;
+  const input = $('rend-obra-input');
+  attachCalcInput(input, rendimientoFormulaActiva);
+  attachValorInput(input, rendimientoActivo);
+  input.addEventListener('blur', () => {
+    const n = valorCampo(input);
+    const formula = getCalcFormula(input);
+    if (n == null || isNaN(n) || n <= 0) { setValorCampo(input, rendimientoActivo); return; }
+    if (n === rendimientoActivo && formula === (rendimientoFormulaActiva || null)) return;
+    rendimientoActivo = n;
+    rendimientoFormulaActiva = formula;
+    persistRendimiento({ rendimiento: n, rendimientoFormula: rendimientoFormulaActiva });
+    renderTodasLasLineas();
   });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
 }
 
 // Calcula (una sola vez por render) el costo agregado y el detalle por
@@ -801,11 +795,16 @@ function renderManoDeObraSeccion(r) {
       const entry = Object.entries(lineas).find(([, l]) => l.tipo === 'manoDeObra' && l.refKey === rol.key);
       const cantidad = entry ? entry[1].cantidad : null;
       const d = entry ? detallePorLineaActivo[entry[0]] : null;
+      // El costo unitario del rol (jornal) no depende de que ya haya una línea
+      // cargada — se calcula igual para mostrarlo de referencia. costoTotal sí
+      // requiere una línea con cantidad.
+      const costoUnit = d ? d.costoUnitario : window.calcCostoManoDeObra(rol, paramsMO).costoJornal;
+      const costoTotal = d ? d.costoTotal : null;
       return `
         <div class="ap-linea-mo con-costo" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}" data-calc-valor="${cantidad ?? 0}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}">
-          <button type="button" class="ap-linea-costo-unit" title="Clic para ver el detalle del costo de esta categoría"${d ? calcAttrs(d.costoUnitario, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d ? calcAttrs(d.costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${d ? fmtARS(d.costoTotal) : '—'}</span>
+          <button type="button" class="ap-linea-costo-unit" title="Clic para ver el detalle del costo de esta categoría"${costoUnit != null ? calcAttrs(costoUnit, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${costoUnit != null ? fmtARS(costoUnit) : '—'}</button><span class="ap-linea-costo-total"${costoTotal != null ? calcAttrs(costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${costoTotal != null ? fmtARS(costoTotal) : '—'}</span>
         </div>`;
     }).join('');
   }

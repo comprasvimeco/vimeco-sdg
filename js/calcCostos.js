@@ -166,10 +166,9 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     const entidad = cat.find(c => c.key === linea.refKey);
     if (!entidad) return null;
     const tieneCantidad = linea.cantidad != null && !isNaN(linea.cantidad);
-    // Un material tiene precio propio, sin depender de la cantidad cargada:
-    // se muestra igual (costoTotal queda null hasta que haya cantidad). Para
-    // equipos y mano de obra se mantiene el criterio de siempre.
-    if (linea.tipo !== 'material' && !tieneCantidad) return null;
+    // El costo unitario (precio del material, costo diario del equipo, jornal
+    // del rol) no depende de la cantidad cargada — se muestra igual para los
+    // tres tipos. costoTotal sí depende: queda null hasta que haya cantidad.
     let costoUnitario;
     if (linea.tipo === 'material') {
       costoUnitario = precioUnitarioMaterial(entidad);
