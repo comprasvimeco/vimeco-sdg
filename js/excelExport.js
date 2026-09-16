@@ -1321,6 +1321,13 @@
     const colFin = colP0 + n - 1;
     const col = i => ws.getColumn(colP0 + i).letter;
 
+    // La hoja Remanentes (más abajo) es el contrario de ésta: no repite el
+    // avance cargado, lo lee de acá con fórmulas — necesita saber en qué fila
+    // quedó la fila "% en Ítem" (t) y "% en Obra" (o, de ahí salen incidencia,
+    // cantidad y precio) de cada ítem, y en cuál el pie "Remanente ($)"/
+    // "Certificación acumulada %".
+    ref.plan = { colP0, n, itemFila: {}, filaAcumPct: null, filaRemanenteM: null };
+
     let r = membrete(ws, ctx, logoId, 8);
     r = titulo(ws, r, 2, 8, 'PLAN DE TRABAJOS — CRONOGRAMA DE AVANCE E INVERSIONES', 12);
     r++;
@@ -1406,6 +1413,7 @@
         const o = r;           // % en Obra
         const c = r + 1;       // % en Cant.
         const t = r + 2;       // % en Ítem  ← lo único que se carga a mano
+        ref.plan.itemFila[x.key] = { o, c, t };
         ws.getCell(o, 2).value = x.numero;
         ws.getCell(o, 3).value = f(`=VLOOKUP($B${o},CyP!$B:$C,2,FALSE)`);
         ws.getCell(o, 3).alignment = { wrapText: true, vertical: 'middle' };
@@ -1496,14 +1504,14 @@
     };
 
     const fParcialPct = filaPie('Certificación parcial %', L => `=${sumaRubros(L)}`, FMT_PCT);
-    filaPie('Certificación acumulada %',
+    ref.plan.filaAcumPct = filaPie('Certificación acumulada %',
       (L, i) => (i === 0 ? `=${L}${fParcialPct}` : `=${col(i - 1)}${r}+${L}${fParcialPct}`), FMT_PCT);
     const fParcialM = filaPie('Certificación parcial ($)',
       L => `=${L}${fParcialPct}*$F$${filaTotal}*(1-$F$${filaAnticipoPct})`, FMT_ARS);
     const fAcumM = filaPie('Certificación acumulada ($)',
       (L, i) => (i === 0 ? `=$F$${filaAnticipo}+${L}${fParcialM}` : `=${col(i - 1)}${r}+${L}${fParcialM}`),
       FMT_ARS, 'total');
-    filaPie('Remanente ($)', L => `=$F$${filaTotal}-${L}${fAcumM}`, FMT_ARS);
+    ref.plan.filaRemanenteM = filaPie('Remanente ($)', L => `=$F$${filaTotal}-${L}${fAcumM}`, FMT_ARS);
     r++;
 
     // Las curvas, imagen fija pegada debajo del cronograma (ver la nota en
@@ -1520,6 +1528,177 @@
       ws.addImage(curvasImgs.inversion.id, { tl: { col: 1, row: r - 1 }, ext: curvasImgs.inversion.ext });
       r += Math.ceil(curvasImgs.inversion.ext.height / ALTO_FILA_PX) + 2;
     }
+
+    ws.views = [{ state: 'frozen', xSplit: 8, ySplit: filaCab + 1 }];
+    ws.pageSetup = {
+      paperSize: 9, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+      printTitlesRow: `${filaCab}:${filaCab + 1}`,
+      margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+    };
+  }
+
+  /* ===== Hoja Remanentes =====
+     El contrario de "Plan de trabajos": no carga nada, lee de ahí con
+     fórmulas (ref.plan, armado más arriba en hojaPlanTrabajos) cuánto le
+     queda por ejecutar a cada ítem a partir de cada período — mismo layout
+     ítem/rubro × período, sin la fila "% en Ítem" editable. Las columnas
+     fijas (designación, unidad, cantidad, precio, incidencia) se traen del
+     ítem en Plan de trabajos en vez de repetir el VLOOKUP contra CyP, así
+     las dos hojas nunca pueden mostrar datos distintos del mismo ítem. */
+
+  function hojaRemanentes(ws, ctx, ref, logoId) {
+    const plan = ctx.plan;
+    const { colP0, n, itemFila, filaAcumPct, filaRemanenteM } = ref.plan;
+    const unidad = window.nombreUnidadPlan(ctx.planConfig);
+    const HOJA_PLAN = "'Plan de trabajos'";
+
+    ws.getColumn(1).width = 3;
+    ws.getColumn(2).width = 10;
+    ws.getColumn(3).width = 44;
+    ws.getColumn(4).width = 9;
+    ws.getColumn(5).width = 13;
+    ws.getColumn(6).width = 22;
+    ws.getColumn(7).width = 10;
+    ws.getColumn(8).width = 18;
+    for (let i = 0; i < n; i++) ws.getColumn(colP0 + i).width = 12;
+
+    const colFin = colP0 + n - 1;
+    const col = i => ws.getColumn(colP0 + i).letter;
+
+    let r = membrete(ws, ctx, logoId, 8);
+    r = titulo(ws, r, 2, 8, 'CUADRO DE REMANENTES — SALDO POR EJECUTAR POR ÍTEM', 12);
+    ws.getCell(r, 2).value = 'El contrario del Plan de trabajos: cuánto le queda a cada ítem a partir de cada período. No se carga acá.';
+    ws.getCell(r, 2).font = { italic: true, size: 8, color: { argb: GRIS_TEXTO } };
+    r += 2;
+
+    const filaCab = r;
+    cabecera(ws, r, 2, ['Ítem Nº', 'Designación', 'Unidad', 'Cant. contrato', 'Precio del ítem', 'Incid. %', '']);
+    for (let i = 0; i < n; i++) {
+      const cell = ws.getCell(r, colP0 + i);
+      cell.value = `${i + 1}° ${unidad}`;
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    }
+    pintar(ws, r, colP0, colFin, GRIS_CABECERA);
+    negrita(ws, r, colP0, colFin);
+    bordear(ws, r, colP0, r, colFin, fuerteBorde);
+    ws.getRow(r).height = 26;
+    r++;
+    ws.getCell(r, 8).value = 'Inicio de obra';
+    ws.getCell(r, 8).font = { size: 8, color: { argb: GRIS_TEXTO } };
+    for (let i = 0; i < n; i++) {
+      const d = window.fechaPeriodoPlan(ctx.planConfig, i);
+      const cell = ws.getCell(r, colP0 + i);
+      if (d) { cell.value = d; cell.numFmt = 'dd/mm/yy'; }
+      cell.font = { size: 8, color: { argb: GRIS_TEXTO } };
+      cell.alignment = { horizontal: 'center' };
+    }
+    bordear(ws, r, 2, r, colFin);
+    r++;
+
+    const primera = r;
+    const plana = ctx.modelo.numeracion.sinRubros;
+
+    plan.gruposRubro.forEach(g => {
+      const filaRubro = r;
+      const filasObraRubro = [];   // filas "% remanente en Obra" de los ítems de este rubro
+      if (!plana) {
+        ws.getCell(r, 2).value = g.numero;
+        ws.getCell(r, 2).alignment = { horizontal: 'center' };
+        ws.getCell(r, 3).value = f(`=VLOOKUP($B${r},CyP!$B:$C,2,FALSE)`);
+        ws.getCell(r, 6).value = f(`=VLOOKUP($B${r},CyP!$B:$G,6,FALSE)`);
+        ws.getCell(r, 6).numFmt = FMT_ARS;
+        ws.getCell(r, 7).value = f(`=+F${r}/${ref.cyp.total}`);
+        ws.getCell(r, 7).numFmt = FMT_PCT;
+        ws.getCell(r, 8).value = '% remanente en Obra';
+        pintar(ws, r, 2, colFin, GRIS_CABECERA);
+        negrita(ws, r, 2, colFin);
+        r++;
+      }
+
+      g.lineas.forEach(x => {
+        const orig = itemFila[x.key];
+        const rt = r;       // % remanente (principal)
+        const ro = r + 1;   // % remanente en Obra
+        const rc = r + 2;   // Cantidad remanente
+        const rm = r + 3;   // Monto remanente
+        filasObraRubro.push(ro);
+
+        ws.getCell(rt, 2).value = x.numero;
+        ws.getCell(rt, 3).value = f(`=${HOJA_PLAN}!C${orig.o}`);
+        ws.getCell(rt, 3).alignment = { wrapText: true, vertical: 'middle' };
+        ws.getCell(rt, 4).value = f(`=${HOJA_PLAN}!D${orig.o}`);
+        ws.getCell(rt, 4).alignment = { horizontal: 'center', vertical: 'middle' };
+        ws.getCell(rt, 5).value = f(`=${HOJA_PLAN}!E${orig.o}`);
+        ws.getCell(rt, 5).numFmt = FMT_CANT;
+        ws.getCell(rt, 6).value = f(`=${HOJA_PLAN}!F${orig.o}`);
+        ws.getCell(rt, 6).numFmt = FMT_ARS;
+        ws.getCell(rt, 7).value = f(`=${HOJA_PLAN}!G${orig.o}`);
+        ws.getCell(rt, 7).numFmt = FMT_PCT;
+        for (let k = 2; k <= 7; k++) ws.mergeCells(rt, k, rm, k);
+
+        ws.getCell(rt, 8).value = '% remanente';
+        ws.getCell(ro, 8).value = '% remanente en Obra';
+        ws.getCell(rc, 8).value = 'Cantidad remanente';
+        ws.getCell(rm, 8).value = 'Monto remanente';
+        [rt, ro, rc, rm].forEach(fila => { ws.getCell(fila, 8).font = { size: 8, color: { argb: GRIS_TEXTO } }; });
+        negrita(ws, rt, 8, 8);
+
+        for (let i = 0; i < n; i++) {
+          const L = col(i);
+          // 1 − lo acumulado del ítem hasta este período, leído de la fila
+          // "% en Ítem" (orig.t) de Plan de trabajos — la única celda que ahí
+          // se carga a mano.
+          const celdaRt = ws.getCell(rt, colP0 + i);
+          celdaRt.value = f(`=1-SUM(${HOJA_PLAN}!$${col(0)}$${orig.t}:$${L}$${orig.t})`);
+          celdaRt.numFmt = '0.##%';
+          celdaRt.font = { bold: true };
+
+          ws.getCell(ro, colP0 + i).value = f(`=+${L}${rt}*${HOJA_PLAN}!$G$${orig.o}`);
+          ws.getCell(ro, colP0 + i).numFmt = FMT_PCT;
+          ws.getCell(rc, colP0 + i).value = f(`=+${L}${rt}*${HOJA_PLAN}!$E$${orig.o}`);
+          ws.getCell(rc, colP0 + i).numFmt = FMT_CANT;
+          ws.getCell(rm, colP0 + i).value = f(`=+${L}${rt}*${HOJA_PLAN}!$F$${orig.o}`);
+          ws.getCell(rm, colP0 + i).numFmt = FMT_ARS;
+        }
+        bordear(ws, rt, 2, rm, colFin);
+        r += 4;
+      });
+
+      if (!plana) {
+        for (let i = 0; i < n; i++) {
+          const L = col(i);
+          ws.getCell(filaRubro, colP0 + i).value = filasObraRubro.length
+            ? f(`=${filasObraRubro.map(fr => `${L}${fr}`).join('+')}`)
+            : 0;
+          ws.getCell(filaRubro, colP0 + i).numFmt = FMT_PCT;
+        }
+        bordear(ws, filaRubro, 2, filaRubro, colFin, fuerteBorde);
+      }
+    });
+
+    if (r === primera) { ws.getCell(r, 2).value = 'Sin ítems en el Cómputo.'; r++; }
+    r++;
+
+    const filaPieR = (etiqueta, formulaDe, fmt, clase) => {
+      const fila = r;
+      ws.getCell(fila, 2).value = etiqueta;
+      ws.mergeCells(fila, 2, fila, 8);
+      for (let i = 0; i < n; i++) {
+        const cell = ws.getCell(fila, colP0 + i);
+        cell.value = f(formulaDe(col(i)));
+        cell.numFmt = fmt;
+      }
+      if (clase === 'total') { pintar(ws, fila, 2, colFin, AZUL); negrita(ws, fila, 2, colFin, 'FFFFFFFF'); }
+      else { pintar(ws, fila, 2, colFin, GRIS_SUAVE); negrita(ws, fila, 2, colFin); }
+      bordear(ws, fila, 2, fila, colFin);
+      r++;
+      return fila;
+    };
+
+    // Mismos números que el pie de Plan de trabajos, en las dos unidades: si
+    // alguna vez no coinciden es que se rompió una de las dos fórmulas.
+    filaPieR('Remanente total %', L => `=1-${HOJA_PLAN}!${L}${filaAcumPct}`, FMT_PCT);
+    filaPieR('Remanente total ($)', L => `=${HOJA_PLAN}!${L}${filaRemanenteM}`, FMT_ARS, 'total');
 
     ws.views = [{ state: 'frozen', xSplit: 8, ySplit: filaCab + 1 }];
     ws.pageSetup = {
@@ -1577,6 +1756,7 @@
       ap: wb.addWorksheet('A.P'),
       apAux: ctx.modelo.auxiliares.length ? wb.addWorksheet('A.P auxiliares') : null,
       plan: ctx.plan ? wb.addWorksheet('Plan de trabajos') : null,
+      remanentes: ctx.plan ? wb.addWorksheet('Remanentes') : null,
       cargafija: wb.addWorksheet('Carga fija'),
       materiales: wb.addWorksheet('Materiales'),
       equipos: wb.addWorksheet('Equipos'),
@@ -1592,6 +1772,7 @@
     hojaCyP(hojas.cyp, ctx, ref, logoId);
     hojaCargaFija(hojas.cargafija, ctx, ref);
     if (hojas.plan) hojaPlanTrabajos(hojas.plan, ctx, ref, logoId, curvasImgs);
+    if (hojas.remanentes) hojaRemanentes(hojas.remanentes, ctx, ref, logoId);
     if (hojas.resumen) hojaResumen(hojas.resumen, ctx, ref, logoId);
 
     // Último eslabón: los Gastos Generales del Coeficiente K son el total de la

@@ -50,6 +50,15 @@ let verObra = !!verFilasGuardadas.obra;   // mostrar la fila "% en Obra" de cada
 let verCant = !!verFilasGuardadas.cant;   // mostrar la fila "Cantidad" de cada ítem
 let verMonto = !!verFilasGuardadas.monto; // mostrar la fila "Monto" de cada ítem
 
+// Cuadro de Remanentes: desplegable, arranca cerrado — es una grilla tan
+// grande como la de avance y no hace falta verla siempre abierta.
+const REM_COLAPSADO_KEY = 'vimeco-plan-avance-remanentes-colapsado';
+let remanentesColapsado = true;
+try {
+  const guardado = localStorage.getItem(REM_COLAPSADO_KEY);
+  if (guardado != null) remanentesColapsado = guardado === '1';
+} catch (_) { /* sin storage: arranca cerrado igual */ }
+
 const MAX_PERIODOS = window.PLAN_MAX_PERIODOS;
 
 /* ===== Ancho de columnas de la grilla (ajustable a mano) =====
@@ -392,6 +401,140 @@ function renderTabla(d) {
   $('pa-tabla-wrap').innerHTML = `<table class="pa-tabla">${colgroup}${head}<tbody>${cuerpo}</tbody>${pie}</table>`;
 }
 
+/* ===== Cuadro de Remanentes =====
+   Misma grilla que el Plan de Avance (ítem/rubro × período), pero sin
+   cargar nada: cada celda es el contrario de lo acumulado hasta ese
+   período (x.remItem/remObra/remCant/remMonto, calculados en
+   calcPlanAvance junto con los del avance — ver planAvanceDatos.js). Nunca
+   editable, así que no hay Σ ni celdaEditable ni botón "Distribuir". */
+
+function renderTablaRemanentes(d) {
+  const n = d.n;
+  const plana = window.numeracionCfg(obra).sinRubros;
+
+  const th = (colKey, clase, contenido) => `<th class="${clase}" data-col="${colKey}">${contenido}</th>`;
+
+  const thPeriodos = [];
+  const colsPeriodo = [];
+  for (let i = 0; i < n; i++) {
+    const { nro, fecha } = etiquetaPeriodo(i);
+    const colKey = `p${i}`;
+    thPeriodos.push(th(colKey, 'pa-th-periodo', `<span class="pa-th-nro">${nro}</span>${fecha ? `<span class="pa-th-fecha">${fecha}</span>` : ''}`));
+    colsPeriodo.push(`<col data-col="${colKey}" style="width:${anchoCol(colKey)}px">`);
+  }
+
+  // Mismos anchos que la grilla de avance (anchoCol), sin resize propio: son
+  // las mismas columnas de período, tiene que quedar alineada debajo.
+  const colgroup = `<colgroup>
+    <col style="width:${anchoCol('nombre')}px">
+    <col style="width:${anchoCol('un')}px">
+    <col style="width:${anchoCol('cant')}px">
+    <col style="width:${anchoCol('precio')}px">
+    <col style="width:${anchoCol('incid')}px">
+    ${colsPeriodo.join('')}
+  </colgroup>`;
+
+  const head = `
+    <thead>
+      <tr>
+        ${th('nombre', 'pa-col-nombre', 'Ítem / Rubro')}
+        ${th('un', 'pa-col-un', 'Un.')}
+        ${th('cant', 'pa-col-num', 'Cant.')}
+        ${th('precio', 'pa-col-monto', 'Precio')}
+        ${th('incid', 'pa-col-num', 'Incid.')}
+        ${thPeriodos.join('')}
+      </tr>
+    </thead>`;
+
+  const cuerpo = d.gruposRubro.map(g => {
+    const celdasRubro = [];
+    for (let i = 0; i < n; i++) celdasRubro.push(celdaDerivada(g.remObra[i] ? fmtPct(g.remObra[i]) : '', 'pa-derivada', g.remObra[i] * 100));
+
+    const filaRubro = plana ? '' : `
+      <tr class="pa-fila-rubro">
+        <td class="pa-col-nombre">
+          <span class="pa-rubro-numero">${escHtml(g.numero)}.</span>
+          <span class="pa-rubro-nombre">${escHtml(g.rubro.nombre || '(sin nombre)')}</span>
+        </td>
+        <td class="pa-col-un"></td>
+        <td class="pa-col-num"></td>
+        <td class="pa-col-monto"${attrCalc(g.precioTotal)}>${fmtARS(g.precioTotal)}</td>
+        <td class="pa-col-num"${attrCalc(g.incidencia * 100)}>${fmtPct(g.incidencia)}</td>
+        ${celdasRubro.join('')}
+      </tr>`;
+
+    const filasItems = g.lineas.map(x => {
+      const celdas = [];
+      for (let i = 0; i < n; i++) celdas.push(celdaDerivada(x.remItem[i] ? fmtPct(x.remItem[i]) : '', 'pa-derivada', x.remItem[i] * 100));
+
+      const principal = `
+        <tr class="pa-fila-item">
+          <td class="pa-col-nombre">
+            <div class="pa-nombre-linea">
+              <span class="pa-item-numero">${escHtml(x.numero)}</span>
+              <span class="pa-item-nombre">${escHtml(x.linea.nombre || '(sin nombre)')}</span>
+            </div>
+          </td>
+          <td class="pa-col-un">${escHtml(x.linea.unidad || '')}</td>
+          <td class="pa-col-num"${attrCalc(x.cantidad)}>${fmtCantGrilla(x.cantidad)}</td>
+          <td class="pa-col-monto"${attrCalc(x.precioTotal)}>${fmtARS(x.precioTotal)}</td>
+          <td class="pa-col-num"${attrCalc(x.incidencia * 100)}>${fmtPct(x.incidencia)}</td>
+          ${celdas.join('')}
+        </tr>`;
+
+      // Mismos tres checkboxes que la grilla de avance (verObra/verCant/
+      // verMonto): lo que se tilda ahí abre las mismas filas acá.
+      const extra = [];
+      if (verObra) {
+        const c = [];
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.remObra[i] ? fmtPct(x.remObra[i]) : '', 'pa-derivada', x.remObra[i] * 100));
+        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% remanente en Obra</td><td colspan="4"></td>${c.join('')}</tr>`);
+      }
+      if (verCant) {
+        const c = [];
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtCantGrilla(x.remCant[i]), 'pa-derivada', x.remCant[i]));
+        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Cantidad remanente</td><td colspan="4"></td>${c.join('')}</tr>`);
+      }
+      if (verMonto) {
+        const c = [];
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.remMonto[i] ? fmtARS(x.remMonto[i]) : '', 'pa-derivada', x.remMonto[i]));
+        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Monto remanente</td><td colspan="4"></td>${c.join('')}</tr>`);
+      }
+      return principal + extra.join('');
+    }).join('');
+
+    return filaRubro + filasItems;
+  }).join('');
+
+  const filaTotal = (label, valores, clase, formato, aNumero) => {
+    const celdas = valores.map(v => `<td class="pa-celda ${clase}"${attrCalc(aNumero(v))}>${formato(v)}</td>`).join('');
+    return `<tr class="pa-fila-total"><td class="pa-col-nombre pa-total-label">${escHtml(label)}</td><td colspan="4"></td>${celdas}</tr>`;
+  };
+  const comoPct = v => window.roundLimpio(v * 100);
+  const comoMonto = v => limpiarCero(v);
+
+  const pie = `
+    <tfoot>
+      ${filaTotal('Remanente total %', d.remanentePct, 'pa-acum', v => fmtPct(v), comoPct)}
+      ${filaTotal('Remanente total ' + simboloVista(), d.remanenteMonto, 'pa-acum', v => fmtARS(limpiarCero(v)), comoMonto)}
+    </tfoot>`;
+
+  $('pa-tabla-remanentes-wrap').innerHTML = `<table class="pa-tabla">${colgroup}${head}<tbody>${cuerpo}</tbody>${pie}</table>`;
+}
+
+function aplicarColapsoRemanentes() {
+  $('pa-remanentes-body').classList.toggle('hidden', remanentesColapsado);
+  $('pa-remanentes-chevron').classList.toggle('is-colapsado', remanentesColapsado);
+}
+
+function engancharRemanentesToggle() {
+  $('pa-remanentes-header').addEventListener('click', () => {
+    remanentesColapsado = !remanentesColapsado;
+    try { localStorage.setItem(REM_COLAPSADO_KEY, remanentesColapsado ? '1' : '0'); } catch (_) { /* sin storage: no se guarda, la pantalla funciona igual */ }
+    aplicarColapsoRemanentes();
+  });
+}
+
 /* ===== Resumen ===== */
 
 function renderResumen(d) {
@@ -536,6 +679,7 @@ function renderTodo() {
   contenido.style.display = '';
   renderResumen(d);
   renderTabla(d);
+  renderTablaRemanentes(d);
   renderCurvaAvance(d);
   renderCurvaInversion(d);
   renderBarras(d);
@@ -837,6 +981,8 @@ async function loadAll() {
 document.addEventListener('DOMContentLoaded', async () => {
   engancharControles();
   engancharTabla();
+  engancharRemanentesToggle();
+  aplicarColapsoRemanentes();
   await loadAll();
   await getDolarSnapshot().catch(() => {});
   if (obra) renderTodo();

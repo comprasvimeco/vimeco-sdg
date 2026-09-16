@@ -103,12 +103,26 @@
         x.pctObra = [];
         x.pctCant = [];
         x.pctMonto = [];
+        // Remanente del ítem: el contrario de lo acumulado, no de lo cargado en
+        // ESE período — "cuánto le queda" recién significa algo período a
+        // período si se lo mide contra la suma de todo lo cargado hasta ahí.
+        x.remItem = [];
+        x.remObra = [];
+        x.remCant = [];
+        x.remMonto = [];
+        let acumItem = 0;
         for (let i = 0; i < n; i++) {
           const f = x.dist[pk(i)] || 0;
           x.pctItem.push(f);
           x.pctObra.push(f * x.incidencia);
           x.pctCant.push(f * x.cantidad);
           x.pctMonto.push(f * x.precioTotal);
+          acumItem += f;
+          const rem = 1 - acumItem;
+          x.remItem.push(rem);
+          x.remObra.push(rem * x.incidencia);
+          x.remCant.push(rem * x.cantidad);
+          x.remMonto.push(rem * x.precioTotal);
         }
         x.suma = x.pctItem.reduce((a, v) => a + v, 0);
       });
@@ -116,8 +130,10 @@
       // da exactamente distRubro × incidenciaRubro, y en modo ítem refleja lo
       // que se cargó ítem por ítem.
       g.pctObra = [];
+      g.remObra = [];
       for (let i = 0; i < n; i++) {
         g.pctObra.push(g.lineas.reduce((a, x) => a + x.pctObra[i], 0));
+        g.remObra.push(g.lineas.reduce((a, x) => a + x.remObra[i], 0));
       }
       g.pctItem = [];
       for (let i = 0; i < n; i++) g.pctItem.push(g.dist[pk(i)] || 0);

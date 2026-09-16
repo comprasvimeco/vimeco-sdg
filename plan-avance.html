@@ -23,6 +23,12 @@
     .pa-checks { display: flex; gap: 1rem; align-items: center; }
     .pa-check { display: inline-flex; align-items: center; gap: .35rem; font-size: .82rem; color: var(--gray-600); cursor: pointer; }
 
+    /* Cuadro de Remanentes: desplegable, arranca cerrado (ver renderTodo en
+       plan-avance.js) — el icon-chevron/is-colapsado es el mismo patrón que
+       ya usan los grupos por año de Obras (css/styles.css). */
+    .pa-remanentes-header { cursor: pointer; }
+    .pa-remanentes-header .icon-chevron { flex-shrink: 0; }
+
     /* ===== Resumen ===== */
     .pa-resumen-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem; }
     .pa-stat { display: flex; flex-direction: column; gap: .15rem; padding: .6rem .8rem; background: var(--gray-100); border-radius: var(--radius); }
@@ -182,6 +188,19 @@
         </div>
         <div class="card-body">
           <div class="pa-tabla-wrap" id="pa-tabla-wrap"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header pa-remanentes-header" id="pa-remanentes-header">
+          <div>
+            <span class="card-title">Cuadro de Remanentes</span>
+            <span class="form-hint" style="margin:0;">Lo que le queda por ejecutar a cada ítem a partir de cada período — el contrario del avance cargado arriba, no se carga acá.</span>
+          </div>
+          <span class="icon-chevron is-colapsado" id="pa-remanentes-chevron"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg></span>
+        </div>
+        <div class="card-body hidden" id="pa-remanentes-body">
+          <div class="pa-tabla-wrap" id="pa-tabla-remanentes-wrap"></div>
         </div>
       </div>
 

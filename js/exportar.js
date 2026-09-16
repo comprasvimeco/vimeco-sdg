@@ -31,6 +31,7 @@ const SECCIONES = [
   { id: 'analisis',    label: 'Análisis de precios', render: seccionAnalisisPrecios },
   { id: 'auxiliares',  label: 'Análisis auxiliares', render: seccionAuxiliares },
   { id: 'plan',        label: 'Plan de trabajos', render: seccionPlanTrabajos, apaisada: true },
+  { id: 'remanentes',  label: 'Cuadro de Remanentes', render: seccionRemanentes, apaisada: true },
   { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas },
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
   { id: 'gastosfijos', label: 'Gastos fijos de la obra', render: seccionGastosFijos },
@@ -748,6 +749,124 @@ function seccionPlanTrabajos() {
   return `
     ${membrete('Plan de trabajos — cronograma de avance e inversiones')}
     <p class="doc-subtitulo">Avance planificado por ${unidad}, expresado como porcentaje de cada ítem.</p>
+    ${bloques.join('')}`;
+}
+
+/* Mismo bloque que Plan de trabajos (misma paginación, mismo tamaño de hoja),
+   pero con los valores remanentes de cada ítem (x.remItem/remObra/remCant/
+   remMonto, calculados junto con los de avance en calcPlanAvance — ver
+   js/planAvanceDatos.js) en vez de los cargados a mano. Sin fila "% en Ítem"
+   editable: acá todo es derivado. */
+function bloqueRemanentes(desde, hasta, ajustar) {
+  const ths = [];
+  for (let i = desde; i < hasta; i++) {
+    const { nro, fecha } = etiquetaPeriodoDoc(i);
+    const w = ajustar ? ' style="width:15mm;"' : '';
+    ths.push(`<th class="doc-plan-periodo"${w}>${nro}${fecha ? `<span class="doc-plan-fecha">${fecha}</span>` : ''}</th>`);
+  }
+
+  const filas = plan.gruposRubro.map(g => {
+    const celdasRubro = [];
+    for (let i = desde; i < hasta; i++) celdasRubro.push(`<td class="doc-num">${pctDoc(g.remObra[i])}</td>`);
+    const filaRubro = modelo.numeracion.sinRubros ? '' : `
+      <tr class="doc-fila-rubro">
+        <td class="doc-centro">${escHtml(g.numero)}</td>
+        <td>${escHtml(g.rubro.nombre || '(sin nombre)')}</td>
+        <td colspan="2"></td>
+        <td class="doc-num">${docARS(g.precioTotal)}</td>
+        <td class="doc-num">${docPct(g.incidencia)}</td>
+        <td></td>
+        ${celdasRubro.join('')}
+      </tr>`;
+
+    const filasItems = g.lineas.map(x => {
+      const celdasItem = [];
+      for (let i = desde; i < hasta; i++) celdasItem.push(`<td class="doc-num doc-pctitem-num">${pctDoc(x.remItem[i])}</td>`);
+
+      const subFilas = [];
+      if (verFilasPlan.obra) subFilas.push(['% remanente en Obra', i => pctDoc(x.remObra[i])]);
+      if (verFilasPlan.cant) subFilas.push(['Cantidad remanente', i => cantDoc(x.remCant[i])]);
+      if (verFilasPlan.monto) subFilas.push(['Monto remanente', i => montoDoc(x.remMonto[i])]);
+      const rs = subFilas.length ? ` rowspan="${1 + subFilas.length}"` : '';
+
+      const principal = `
+        <tr class="doc-fila-pctitem">
+          <td class="doc-centro doc-item"${rs}>${escHtml(x.numero)}</td>
+          <td${rs}>${escHtml(x.linea.nombre || '')}</td>
+          <td class="doc-centro"${rs}>${escHtml(x.linea.unidad || '')}</td>
+          <td class="doc-num"${rs}>${docCant(x.cantidad)}</td>
+          <td class="doc-num"${rs}>${docARS(x.precioTotal)}</td>
+          <td class="doc-num"${rs}>${docPct(x.incidencia)}</td>
+          <td class="doc-centro doc-fila-label">% remanente</td>
+          ${celdasItem.join('')}
+        </tr>`;
+
+      const extra = subFilas.map(([label, valorDe]) => {
+        const c = [];
+        for (let i = desde; i < hasta; i++) c.push(`<td class="doc-num">${valorDe(i)}</td>`);
+        return `<tr class="doc-fila-sub"><td class="doc-centro doc-fila-label">${escHtml(label)}</td>${c.join('')}</tr>`;
+      }).join('');
+
+      return principal + extra;
+    }).join('');
+
+    return filaRubro + filasItems;
+  }).join('');
+
+  const filaPie = (label, valores, formato, clase) => {
+    const celdas = [];
+    for (let i = desde; i < hasta; i++) celdas.push(`<td class="doc-num">${formato(valores[i])}</td>`);
+    return `<tr class="${clase || ''}"><td colspan="7">${escHtml(label)}</td>${celdas.join('')}</tr>`;
+  };
+
+  const nPeriodos = hasta - desde;
+  const filaTotalPrecio = `
+    <tr class="doc-fila-total">
+      <td colspan="4">Total del presupuesto</td>
+      <td class="doc-num">${docARS(plan.total)}</td>
+      <td class="doc-num">${docPct(1)}</td>
+      <td colspan="${nPeriodos + 1}"></td>
+    </tr>`;
+
+  return `
+    <table class="doc-tabla doc-tabla-plan${ajustar ? ' doc-tabla-plan-ajustar' : ''}">
+      <thead>
+        <tr>
+          <th style="width:11mm;">Ítem</th>
+          <th>Designación</th>
+          <th style="width:11mm;">Un.</th>
+          <th style="width:16mm;">Cant.</th>
+          <th style="width:28mm;">Precio</th>
+          <th style="width:14mm;">Incid.</th>
+          <th style="width:14mm;"></th>
+          ${ths.join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${filas || '<tr><td colspan="7" class="doc-centro">Sin ítems en el Cómputo.</td></tr>'}
+        ${filaTotalPrecio}
+        ${filaPie('Remanente total %', plan.remanentePct, v => docPct(v), 'doc-fila-subtotal')}
+        ${filaPie('Remanente total $', plan.remanenteMonto, v => docARS(v), 'doc-fila-total doc-fila-monto')}
+      </tbody>
+    </table>`;
+}
+
+function seccionRemanentes() {
+  if (!hayPlanCargado()) return `${membrete('Cuadro de Remanentes')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
+  const unidad = window.nombreUnidadPlan(planConfig).toLowerCase();
+  const ajustar = !!config.hojaPlanAjustar;
+  const porHoja = ajustar ? plan.n : periodosPorHoja();
+  const bloques = [];
+  for (let desde = 0; desde < plan.n; desde += porHoja) {
+    const hasta = Math.min(desde + porHoja, plan.n);
+    const rotulo = plan.n > porHoja
+      ? `<p class="doc-plan-rango">${escHtml(unidadPlural().replace(/^./, c => c.toUpperCase()))} ${desde + 1} a ${hasta}</p>`
+      : '';
+    bloques.push(`<div class="doc-plan-bloque">${rotulo}${bloqueRemanentes(desde, hasta, ajustar)}</div>`);
+  }
+  return `
+    ${membrete('Cuadro de Remanentes — saldo por ejecutar por ítem')}
+    <p class="doc-subtitulo">Lo que le queda por ejecutar a cada ítem a partir de cada ${unidad} — el contrario del Plan de trabajos.</p>
     ${bloques.join('')}`;
 }
 
