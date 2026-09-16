@@ -214,6 +214,20 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .item-card-meta { font-size: .8rem; color: var(--gray-500); }
 .item-card-actions { display: flex; gap: .4rem; flex-shrink: 0; }
 
+/* Buscador + chips de estado de obras.html, en una fila propia debajo del
+   list-toolbar. La búsqueda tiene ancho propio; los chips reutilizan
+   .version-tabs pero sin su margin-top (acá van al lado, no debajo). */
+.obras-filtros { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.obras-filtros #obras-search { max-width: 260px; flex: 1 1 200px; }
+.obras-filtros .version-tabs { margin-top: 0; }
+
+/* Secciones plegables por año en obras.html. El body reusa .list-container
+   para las .item-card de adentro, sin cambiar su estructura. */
+.obras-grupos { display: flex; flex-direction: column; gap: 1rem; }
+.obra-grupo-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .5rem .2rem; cursor: pointer; font-weight: 600; color: var(--gray-700); border-bottom: 1px solid var(--glass-border); margin-bottom: .6rem; }
+.obra-grupo-header .icon-chevron { display: inline-flex; transition: transform .15s ease; }
+.obra-grupo-header .icon-chevron.is-colapsado { transform: rotate(180deg); }
+
 /* Switch de dos o más opciones excluyentes (versión de obra, familia de mano
    de obra): botones chicos, el activo en btn-primary, el resto en
    btn-outline — así se distingue de un vistazo cuál está elegido. */
