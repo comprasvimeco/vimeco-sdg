@@ -72,8 +72,10 @@ function renderObraCard(o) {
       <div class="item-card-info">
         <span class="item-card-title">${escHtml(o.nombre)}</span>
         ${meta ? `<span class="item-card-meta">${escHtml(meta)}</span>` : ''}
-        <span class="u-badge u-badge-neutro">${o.anio || 'Sin año'}</span>
-        <span class="u-badge ${estado.badge}">${estado.label}</span>
+        <div class="item-card-badges">
+          <span class="u-badge u-badge-neutro">${o.anio || 'Sin año'}</span>
+          <span class="u-badge ${estado.badge}">${estado.label}</span>
+        </div>
       </div>
       <div class="item-card-actions">
         <button class="btn btn-sm btn-outline btn-edit-obra">Editar</button>

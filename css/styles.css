@@ -209,9 +209,14 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .list-toolbar-title { font-weight: 600; color: var(--gray-700); }
 .list-container { display: flex; flex-direction: column; gap: .6rem; }
 .item-card { background: var(--glass-bg-strong); border: 1px solid var(--glass-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); padding: .85rem 1.1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
-.item-card-info { display: flex; flex-direction: column; gap: .2rem; min-width: 0; }
+/* align-items: flex-start es necesario acá — sin esto, un <span> con fondo
+   (como .u-badge) que conviva con hermanos de texto más largo (el de abajo,
+   item-card-meta) se estira por default al ancho del hermano más ancho y
+   queda como una barra vacía en vez de una píldora ajustada al texto. */
+.item-card-info { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; min-width: 0; }
 .item-card-title { font-weight: 600; color: var(--gray-900); }
 .item-card-meta { font-size: .8rem; color: var(--gray-500); }
+.item-card-badges { display: flex; gap: .4rem; flex-wrap: wrap; }
 .item-card-actions { display: flex; gap: .4rem; flex-shrink: 0; }
 
 /* Buscador + chips de estado de obras.html, en una fila propia debajo del
