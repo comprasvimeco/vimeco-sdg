@@ -352,18 +352,13 @@ function analisisDeLinea(linea, sinCarga) {
       <td class="doc-num">${docARS(ap.costoDiarioSeguridadCapataz)}</td>
     </tr>` : '';
 
-  const importe = linea.total != null
-    ? `<tr class="doc-fila-subtotal"><td colspan="4">Importe del ítem (${docCant(linea.cantidad)} ${escHtml(linea.unidad || '')} × precio unitario)</td><td class="doc-num">${docARS(linea.total)}</td></tr>`
-    : '';
-
   // El cierre del bloque: con Carga Fija y precio unitario en un ítem del
   // presupuesto, nada más que el subtotal en un auxiliar.
   const cierre = sinCarga
     ? `<tr class="doc-fila-total"><td colspan="4">Subtotal (A+B+C)</td><td class="doc-num">${docARS(ap.costoUnitario)}</td></tr>`
     : `<tr class="doc-fila-subtotal"><td colspan="4">Subtotal (A+B+C)</td><td class="doc-num">${docARS(ap.costoUnitario)}</td></tr>
        <tr><td colspan="4">Carga Fija</td><td class="doc-num">${fmtDoc(modelo.k, 4)}</td></tr>
-       <tr class="doc-fila-total"><td colspan="4">Precio unitario</td><td class="doc-num">${docARS(linea.precioUnitario)}</td></tr>
-       ${importe}`;
+       <tr class="doc-fila-total"><td colspan="4">Precio unitario</td><td class="doc-num">${docARS(linea.precioUnitario)}</td></tr>`;
 
   return `
     <article class="doc-ap">
