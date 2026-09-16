@@ -39,8 +39,6 @@
     .ap-linea-mo:last-child { border-bottom: none; }
     .ap-linea-mo-nombre { font-size: .9rem; color: var(--gray-700); }
 
-    .version-tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .75rem; }
-    .version-tabs .btn { padding: .3rem .75rem; box-shadow: none; }
     .version-rendimiento { margin-top: .6rem; display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--gray-600); }
     .version-rendimiento input { max-width: 140px; }
 
@@ -176,7 +174,12 @@
       </div>
 
       <div class="card">
-        <div class="card-header"><span class="card-title">Mano de Obra</span></div>
+        <div class="card-header">
+          <span class="ap-section-header" style="width:100%">
+            <span class="card-title">Mano de Obra</span>
+            <div id="mo-familia-switch-ap" class="version-tabs" style="margin-top:0;"></div>
+          </span>
+        </div>
         <div class="card-body" id="lineas-manoDeObra"></div>
       </div>
 

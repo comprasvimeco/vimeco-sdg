@@ -1,11 +1,15 @@
 /* VIMECO S.A. — Sistema de Gestión — Mano de Obra de obra
    Mismo desglose que la Mano de Obra global (calcCostoManoDeObra), pero
-   roles y parámetros son propios de esta obra — cada obra puede tener sus
-   propias categorías, básicos, extras y no remunerativo.
+   básicos y extras son propios de esta obra.
 
-   Seed inicial: si esta obra todavía no tiene roles propios, se clona una
-   sola vez el catálogo global (/manoDeObra + /config/manoDeObra.json) como
-   punto de partida editable — después de eso cada obra vive por su cuenta. */
+   Categorías: hay 6 fijas (window.ROLES_FIJOS_MO, en calcCostos.js), 3 por
+   familia — Arquitectura y Vial —, con la misma key en todas las obras. Cada
+   obra puede además agregar categorías propias por encima de esas 6 (mismo
+   esquema de siempre: key = nombre + timestamp). El switch de arriba del
+   listado sólo cambia qué familia se ve; no filtra nada en la base.
+
+   Seed inicial: si a esta obra le faltan roles fijos (obra nueva, o vieja
+   recién migrada), se crean acá con básico vacío — cada obra carga el suyo. */
 
 const $ = id => document.getElementById(id);
 
@@ -19,8 +23,9 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Key de un rol nuevo: el nombre normalizado + timestamp, así dos obras que
-// crean "Oficial" por separado no comparten key.
+// Key de un rol nuevo (categoría propia de la obra, por fuera de las 6 fijas):
+// el nombre normalizado + timestamp, así dos obras que crean "Sereno" por
+// separado no comparten key.
 function keyDeRol(nombre) {
   return nombre.toLowerCase()
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -28,10 +33,8 @@ function keyDeRol(nombre) {
     + '_' + Date.now();
 }
 
-// Para cruzar roles entre obras: las keys no sirven (cada obra genera la suya),
-// el nombre sí — "Oficial" es el mismo rol en las dos.
-const normNombre = s => (s || '').trim().toLowerCase()
-  .normalize('NFD').replace(/[̀-ͯ]/g, '');
+const normNombre = window.normNombreMO;
+const esRolFijo = key => window.ROLES_FIJOS_MO.some(r => r.key === key);
 
 const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
@@ -39,6 +42,7 @@ const obraKey = params.get('obra');
 let obra = null;
 let allRoles = [];
 let editingKey = null;
+let familiaActiva = 'arquitectura';
 let paramsMO = {
   asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8,
   seguridadCapatazActivo: false, seguridadCapatazPct: 0,
@@ -148,6 +152,7 @@ function renderRoles(list, ordenable) {
     } else {
       meta = 'Sin datos de costo cargados';
     }
+    const fijo = esRolFijo(r.key);
     return `
       <div class="item-card" data-key="${escHtml(r.key)}">
         <div class="item-card-info">
@@ -159,7 +164,7 @@ function renderRoles(list, ordenable) {
           <button class="btn btn-sm btn-outline btn-icon btn-mover-rol" data-dir="-1" title="Subir" ${idx === 0 ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
           <button class="btn btn-sm btn-outline btn-icon btn-mover-rol" data-dir="1" title="Bajar" ${idx === list.length - 1 ? 'disabled' : ''}>${icSvg('arrowDown')}</button>` : ''}
           <button class="btn btn-sm btn-outline btn-edit-rol">Editar</button>
-          <button class="btn btn-sm btn-danger btn-del-rol">Eliminar</button>
+          ${fijo ? '' : '<button class="btn btn-sm btn-danger btn-del-rol">Eliminar</button>'}
         </div>
       </div>`;
   }).join('');
@@ -171,15 +176,30 @@ function renderRoles(list, ordenable) {
       btn.addEventListener('click', () => moverRol(key, parseInt(btn.dataset.dir, 10)));
     });
     card.querySelector('.btn-edit-rol').addEventListener('click', () => openEditModal(rol));
-    card.querySelector('.btn-del-rol').addEventListener('click', () => deleteRol(rol));
+    const btnDel = card.querySelector('.btn-del-rol');
+    if (btnDel) btnDel.addEventListener('click', () => deleteRol(rol));
+  });
+}
+
+function renderFamiliaSwitch() {
+  const wrap = $('mo-familia-switch');
+  wrap.innerHTML = ['arquitectura', 'vial'].map(f => `
+    <button class="btn btn-sm ${f === familiaActiva ? 'btn-primary' : 'btn-outline'} btn-familia-mo" data-familia="${f}">${f === 'arquitectura' ? 'Arquitectura' : 'Vial'}</button>`).join('');
+  wrap.querySelectorAll('.btn-familia-mo').forEach(btn => {
+    btn.addEventListener('click', () => {
+      familiaActiva = btn.dataset.familia;
+      renderFamiliaSwitch();
+      applyFilter();
+    });
   });
 }
 
 function applyFilter() {
   const q = $('mo-search').value.trim().toLowerCase();
+  const deLaFamilia = allRoles.filter(r => (r.familia || 'arquitectura') === familiaActiva);
   const filtered = q
-    ? allRoles.filter(r => r.nombre.toLowerCase().includes(q))
-    : allRoles;
+    ? deLaFamilia.filter(r => r.nombre.toLowerCase().includes(q))
+    : deLaFamilia;
   renderRoles(filtered, !q);
 }
 
@@ -189,32 +209,24 @@ async function loadRoles() {
   applyFilter();
 }
 
-// Primera vez que se entra a Mano de Obra en esta obra (sin roles propios
-// todavía): clona el catálogo y parámetros globales como punto de partida
-// editable. Una sola vez — de ahí en más cada obra vive por su cuenta.
+// Si a esta obra le faltan roles fijos (obra nueva, o vieja recién migrada
+// sin alguno de los 6) se crean acá con básico vacío — cada obra carga el
+// suyo, no hay valor global de referencia.
 async function seedSiHaceFalta() {
-  const [rolesData, paramsData] = await Promise.all([
-    _fbGet(`/obras/${obraKey}/roles.json`),
-    _fbGet(`/obras/${obraKey}/paramsMO.json`),
-  ]);
-  if (rolesData && Object.keys(rolesData).length) return;
-
-  const [globalRoles, globalParams] = await Promise.all([
-    _fbGet('/manoDeObra.json'),
-    _fbGet('/config/manoDeObra.json'),
-  ]);
-  const tareas = Object.entries(globalRoles || {}).map(([key, r]) =>
-    _fbPut(`/obras/${obraKey}/roles/${key}.json`, r));
-  if (!paramsData && globalParams) {
-    tareas.push(_fbPut(`/obras/${obraKey}/paramsMO.json`, globalParams));
-  }
-  if (tareas.length) await Promise.all(tareas);
+  const rolesData = await _fbGet(`/obras/${obraKey}/roles.json`);
+  const existentes = new Set(Object.keys(rolesData || {}));
+  const faltantes = window.ROLES_FIJOS_MO.filter(r => !existentes.has(r.key));
+  if (!faltantes.length) return;
+  await Promise.all(faltantes.map(r => _fbPut(`/obras/${obraKey}/roles/${r.key}.json`, {
+    nombre: r.nombre, familia: r.familia, basico: null, extraPct: 0, noRemunerativoMensual: null,
+  })));
 }
 
 function openAddModal() {
   editingKey = null;
-  $('modal-rol-title').textContent = 'Agregar rol';
+  $('modal-rol-title').textContent = 'Agregar rol · ' + (familiaActiva === 'vial' ? 'Vial' : 'Arquitectura');
   $('modal-rol-error').classList.add('hidden');
+  $('rol-nombre').disabled = false;
   $('rol-nombre').value = '';
   $('rol-basico').value = '';
   $('rol-extra').value = '0';
@@ -228,8 +240,10 @@ function openAddModal() {
 
 function openEditModal(rol) {
   editingKey = rol.key;
-  $('modal-rol-title').textContent = 'Editar rol';
+  const fijo = esRolFijo(rol.key);
+  $('modal-rol-title').textContent = 'Editar rol' + (fijo ? ' (categoría fija)' : '');
   $('modal-rol-error').classList.add('hidden');
+  $('rol-nombre').disabled = fijo;
   $('rol-nombre').value = rol.nombre || '';
   $('rol-basico').value = formatMoneyString(rol.basico);
   $('rol-extra').value = rol.extraPct ?? 0;
@@ -310,7 +324,7 @@ async function saveRolModal() {
     } else {
       await asegurarOrden();
       const key = keyDeRol(nombre);
-      await _fbPut(`/obras/${obraKey}/roles/${key}.json`, { ...data, creadoEn: Date.now(), orden: ultimoOrden() + 1 });
+      await _fbPut(`/obras/${obraKey}/roles/${key}.json`, { ...data, familia: familiaActiva, creadoEn: Date.now(), orden: ultimoOrden() + 1 });
     }
     $('modal-rol').classList.add('hidden');
     showToast(editingKey ? 'Rol actualizado.' : 'Rol creado.');
@@ -473,9 +487,13 @@ async function confirmarImportarMo() {
         const existente = porNombre[normNombre(r.nombre)];
         cuantosRoles++;
         // PATCH por rol (no PUT del árbol de roles): el nodo de un rol que ya
-        // está acá tiene campos propios — creadoEn, orden — que no hay que perder.
+        // está acá tiene campos propios — creadoEn, orden, y ya tiene su
+        // familia bien puesta — no hay que perder ninguno.
         if (existente) tareas.push(_fbPatch(`/obras/${obraKey}/roles/${existente}.json`, data));
-        else tareas.push(_fbPut(`/obras/${obraKey}/roles/${keyDeRol(r.nombre)}.json`, { ...data, creadoEn: Date.now(), orden: ++orden }));
+        else {
+          const key = esRolFijo(r.key) ? r.key : keyDeRol(r.nombre);
+          tareas.push(_fbPut(`/obras/${obraKey}/roles/${key}.json`, { ...data, familia: r.familia || 'arquitectura', creadoEn: Date.now(), orden: ++orden }));
+        }
       });
     }
     await Promise.all(tareas);
@@ -518,6 +536,7 @@ async function loadAll() {
   $('header-obra-nombre').textContent = 'Mano de Obra — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'mano-obra');
   fillParamsForm();
+  renderFamiliaSwitch();
   await loadRoles();
 
   $('main-loading').style.display = 'none';

@@ -213,6 +213,12 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .item-card-title { font-weight: 600; color: var(--gray-900); }
 .item-card-meta { font-size: .8rem; color: var(--gray-500); }
 .item-card-actions { display: flex; gap: .4rem; flex-shrink: 0; }
+
+/* Switch de dos o más opciones excluyentes (versión de obra, familia de mano
+   de obra): botones chicos, el activo en btn-primary, el resto en
+   btn-outline — así se distingue de un vistazo cuál está elegido. */
+.version-tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .75rem; }
+.version-tabs .btn { padding: .3rem .75rem; box-shadow: none; }
 .list-loading, .list-empty { text-align: center; padding: 2rem 1rem; color: var(--gray-400); font-size: .88rem; }
 
 /* ===== COMBOBOX BUSCADOR (searchable-select.js) =====

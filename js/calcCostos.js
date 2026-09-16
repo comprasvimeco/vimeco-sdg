@@ -305,6 +305,28 @@ window.rolesOrdenados = function (roles) {
   });
 };
 
+// Las 3 categorías base de Mano de Obra existen en TODA obra con esta misma
+// key — a diferencia de las categorías que cada obra agrega por su cuenta
+// (key = nombre + timestamp, ver keyDeRol en mano-de-obra-obra.js). Que la
+// key sea igual en cualquier obra es lo que permite que "Usar otro AP como
+// base" (item.js) haga calzar la mano de obra al copiar entre obras distintas
+// sin remapear nada para estos 6 roles — para el resto (categorías propias)
+// se remapea por nombre, igual que ya hacía "Importar de otra obra".
+window.ROLES_FIJOS_MO = [
+  { key: 'arq_oficial_especializado',  nombre: 'Oficial Especializado',      familia: 'arquitectura' },
+  { key: 'arq_oficial',                nombre: 'Oficial',                    familia: 'arquitectura' },
+  { key: 'arq_ayudante',               nombre: 'Ayudante',                   familia: 'arquitectura' },
+  { key: 'vial_oficial_especializado', nombre: 'Oficial Especializado Vial', familia: 'vial' },
+  { key: 'vial_oficial',               nombre: 'Oficial Vial',               familia: 'vial' },
+  { key: 'vial_ayudante',              nombre: 'Ayudante Vial',              familia: 'vial' },
+];
+
+// Para cruzar roles entre obras cuando no hay key en común: las keys propias
+// de cada obra no sirven, el nombre sí — "Oficial" es el mismo rol en dos
+// obras aunque cada una lo haya creado con su propia key.
+window.normNombreMO = s => (s || '').trim().toLowerCase()
+  .normalize('NFD').replace(/[̀-ͯ]/g, '');
+
 // IVA por defecto de una obra que nunca tocó sus impuestos. Estaba repetido
 // como `ivaPct: 21` en las cuatro pantallas que calculaban el K; vive acá
 // porque sacarlo cambiaría de golpe el K de las obras que hoy no tienen

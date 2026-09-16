@@ -41,6 +41,10 @@ let detallePorLineaActivo = {};   // { lineaKey: { costoUnitario, costoTotal } }
 let materiales = [];
 let equipos = [];
 let roles = [];
+// Un A.P. usa una sola familia de Mano de Obra a la vez (Arquitectura o
+// Vial) — ver window.ROLES_FIJOS_MO en calcCostos.js. Determina qué roles
+// se listan/aceptan en la sección de Mano de Obra de este A.P.
+let familiaMOActiva = 'arquitectura';
 let rubros = [];
 let rubrosMap = {};
 const DEFAULT_PARAMS_EQUIPOS = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, precioCombustibleLitro: 0 };
@@ -353,6 +357,54 @@ function renderUsarBase() {
   if (del) del.addEventListener('click', quitarNotaBase);
 }
 
+// Switch Arquitectura/Vial de la sección Mano de Obra de este A.P. Mismo
+// look que las pestañas de versión de obra (btn-primary = activa) para que
+// se note a simple vista cuál está elegida.
+function renderFamiliaMOSwitch() {
+  const wrap = $('mo-familia-switch-ap');
+  if (!wrap) return;
+  wrap.innerHTML = ['arquitectura', 'vial'].map(f => `
+    <button class="btn btn-sm ${f === familiaMOActiva ? 'btn-primary' : 'btn-outline'} btn-familia-mo-ap" data-familia="${f}">${f === 'arquitectura' ? 'Arquitectura' : 'Vial'}</button>`).join('');
+  wrap.querySelectorAll('.btn-familia-mo-ap').forEach(btn => {
+    btn.addEventListener('click', () => cambiarFamiliaMO(btn.dataset.familia));
+  });
+}
+
+// Un A.P. usa una sola familia a la vez: calcCostoUnitarioItem (calcCostos.js)
+// no filtra por familia, así que si quedaran líneas de las dos se sumarían
+// los dos costos de mano de obra juntos. Cambiar de familia con líneas
+// cargadas de la otra las borra, con confirmación (mismo patrón que "Usar
+// otro AP como base").
+async function cambiarFamiliaMO(nueva) {
+  if (nueva === familiaMOActiva) return;
+  const rolesObra = (obrasFull[activeVersion] && obrasFull[activeVersion].roles) || {};
+  const familiaDeRol = refKey => (rolesObra[refKey] && rolesObra[refKey].familia) || 'arquitectura';
+  const keysAPerder = Object.entries(lineas)
+    .filter(([, l]) => l.tipo === 'manoDeObra' && familiaDeRol(l.refKey) !== nueva)
+    .map(([k]) => k);
+
+  if (keysAPerder.length) {
+    const nombreActual = familiaMOActiva === 'vial' ? 'Vial' : 'Arquitectura';
+    const nombreNueva = nueva === 'vial' ? 'Vial' : 'Arquitectura';
+    const ok = await showConfirm('Cambiar de familia',
+      `Este Análisis de Precio tiene ${keysAPerder.length} línea(s) de Mano de Obra de ${nombreActual}. Un A.P. usa una sola familia a la vez: cambiar a ${nombreNueva} las borra. ¿Continuar?`);
+    if (!ok) return;
+    keysAPerder.forEach(k => delete lineas[k]);
+  }
+
+  familiaMOActiva = nueva;
+  versionesObra[activeVersion] = { ...(versionesObra[activeVersion] || {}), familiaMO: nueva };
+  renderFamiliaMOSwitch();
+  renderTodasLasLineas();
+  try {
+    await ensureVersionExists();
+    await _fbPatch(`${basePath()}.json`, { familiaMO: nueva });
+    if (keysAPerder.length) await persistLineas();
+  } catch (_) {
+    showToast('Error al cambiar de familia.', 'error');
+  }
+}
+
 function fmtFechaCorta(ts) {
   const d = new Date(ts);
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
@@ -387,6 +439,57 @@ function openUsarComoBaseModal() {
   $('modal-usar-base').classList.remove('hidden');
 }
 
+// Al copiar mano de obra de OTRA obra, el refKey de cada línea apunta a la
+// key de rol de la obra de origen — casi nunca existe en la obra destino
+// (cada obra genera su propia key para las categorías que agrega por su
+// cuenta, ver keyDeRol en mano-de-obra-obra.js). Las 6 categorías fijas
+// (window.ROLES_FIJOS_MO, calcCostos.js) comparten key en cualquier obra, así
+// que ésas calzan solas; para el resto se remapea por nombre — mismo
+// criterio que ya usa "Importar de otra obra" en mano-de-obra-obra.js — y si
+// no hay ninguna con ese nombre en el destino, se crea clonando el costo de
+// origen. Devuelve cuántos roles nuevos tuvo que crear (para el toast).
+async function remapearManoDeObra(lineasCopiadas, obraOrigenKey) {
+  const rolesOrigen = (obrasFull[obraOrigenKey] && obrasFull[obraOrigenKey].roles) || {};
+  const rolesDestino = { ...((obrasFull[activeVersion] && obrasFull[activeVersion].roles) || {}) };
+  let creados = 0;
+
+  for (const linea of Object.values(lineasCopiadas)) {
+    if (linea.tipo !== 'manoDeObra') continue;
+    const rolOrigen = rolesOrigen[linea.refKey];
+    if (!rolOrigen) continue;              // dato inconsistente en origen: se deja como está
+    if (rolesDestino[linea.refKey]) continue;   // misma key ya existe acá (típico en las 6 fijas)
+
+    const matchKey = Object.keys(rolesDestino).find(k =>
+      window.normNombreMO(rolesDestino[k].nombre) === window.normNombreMO(rolOrigen.nombre));
+    if (matchKey) { linea.refKey = matchKey; continue; }
+
+    const fijo = window.ROLES_FIJOS_MO.find(f => f.key === linea.refKey);
+    const nuevaKey = fijo ? fijo.key
+      : rolOrigen.nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40) + '_' + Date.now() + '_' + creados;
+    const nuevoRol = {
+      nombre: rolOrigen.nombre,
+      familia: rolOrigen.familia || 'arquitectura',
+      basico: rolOrigen.basico ?? null,
+      extraPct: rolOrigen.extraPct ?? 0,
+      noRemunerativoMensual: rolOrigen.noRemunerativoMensual ?? null,
+      fecha: rolOrigen.fecha || null,
+      basicoFormula: rolOrigen.basicoFormula ?? null,
+      extraPctFormula: rolOrigen.extraPctFormula ?? null,
+      noRemunerativoMensualFormula: rolOrigen.noRemunerativoMensualFormula ?? null,
+      creadoEn: Date.now(),
+    };
+    await _fbPut(`/obras/${activeVersion}/roles/${nuevaKey}.json`, nuevoRol);
+    rolesDestino[nuevaKey] = nuevoRol;
+    linea.refKey = nuevaKey;
+    creados++;
+  }
+
+  obrasFull[activeVersion] = { ...(obrasFull[activeVersion] || {}), roles: rolesDestino };
+  roles = window.rolesOrdenados(Object.entries(rolesDestino).map(([k, r]) => ({ key: k, ...r })));
+  return creados;
+}
+
 async function seleccionarUsarComoBase(value, opciones) {
   const opt = opciones.find(o => o.value === value);
   if (!opt) return;
@@ -399,13 +502,20 @@ async function seleccionarUsarComoBase(value, opciones) {
   }
 
   const src = opt.version;
+  const obraOrigenKey = opt.value.split('::')[1];
   // Copia profunda: lineas acá abajo viene del caché de /items.json en
   // memoria (allItemsFull) — sin clonar, editar esta versión mutaría en
   // vivo el objeto cacheado de la versión de origen.
+  const lineasCopiadas = JSON.parse(JSON.stringify(src.lineas || {}));
+  let rolesCreados = 0;
+  if (obraOrigenKey !== activeVersion) {
+    rolesCreados = await remapearManoDeObra(lineasCopiadas, obraOrigenKey);
+  }
   const data = {
     rendimiento: src.rendimiento || 1,
     rendimientoFormula: src.rendimientoFormula || null,
-    lineas: JSON.parse(JSON.stringify(src.lineas || {})),
+    lineas: lineasCopiadas,
+    familiaMO: src.familiaMO || 'arquitectura',
     // Queda registrado de dónde salió la receta: se muestra como nota en la
     // pantalla y sobrevive a la recarga. No condiciona ningún cálculo.
     baseUsada: { itemNombre: opt.label, obraNombre: opt.sublabel, unidad: opt.unidad || null, copiadoEn: Date.now() },
@@ -421,11 +531,14 @@ async function seleccionarUsarComoBase(value, opciones) {
     rendimientoActivo = data.rendimiento;
     rendimientoFormulaActiva = data.rendimientoFormula;
     baseUsadaActiva = data.baseUsada;
+    familiaMOActiva = data.familiaMO;
     renderVersionTabs();
     renderVersionRendimiento();
     renderUsarBase();
+    renderFamiliaMOSwitch();
     renderTodasLasLineas();
-    showToast(`Receta copiada desde "${opt.label}" (${opt.sublabel}).`);
+    showToast(`Receta copiada desde "${opt.label}" (${opt.sublabel}).`
+      + (rolesCreados ? ` Se crearon ${rolesCreados} categoría${rolesCreados === 1 ? '' : 's'} de Mano de Obra en esta obra.` : ''));
   } catch (_) {
     showToast('Error al copiar la receta. Intentá de nuevo.', 'error');
   }
@@ -483,6 +596,7 @@ function aplicarSnapshotRemoto(dataCruda) {
   }
   sinSeguridadCapatazActivo = !!data.sinSeguridadCapataz;
   baseUsadaActiva = data.baseUsada || null;
+  familiaMOActiva = data.familiaMO || 'arquitectura';
 
   const lineasRemotas = data.lineas || {};
   if (seccionEnEdicion) {
@@ -502,6 +616,7 @@ function aplicarSnapshotRemoto(dataCruda) {
   renderVersionTabs();
   if (!editandoRendimiento) renderVersionRendimiento();
   renderUsarBase();
+  renderFamiliaMOSwitch();
   renderTodasLasLineas(seccionEnEdicion ? [seccionEnEdicion] : []);
 }
 
@@ -521,6 +636,7 @@ function activarVersion(key) {
     rendimientoFormulaActiva = v.rendimientoFormula;
     sinSeguridadCapatazActivo = !!v.sinSeguridadCapataz;
     baseUsadaActiva = v.baseUsada || null;
+    familiaMOActiva = v.familiaMO || 'arquitectura';
     versionExisteEnServidor = true;
   } else {
     // No existe todavía para esta obra: arranca vacía, con 1 como punto de
@@ -530,11 +646,13 @@ function activarVersion(key) {
     rendimientoFormulaActiva = null;
     sinSeguridadCapatazActivo = false;
     baseUsadaActiva = null;
+    familiaMOActiva = 'arquitectura';
     versionExisteEnServidor = false;
   }
   renderVersionTabs();
   renderVersionRendimiento();
   renderUsarBase();
+  renderFamiliaMOSwitch();
   renderTodasLasLineas();
   calcularKObra(key).then(() => { if (activeVersion === key) renderTodasLasLineas(); });
   // Notas del AP: módulo aparte (js/postits.js), no toca lineas/rendimiento ni
@@ -786,12 +904,13 @@ function renderLineasSeccion(tipo, r) {
 // línea (si existía); no afecta el costo de todas formas si queda vacía.
 function renderManoDeObraSeccion(r) {
   const container = $('lineas-manoDeObra');
+  const rolesDeLaFamilia = roles.filter(rol => (rol.familia || 'arquitectura') === familiaMOActiva);
   let html = `<p class="form-hint" style="margin-bottom:.75rem;">${HINTS.manoDeObra}</p>`;
-  if (!roles.length) {
+  if (!rolesDeLaFamilia.length) {
     html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo de Mano de Obra cargado todavía.</p>';
   } else {
     html += `<div class="ap-linea-mo ap-linea-header con-costo"><span></span><span>Cantidad</span><span>Costo unitario</span><span>Costo total</span></div>`;
-    html += roles.map(rol => {
+    html += rolesDeLaFamilia.map(rol => {
       const entry = Object.entries(lineas).find(([, l]) => l.tipo === 'manoDeObra' && l.refKey === rol.key);
       const cantidad = entry ? entry[1].cantidad : null;
       const d = entry ? detallePorLineaActivo[entry[0]] : null;
