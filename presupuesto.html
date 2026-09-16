@@ -25,6 +25,16 @@
     .presupuesto-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: none !important; }
     .presupuesto-linea-header span:nth-child(3), .presupuesto-linea-header span:nth-child(4) { text-align: center; }
     .presupuesto-linea-header span:nth-child(5), .presupuesto-linea-header span:nth-child(6), .presupuesto-linea-header span:nth-child(7) { text-align: right; }
+
+    /* ===== Comparación de precio unitario oficial (toggle, ver js/presupuesto.js) ===== */
+    #lineas-presupuesto.cmp-oficial .presupuesto-linea,
+    #lineas-presupuesto.cmp-oficial .presupuesto-linea-header {
+      grid-template-columns: 40px 1.3fr 70px 90px 130px 130px 90px 110px 70px;
+    }
+    .presupuesto-linea-oficial input { width: 100%; text-align: right; padding: .3rem .5rem; font-size: .85rem; }
+    .presupuesto-linea-dif { text-align: right; white-space: nowrap; font-weight: 600; }
+    .presupuesto-linea-dif.dif-pos { color: var(--danger); }
+    .presupuesto-linea-dif.dif-neg { color: var(--success); }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
 
@@ -57,6 +67,14 @@
       .presupuesto-linea-total::before { content: "Total: "; font-weight: 400; color: var(--gray-500); }
       .presupuesto-linea-incidencia { grid-area: incid; text-align: left; }
       .presupuesto-linea-incidencia::before { content: "Incidencia: "; font-weight: 400; color: var(--gray-500); }
+
+      #lineas-presupuesto.cmp-oficial .presupuesto-linea {
+        grid-template-areas: "num nombre nombre" ". unidad cantidad" ". precio total" ". oficial dif" ". incid incid";
+      }
+      .presupuesto-linea-oficial { grid-area: oficial; }
+      .presupuesto-linea-oficial input { text-align: left; }
+      .presupuesto-linea-dif { grid-area: dif; text-align: left; }
+      .presupuesto-linea-dif::before { content: "Dif. oficial: "; font-weight: 400; color: var(--gray-500); }
     }
   </style>
 </head>
@@ -76,7 +94,10 @@
 
   <main class="app-main" id="main-content" style="display:none;">
     <div class="card">
-      <div class="card-header"><span class="card-title">Ítems del presupuesto</span></div>
+      <div class="card-header">
+        <span class="card-title">Ítems del presupuesto</span>
+        <button type="button" class="btn btn-sm btn-outline" id="btn-toggle-oficial">Comparar con oficial</button>
+      </div>
       <div class="card-body" id="lineas-presupuesto"></div>
     </div>
 

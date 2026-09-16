@@ -147,6 +147,10 @@
           precioUnitario,
           total: totalLinea,
           incidencia: total > 0 && totalLinea != null ? totalLinea / total : null,
+          // Precio unitario oficial, cargado a mano sólo para comparar contra
+          // precioUnitario — no entra a ningún costeo ni total (ver
+          // js/presupuesto.js, sección "Comparar con oficial").
+          precioOficial: l.precioOficial != null && !isNaN(l.precioOficial) ? Number(l.precioOficial) : null,
         };
       });
 

@@ -3,7 +3,10 @@
    unitario de cada línea del Cómputo (ya con precios de esa obra resueltos,
    ver js/calcCostos.js) para sacar el precio unitario, y totaliza. Nada se
    edita acá — cantidades y receta se editan en Cómputo, %Beneficio/
-   %CostoFinanciero/%IVA/gastos fijos en Carga Fija.
+   %CostoFinanciero/%IVA/gastos fijos en Carga Fija. Única excepción: el
+   precio unitario oficial de cada línea (toggle "Comparar con oficial"), que
+   se carga acá mismo porque es sólo una anotación para comparar — no
+   participa de ningún costeo ni total.
 
    K = (1 + %GastosGenerales + %Beneficio) × (1 + %CostoFinanciero) × (1 + Σ%Impuestos)
    %GastosGenerales = (gastos fijos de la obra) / (costo total del Cómputo).
@@ -18,12 +21,16 @@ const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
 
 let modelo = null;
+let mostrarOficial = false;   // de sesión: nunca se guarda, arranca apagado
 
 function renderLineaRow(linea) {
   // Etiqueta con la que se lee una referencia a esta línea desde una fórmula
   // (ver js/refs.js); la numeración la hace única.
   const et = `${linea.numero} ${linea.nombre || 'Ítem'}`;
   const id = `presupuesto:linea:${linea.key}`;
+  const colOficial = mostrarOficial ? `
+      <span class="presupuesto-linea-oficial"><input type="text" class="form-control cmp-oficial-input" data-linea-key="${escHtml(linea.key)}" placeholder="0" value="${linea.precioOficial != null ? escHtml(formatMoneyString(linea.precioOficial)) : ''}" data-calc-id="${id}:precioOficial" data-calc-label="${escHtml(et + ' · Precio oficial')}"></span>
+      <span class="presupuesto-linea-dif${claseDif(linea)}">${fmtDif(linea)}</span>` : '';
   return `
     <div class="presupuesto-linea">
       <span class="presupuesto-linea-numero">${linea.numero}</span>
@@ -32,8 +39,57 @@ function renderLineaRow(linea) {
       <span class="presupuesto-linea-cantidad"${calcAttrs(linea.cantidad, `${id}:cantidad`, `${et} · Cantidad`)}>${linea.cantidad != null ? fmtNum(linea.cantidad) : '—'}</span>
       <span class="presupuesto-linea-precio"${calcAttrs(linea.precioUnitario, `${id}:precioUnit`, `${et} · Precio unit.`)}>${fmtARS(linea.precioUnitario)}</span>
       <span class="presupuesto-linea-total"${calcAttrs(linea.total, `${id}:total`, `${et} · Total`)}>${fmtARS(linea.total)}</span>
-      <span class="presupuesto-linea-incidencia"${calcAttrs(linea.incidencia != null ? linea.incidencia * 100 : null, `${id}:incidencia`, `${et} · Incidencia %`)}>${fmtPct(linea.incidencia)}</span>
+      <span class="presupuesto-linea-incidencia"${calcAttrs(linea.incidencia != null ? linea.incidencia * 100 : null, `${id}:incidencia`, `${et} · Incidencia %`)}>${fmtPct(linea.incidencia)}</span>${colOficial}
     </div>`;
+}
+
+// Diferencia del precio unitario propio contra el oficial cargado a mano en
+// esta misma línea. Sólo se muestra el % (no el monto): es una comparación
+// rápida, no otro número más para totalizar.
+function difOficialPct(linea) {
+  if (linea.precioOficial == null || !linea.precioOficial || linea.precioUnitario == null) return null;
+  return (linea.precioUnitario - linea.precioOficial) / linea.precioOficial;
+}
+function fmtDif(linea) {
+  const pct = difOficialPct(linea);
+  return pct == null ? '—' : fmtPct(pct);
+}
+function claseDif(linea) {
+  const pct = difOficialPct(linea);
+  if (pct == null) return '';
+  return pct > 0 ? ' dif-pos' : pct < 0 ? ' dif-neg' : '';
+}
+
+function lineaPorKey(key) {
+  for (const rubro of modelo.rubros) {
+    const l = rubro.lineas.find(l => l.key === key);
+    if (l) return l;
+  }
+  return null;
+}
+
+// Engancha los inputs de precio oficial recién pintados: calculadora
+// flotante, máscara de miles y guardado en blur — mismo patrón que el campo
+// "Presupuesto oficial" de Datos de obra (js/datos-obra.js).
+function engancharInputsOficial(container) {
+  container.querySelectorAll('.cmp-oficial-input').forEach(input => {
+    attachCalcInput(input);
+    attachMoneyInput(input);
+    input.addEventListener('blur', async () => {
+      const lineaKey = input.dataset.lineaKey;
+      const n = parseMoneyString(input.value);
+      const precioOficial = isNaN(n) ? null : n;
+      try {
+        await _fbPatch(`/obras/${obraKey}/computo/${lineaKey}.json`, { precioOficial });
+        const linea = lineaPorKey(lineaKey);
+        if (linea) linea.precioOficial = precioOficial;
+        renderTodo();
+      } catch (_) {
+        showToast('Error al guardar el precio oficial.', 'error');
+      }
+    });
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+  });
 }
 
 function renderComparacionOficial() {
@@ -70,9 +126,11 @@ function renderTodo() {
     return;
   }
 
+  container.classList.toggle('cmp-oficial', mostrarOficial);
+  const colOficialHeader = mostrarOficial ? '<span>Oficial</span><span>Dif. %</span>' : '';
   const header = `
       <div class="presupuesto-linea presupuesto-linea-header">
-        <span></span><span>Ítem</span><span>Unidad</span><span>Cantidad</span><span>Precio unitario</span><span>Total</span><span>Incidencia</span>
+        <span></span><span>Ítem</span><span>Unidad</span><span>Cantidad</span><span>Precio unitario</span><span>Total</span><span>Incidencia</span>${colOficialHeader}
       </div>`;
 
   if (!modelo.rubros.length) {
@@ -99,6 +157,8 @@ function renderTodo() {
     }).join('');
   }
 
+  if (mostrarOficial) engancharInputsOficial(container);
+
   resumen.innerHTML = `
     <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(modelo.costoComputo, 'presupuesto:costoComputo', 'Costo total del Cómputo')}>${fmtARS(modelo.costoComputo)}</span></div>
     <div class="ap-resumen-row"><span>Carga Fija</span><span${calcAttrs(modelo.k, 'presupuesto:k', 'Carga Fija')}>${fmtK(modelo.k)}</span></div>
@@ -122,6 +182,12 @@ async function loadAll() {
   $('header-obra-nombre').textContent = 'Presupuesto — ' + modelo.obra.nombre;
   renderHeaderTabs(obraKey, 'presupuesto');
   renderTodo();
+
+  $('btn-toggle-oficial').addEventListener('click', () => {
+    mostrarOficial = !mostrarOficial;
+    $('btn-toggle-oficial').textContent = mostrarOficial ? 'Ocultar comparación con oficial' : 'Comparar con oficial';
+    renderTodo();
+  });
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
