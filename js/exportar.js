@@ -788,10 +788,15 @@ function bloqueRemanentes(desde, hasta, ajustar) {
       const celdasItem = [];
       for (let i = desde; i < hasta; i++) celdasItem.push(`<td class="doc-num doc-pctitem-num">${docPct(x.remItem[i])}</td>`);
 
+      // Mismas etiquetas que Plan de trabajos (no "% remanente en Obra" ni
+      // "Cantidad remanente"): la columna es angosta (14mm, la misma de
+      // allá) y esas versiones largas no entraban — se cortaban o se
+      // superponían con la celda de al lado. El título de la sección ya deja
+      // claro que es el remanente.
       const subFilas = [];
-      if (verFilasPlan.obra) subFilas.push(['% remanente en Obra', i => docPct(x.remObra[i])]);
-      if (verFilasPlan.cant) subFilas.push(['Cantidad remanente', i => docCant(x.remCant[i])]);
-      if (verFilasPlan.monto) subFilas.push(['Monto remanente', i => docARS(x.remMonto[i])]);
+      if (verFilasPlan.obra) subFilas.push(['% en Obra', i => docPct(x.remObra[i])]);
+      if (verFilasPlan.cant) subFilas.push(['Cantidad', i => docCant(x.remCant[i])]);
+      if (verFilasPlan.monto) subFilas.push(['Monto', i => docARS(x.remMonto[i])]);
       const rs = subFilas.length ? ` rowspan="${1 + subFilas.length}"` : '';
 
       const principal = `
@@ -802,7 +807,7 @@ function bloqueRemanentes(desde, hasta, ajustar) {
           <td class="doc-num"${rs}>${docCant(x.cantidad)}</td>
           <td class="doc-num"${rs}>${docARS(x.precioTotal)}</td>
           <td class="doc-num"${rs}>${docPct(x.incidencia)}</td>
-          <td class="doc-centro doc-fila-label">% remanente</td>
+          <td class="doc-centro doc-fila-label">Remanente</td>
           ${celdasItem.join('')}
         </tr>`;
 
