@@ -446,9 +446,14 @@ function renderTablaRemanentes(d) {
       </tr>
     </thead>`;
 
+  // A diferencia de la grilla de avance (donde un 0 vacío se lee mejor: nada
+  // cargado todavía), acá un 0% es un dato real — el ítem ya se terminó — y
+  // dejarlo en blanco se confunde con "no hay nada que mostrar". Por eso
+  // ninguna celda de este cuadro esconde el cero, a diferencia de
+  // fmtCantGrilla/celdaEditable que sí lo hacen en la grilla de avance.
   const cuerpo = d.gruposRubro.map(g => {
     const celdasRubro = [];
-    for (let i = 0; i < n; i++) celdasRubro.push(celdaDerivada(g.remObra[i] ? fmtPct(g.remObra[i]) : '', 'pa-derivada', g.remObra[i] * 100));
+    for (let i = 0; i < n; i++) celdasRubro.push(celdaDerivada(fmtPct(g.remObra[i]), 'pa-derivada', g.remObra[i] * 100));
 
     const filaRubro = plana ? '' : `
       <tr class="pa-fila-rubro">
@@ -465,7 +470,7 @@ function renderTablaRemanentes(d) {
 
     const filasItems = g.lineas.map(x => {
       const celdas = [];
-      for (let i = 0; i < n; i++) celdas.push(celdaDerivada(x.remItem[i] ? fmtPct(x.remItem[i]) : '', 'pa-derivada', x.remItem[i] * 100));
+      for (let i = 0; i < n; i++) celdas.push(celdaDerivada(fmtPct(x.remItem[i]), 'pa-derivada', x.remItem[i] * 100));
 
       const principal = `
         <tr class="pa-fila-item">
@@ -487,17 +492,17 @@ function renderTablaRemanentes(d) {
       const extra = [];
       if (verObra) {
         const c = [];
-        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.remObra[i] ? fmtPct(x.remObra[i]) : '', 'pa-derivada', x.remObra[i] * 100));
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtPct(x.remObra[i]), 'pa-derivada', x.remObra[i] * 100));
         extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% remanente en Obra</td><td colspan="4"></td>${c.join('')}</tr>`);
       }
       if (verCant) {
         const c = [];
-        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtCantGrilla(x.remCant[i]), 'pa-derivada', x.remCant[i]));
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtNum(x.remCant[i]), 'pa-derivada', x.remCant[i]));
         extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Cantidad remanente</td><td colspan="4"></td>${c.join('')}</tr>`);
       }
       if (verMonto) {
         const c = [];
-        for (let i = 0; i < n; i++) c.push(celdaDerivada(x.remMonto[i] ? fmtARS(x.remMonto[i]) : '', 'pa-derivada', x.remMonto[i]));
+        for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtARS(x.remMonto[i]), 'pa-derivada', x.remMonto[i]));
         extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Monto remanente</td><td colspan="4"></td>${c.join('')}</tr>`);
       }
       return principal + extra.join('');

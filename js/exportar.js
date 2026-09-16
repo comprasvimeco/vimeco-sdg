@@ -765,9 +765,12 @@ function bloqueRemanentes(desde, hasta, ajustar) {
     ths.push(`<th class="doc-plan-periodo"${w}>${nro}${fecha ? `<span class="doc-plan-fecha">${fecha}</span>` : ''}</th>`);
   }
 
+  // Acá el cero es un dato real (el ítem ya se terminó), no "nada cargado
+  // todavía" como en Plan de trabajos — por eso se usa docPct/docCant/docARS
+  // directo, sin el pctDoc/cantDoc/montoDoc que lo dejan en blanco.
   const filas = plan.gruposRubro.map(g => {
     const celdasRubro = [];
-    for (let i = desde; i < hasta; i++) celdasRubro.push(`<td class="doc-num">${pctDoc(g.remObra[i])}</td>`);
+    for (let i = desde; i < hasta; i++) celdasRubro.push(`<td class="doc-num">${docPct(g.remObra[i])}</td>`);
     const filaRubro = modelo.numeracion.sinRubros ? '' : `
       <tr class="doc-fila-rubro">
         <td class="doc-centro">${escHtml(g.numero)}</td>
@@ -781,12 +784,12 @@ function bloqueRemanentes(desde, hasta, ajustar) {
 
     const filasItems = g.lineas.map(x => {
       const celdasItem = [];
-      for (let i = desde; i < hasta; i++) celdasItem.push(`<td class="doc-num doc-pctitem-num">${pctDoc(x.remItem[i])}</td>`);
+      for (let i = desde; i < hasta; i++) celdasItem.push(`<td class="doc-num doc-pctitem-num">${docPct(x.remItem[i])}</td>`);
 
       const subFilas = [];
-      if (verFilasPlan.obra) subFilas.push(['% remanente en Obra', i => pctDoc(x.remObra[i])]);
-      if (verFilasPlan.cant) subFilas.push(['Cantidad remanente', i => cantDoc(x.remCant[i])]);
-      if (verFilasPlan.monto) subFilas.push(['Monto remanente', i => montoDoc(x.remMonto[i])]);
+      if (verFilasPlan.obra) subFilas.push(['% remanente en Obra', i => docPct(x.remObra[i])]);
+      if (verFilasPlan.cant) subFilas.push(['Cantidad remanente', i => docCant(x.remCant[i])]);
+      if (verFilasPlan.monto) subFilas.push(['Monto remanente', i => docARS(x.remMonto[i])]);
       const rs = subFilas.length ? ` rowspan="${1 + subFilas.length}"` : '';
 
       const principal = `
@@ -1088,7 +1091,7 @@ function renderDocumento() {
       if (s.apaisada) {
         const orientCorta = hojaPlanOrientacionElegida() === 'vertical' ? 'v' : 'h';
         clases.push('doc-seccion-apaisada', `doc-seccion-hoja-${hojaPlanElegida().toLowerCase()}-${orientCorta}`);
-        if (s.id === 'plan' && config.hojaPlanAjustar) clases.push('doc-plan-ajustar');
+        if (SECCIONES_AJUSTABLES.includes(s.id) && config.hojaPlanAjustar) clases.push('doc-plan-ajustar');
       }
       if (!incluidas[s.id]) clases.push('oculta');
       return `<section class="${clases.join(' ')}" data-seccion="${s.id}">${incluidas[s.id] ? s.render() : ''}</section>`;
@@ -1111,15 +1114,26 @@ function renderDocumento() {
 // alto es lo que manda, antes de aplicar el zoom se les da a las columnas de
 // período el ancho extra necesario para que, ya achicadas, terminen ocupando
 // todo el ancho de la hoja en vez de quedar angostas en el medio.
+// Cronograma y Cuadro de Remanentes son las dos secciones con hoja elegible
+// (misma tabla de períodos, mismo botón "Ajustar a una hoja" en pantalla):
+// cada una se achica por separado porque el Cuadro de Remanentes tiene una
+// fila más por ítem (% remanente en Obra/Cantidad/Monto) que el Plan de
+// trabajos y su alto natural no es el mismo.
+const SECCIONES_AJUSTABLES = ['plan', 'remanentes'];
+
 function ajustarPlanAUnaHoja() {
+  SECCIONES_AJUSTABLES.forEach(ajustarSeccionAUnaHoja);
+}
+
+function ajustarSeccionAUnaHoja(seccionId) {
   const PX_POR_MM = 96 / 25.4;   // conversión física fija de CSS, no depende del DPI de pantalla
   const ANCHO_PERIODO_MIN_MM = 15;
   // Colchón contra redondeos entre esta medición en pantalla y la paginación
   // real de Chrome al imprimir — sin esto, un plan que mide justo-justo puede
   // igual desbordar dos o tres filas del pie a una segunda hoja.
   const MARGEN_SEGURIDAD_MM = 6;
-  const seccion = document.querySelector('.doc-seccion[data-seccion="plan"]');
-  if (!seccion || !incluidas.plan || !config.hojaPlanAjustar) return;
+  const seccion = document.querySelector(`.doc-seccion[data-seccion="${seccionId}"]`);
+  if (!seccion || !incluidas[seccionId] || !config.hojaPlanAjustar) return;
   const bloque = seccion.querySelector('.doc-plan-bloque');
   if (!bloque) return;
 
