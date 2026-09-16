@@ -897,7 +897,7 @@ function seccionCurvas() {
     <table class="doc-tabla doc-tabla-datos">
       <tbody>
         <tr><td>Total del presupuesto</td><td class="doc-num">${docARS(plan.total)}</td>
-            <td>Anticipo financiero (${docPct(plan.anticipoFrac)})</td><td class="doc-num">${docARS(plan.anticipoMonto)}</td></tr>
+            <td>Anticipo financiero</td><td class="doc-num">${docARS(plan.anticipoMonto)} (${docPct(plan.anticipoFrac)})</td></tr>
         <tr><td>A certificar</td><td class="doc-num">${docARS(plan.total - plan.anticipoMonto)}</td>
             <td>Plazo de obra</td><td class="doc-num">${plan.n} ${escHtml(plan.n === 1 ? unidad.toLowerCase() : unidadPlural())}</td></tr>
         <tr><td>Avance planificado</td><td class="doc-num">${docPct(ultimoAcum)}</td>
