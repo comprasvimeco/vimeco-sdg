@@ -120,15 +120,25 @@
    repite su encabezado). No se fuerza `break-inside: avoid`: empujar el AP
    entero a la próxima hoja deja media página en blanco, que es peor. Lo que
    nunca se separa de su tabla es el título del AP. */
-.doc-ap-obra, .doc-ap-titulo, .doc-ap-meta { break-after: avoid; }
+.doc-ap-obra, .doc-ap-cab, .doc-ap-titulo, .doc-ap-meta { break-after: avoid; }
 
 .doc-ap-obra {
   font-size: 7pt; text-transform: uppercase; letter-spacing: .04em; color: #6b7280;
   border-bottom: .2mm solid var(--doc-linea); padding-bottom: 1mm; margin-bottom: 2.5mm;
 }
+.doc-ap-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 4mm; }
+.doc-ap-info { flex: 1 1 auto; min-width: 0; }
 .doc-ap-titulo { font-size: 9.5pt; font-weight: 700; margin-bottom: .8mm; }
 .doc-ap-num { color: var(--primary); margin-right: 2mm; }
 .doc-ap-meta { font-size: 7.5pt; color: #4b5563; margin-bottom: 2.5mm; }
+
+/* Precio unitario + Unidad, destacados arriba a la derecha del bloque —
+   sin costo acá: el desglose en $ de equipos/mano de obra/materiales sigue
+   más abajo, en el cuerpo del análisis. */
+.doc-ap-precio { flex: 0 0 auto; text-align: right; white-space: nowrap; }
+.doc-ap-precio-fila { font-size: 7.5pt; color: #6b7280; margin-bottom: .5mm; }
+.doc-ap-precio-fila:last-child { margin-bottom: 0; }
+.doc-ap-precio-fila b { display: block; font-size: 10pt; color: var(--primary-dark); }
 
 .doc-tabla tr.doc-fila-seccion td {
   background: #dfe3e8;

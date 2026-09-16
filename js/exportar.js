@@ -327,16 +327,30 @@ const filaVaciaAP = txt => `<tr><td colspan="5" class="doc-centro" style="color:
    Carga Fija. Aplicarle el K ahí sería cargarlo dos veces. */
 function analisisDeLinea(linea, sinCarga) {
   const ap = window.analisisDePrecioDe(modelo, linea.itemKey);
+  // Un auxiliar no tiene precio de venta (corta en el Subtotal, ver más
+  // abajo), así que no lleva la casilla de Precio unitario/Unidad y la
+  // Unidad se queda en la línea de metadatos, como antes.
   const meta = [
-    linea.unidad ? `Unidad: ${linea.unidad}` : '',
+    sinCarga && linea.unidad ? `Unidad: ${linea.unidad}` : '',
     ap ? `Rendimiento: ${docCant(ap.rendimiento)} uds./jornada` : '',
     linea.cantidad != null ? `${sinCarga ? 'Cantidad' : 'Cantidad de cómputo'}: ${docCant(linea.cantidad)} ${linea.unidad || ''}`.trim() : '',
   ].filter(Boolean).join('  ·  ');
 
+  const casillaPrecio = !sinCarga ? `
+    <div class="doc-ap-precio">
+      <div class="doc-ap-precio-fila"><span>Precio unitario</span><b>${docARS(linea.precioUnitario)}</b></div>
+      <div class="doc-ap-precio-fila"><span>Unidad</span><b>${escHtml(linea.unidad || '')}</b></div>
+    </div>` : '';
+
   const encabezado = `
     <div class="doc-ap-obra">${escHtml(modelo.obra.nombre || '')} — Análisis de precio</div>
-    <div class="doc-ap-titulo"><span class="doc-ap-num">${escHtml(linea.numero)}</span>${escHtml(linea.nombre)}</div>
-    <div class="doc-ap-meta">${escHtml(meta)}</div>`;
+    <div class="doc-ap-cab">
+      <div class="doc-ap-info">
+        <div class="doc-ap-titulo"><span class="doc-ap-num">${escHtml(linea.numero)}</span>${escHtml(linea.nombre)}</div>
+        <div class="doc-ap-meta">${escHtml(meta)}</div>
+      </div>
+      ${casillaPrecio}
+    </div>`;
 
   if (!ap) {
     return `<article class="doc-ap">${encabezado}

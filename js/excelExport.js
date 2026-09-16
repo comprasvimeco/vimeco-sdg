@@ -39,6 +39,60 @@
     return cargaEnCurso;
   }
 
+  /* ===== Curvas (Plan de avance / Curva de inversión) =====
+     ExcelJS no arma gráficos nativos de Excel, sólo puede pegar una imagen
+     (como ya hace con el logo, ver más abajo) — así que se pega el mismo SVG
+     que ya dibuja el PDF (window.svgPlanAvance/svgCurvaInversion, en
+     js/planAvanceDatos.js), rasterizado a PNG. No queda "viva" como el resto
+     del libro.
+
+     El SVG no lleva estilos inline: los rótulos (.pa-svg-tick/label/valor)
+     los pinta css/print.css, que no llega hasta acá porque el SVG se carga
+     solo, como imagen de <canvas>, sin el resto de la página. Se le inyecta
+     una copia mínima de esas mismas reglas antes de rasterizar — si se
+     retocan los estilos de la curva en print.css, hay que repetir el cambio
+     acá. */
+  const ESTILO_SVG_CURVAS =
+    ".pa-svg-tick{font-size:11px;fill:#6b7280;font-family:'Segoe UI',system-ui,sans-serif}" +
+    ".pa-svg-label{font-size:11px;font-weight:600;font-family:'Segoe UI',system-ui,sans-serif}" +
+    ".pa-svg-valor{font-size:8px;font-family:'Segoe UI',system-ui,sans-serif;opacity:.7}";
+
+  // Rasteriza el SVG (viewBox propio, ver dibujarCurvaLineas en
+  // planAvanceDatos.js) a PNG de ancho `anchoDestino` px, x2 de resolución
+  // real para que no se vea pixelado al abrir el Excel. Devuelve el base64
+  // (sin el prefijo data:) y el alto que le corresponde a ese ancho.
+  function svgComoPng(svgMarkup, anchoDestino) {
+    return new Promise((resolve, reject) => {
+      const m = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svgMarkup);
+      const vbW = m ? Number(m[1]) : 960;
+      const vbH = m ? Number(m[2]) : 340;
+      const escala = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = vbW * escala;
+      canvas.height = vbH * escala;
+      // El SVG está pensado para insertarse con innerHTML (hereda el
+      // namespace del documento), no para cargarse solo como imagen: sin
+      // xmlns explícito, Chrome lo rechaza como image/svg+xml.
+      const svgConNamespace = /xmlns=/.test(svgMarkup)
+        ? svgMarkup
+        : svgMarkup.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ');
+      const svgConEstilo = svgConNamespace.replace(/(<svg[^>]*>)/, `$1<style>${ESTILO_SVG_CURVAS}</style>`);
+      const blob = new Blob([svgConEstilo], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        const c2d = canvas.getContext('2d');
+        c2d.fillStyle = '#ffffff';
+        c2d.fillRect(0, 0, canvas.width, canvas.height);
+        c2d.drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        resolve({ base64: canvas.toDataURL('image/png').split(',')[1], width: anchoDestino, height: anchoDestino * vbH / vbW });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo rasterizar la curva a PNG')); };
+      img.src = url;
+    });
+  }
+
   /* ===== Paleta y formatos =====
      Los mismos colores del documento imprimible (css/print.css), para que el
      Excel y el PDF se lean como dos salidas de la misma cosa. */
@@ -553,8 +607,9 @@
       if (!literal) {
         ws.getCell(r, 10).value = 'Precio unitario';
         ws.getCell(r, 10).alignment = { horizontal: 'right' };
-        ws.getCell(r, 12).value = 'Costo unitario';
-        ws.getCell(r, 12).alignment = { horizontal: 'right' };
+        // La columna L, en la misma fila, lleva el costo unitario sin rótulo
+        // visible: no se muestra (no va costo en el A.P que sale de la app),
+        // pero sigue ahí porque CyP la lee con INDEX/MATCH (ver más abajo).
       }
       r++;
 
@@ -822,6 +877,9 @@
     ws.getColumn(8).width = 11;
     ws.getColumn(9).width = 20;
     ws.getColumn(10).width = 22;
+    // Ocultas, no borradas: Carga fija sigue leyendo la columna J (ver abajo).
+    ws.getColumn(9).hidden = true;
+    ws.getColumn(10).hidden = true;
 
     let r = membrete(ws, ctx, logoId, 8);
     r = titulo(ws, r, 2, 8, 'DETALLE DE LA PROPUESTA DISCRIMINADA POR ÍTEM', 12);
@@ -1244,7 +1302,7 @@
      de CyP por el código del ítem, así que el cronograma se mantiene alineado
      con el presupuesto sin volver a exportar. */
 
-  function hojaPlanTrabajos(ws, ctx, ref, logoId) {
+  function hojaPlanTrabajos(ws, ctx, ref, logoId, curvasImgs) {
     const plan = ctx.plan;
     const n = plan.n;
     const unidad = window.nombreUnidadPlan(ctx.planConfig);
@@ -1446,6 +1504,22 @@
       (L, i) => (i === 0 ? `=$F$${filaAnticipo}+${L}${fParcialM}` : `=${col(i - 1)}${r}+${L}${fParcialM}`),
       FMT_ARS, 'total');
     filaPie('Remanente ($)', L => `=$F$${filaTotal}-${L}${fAcumM}`, FMT_ARS);
+    r++;
+
+    // Las curvas, imagen fija pegada debajo del cronograma (ver la nota en
+    // svgComoPng): filas en blanco reservadas a ojo, un renglón de Excel por
+    // default mide ~20px.
+    if (curvasImgs) {
+      const ALTO_FILA_PX = 20;
+      r++;
+      r = titulo(ws, r, 2, 8, 'Plan de avance — acumulado y remanente', 10);
+      ws.addImage(curvasImgs.avance.id, { tl: { col: 1, row: r - 1 }, ext: curvasImgs.avance.ext });
+      r += Math.ceil(curvasImgs.avance.ext.height / ALTO_FILA_PX) + 2;
+
+      r = titulo(ws, r, 2, 8, 'Curva de inversión — acumulado y remanente', 10);
+      ws.addImage(curvasImgs.inversion.id, { tl: { col: 1, row: r - 1 }, ext: curvasImgs.inversion.ext });
+      r += Math.ceil(curvasImgs.inversion.ext.height / ALTO_FILA_PX) + 2;
+    }
 
     ws.views = [{ state: 'frozen', xSplit: 8, ySplit: filaCab + 1 }];
     ws.pageSetup = {
@@ -1475,6 +1549,24 @@
     const logoBase64 = logoMatch ? logoMatch[2] : LOGO_BASE64.split(',')[1];
     const logoId = wb.addImage({ base64: logoBase64, extension: logoExtension });
 
+    // Igual que hayPlanCargado() en js/exportar.js: un plan recién creado ya
+    // tiene 12 semanas vacías por default, así que "hay plan" es que se haya
+    // cargado al menos un punto de avance, no que el objeto exista.
+    const hayPlanCargado = ctx.plan && ctx.plan.acumPct.some(v => v > 0);
+    let curvasImgs = null;
+    if (hayPlanCargado) {
+      const unidad = window.nombreUnidadPlan(ctx.planConfig);
+      const ANCHO_CURVA_PX = 680;
+      const [avance, inversion] = await Promise.all([
+        svgComoPng(window.svgPlanAvance(ctx.plan, { unidad }), ANCHO_CURVA_PX),
+        svgComoPng(window.svgCurvaInversion(ctx.plan, { unidad, fmtMonto: window.fmtARS }), ANCHO_CURVA_PX),
+      ]);
+      curvasImgs = {
+        avance: { id: wb.addImage({ base64: avance.base64, extension: 'png' }), ext: { width: avance.width, height: avance.height } },
+        inversion: { id: wb.addImage({ base64: inversion.base64, extension: 'png' }), ext: { width: inversion.width, height: inversion.height } },
+      };
+    }
+
     // Las hojas se crean en el orden en que se leen; se llenan después, en el
     // orden en que se necesitan las direcciones de celda de las anteriores.
     // Una obra sin rubros no tiene Resumen por rubro que mostrar (igual que en
@@ -1499,7 +1591,7 @@
     if (hojas.apAux) hojaAPAuxiliares(hojas.apAux, ctx, ref);
     hojaCyP(hojas.cyp, ctx, ref, logoId);
     hojaCargaFija(hojas.cargafija, ctx, ref);
-    if (hojas.plan) hojaPlanTrabajos(hojas.plan, ctx, ref, logoId);
+    if (hojas.plan) hojaPlanTrabajos(hojas.plan, ctx, ref, logoId, curvasImgs);
     if (hojas.resumen) hojaResumen(hojas.resumen, ctx, ref, logoId);
 
     // Último eslabón: los Gastos Generales del Coeficiente K son el total de la
