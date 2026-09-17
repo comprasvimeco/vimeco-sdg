@@ -776,17 +776,29 @@ function engancharTabla() {
     // Flechas ←/→ saltan de período dentro de la misma fila, ↑/↓ saltan a la
     // misma columna de período en la fila editable de arriba/abajo — como en
     // la planilla.
+    let destinoRow = e.target.dataset.row;
+    let destinoP = parseInt(e.target.dataset.p, 10);
     if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      const dir = e.key === 'ArrowRight' ? 1 : -1;
-      const p = parseInt(e.target.dataset.p, 10) + dir;
-      const destino = wrap.querySelector(`.pa-input[data-row="${CSS.escape(e.target.dataset.row)}"][data-p="${p}"]`);
-      if (destino) { e.preventDefault(); destino.focus(); }
+      destinoP += e.key === 'ArrowRight' ? 1 : -1;
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       const dir = e.key === 'ArrowDown' ? 1 : -1;
-      const columna = Array.from(wrap.querySelectorAll(`.pa-input[data-p="${e.target.dataset.p}"]`));
-      const destino = columna[columna.indexOf(e.target) + dir];
-      if (destino) { e.preventDefault(); destino.focus(); }
+      const columna = Array.from(wrap.querySelectorAll(`.pa-input[data-p="${destinoP}"]`));
+      const vecino = columna[columna.indexOf(e.target) + dir];
+      if (!vecino) return;
+      destinoRow = vecino.dataset.row;
+    } else {
+      return;
     }
+    if (!wrap.querySelector(`.pa-input[data-row="${CSS.escape(destinoRow)}"][data-p="${destinoP}"]`)) return;
+    e.preventDefault();
+    // Ojo: si el valor cambió, blur() dispara el focusout de arriba, que llama
+    // a renderTodo() y reemplaza toda la tabla — un <input> resuelto ANTES del
+    // blur() queda huérfano y ya no se puede enfocar. Por eso acá se guarda
+    // primero (blur) y recién después se busca el input ya re-renderizado por
+    // sus coordenadas (row, p).
+    e.target.blur();
+    const destino = wrap.querySelector(`.pa-input[data-row="${CSS.escape(destinoRow)}"][data-p="${destinoP}"]`);
+    if (destino) destino.focus();
   });
 
   wrap.addEventListener('click', e => {
