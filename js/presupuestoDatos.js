@@ -56,6 +56,11 @@
       materiales: Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })),
       equipos:    Object.entries(equiposData    || {}).map(([key, e]) => ({ key, ...e })),
       roles:      window.rolesOrdenados(Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r }))),
+      // Auxiliares de ESTA obra, elegibles como insumo de otro A.P. (ver
+      // calcCostoUnitarioItem, calcCostos.js) — necesita también `obraKey`,
+      // para resolver la versión de obra del ítem fantasma de cada auxiliar.
+      auxiliares: Object.entries(auxiliaresData || {}).map(([key, a]) => ({ key, ...a })),
+      obraKey,
     };
     const paramsEquipos = { ...DEFAULT_PARAMS_EQUIPOS, ...(obra.paramsEquipos || {}) };
     const paramsMO      = { ...DEFAULT_PARAMS_MO,      ...(obra.paramsMO      || {}) };
@@ -240,6 +245,7 @@
         .map(([lineaKey, l]) => {
           const cat = tipo === 'material' ? modelo.catalogos.materiales
             : tipo === 'equipo' ? modelo.catalogos.equipos
+            : tipo === 'auxiliar' ? modelo.catalogos.auxiliares
             : modelo.catalogos.roles;
           const entidad = cat.find(c => c.key === l.refKey);
           const d = r.detallePorLinea[lineaKey];
@@ -250,8 +256,13 @@
             // desambiguan allá) y que el VLOOKUP lo encuentre.
             refKey: entidad ? entidad.key : null,
             tipo,
+            // Un auxiliar usado como insumo se marca aparte: la exportación a
+            // Excel lo busca en la hoja "A.P auxiliares" (ref.auxiliares), no
+            // en la hoja Materiales — no tiene un precio cargado a mano, es un
+            // Subtotal A+B+C recalculado (ver calcCostos.js).
+            esAuxiliar: tipo === 'auxiliar' || undefined,
             nombre: entidad ? nombreDe(tipo, entidad) : '(sin elegir)',
-            unidad: tipo === 'material' && entidad ? (entidad.unidad || '') : '',
+            unidad: (tipo === 'material' || tipo === 'auxiliar') && entidad ? (entidad.unidad || '') : '',
             cantidad: l.cantidad != null && !isNaN(l.cantidad) ? Number(l.cantidad) : null,
             costoUnitario: d ? d.costoUnitario : null,
             costoTotal: d ? d.costoTotal : null,
@@ -273,7 +284,10 @@
       rendimiento: version.rendimiento || 1,
       equipos: filas('equipo'),
       manoDeObra,
-      materiales: filas('material'),
+      // Un auxiliar usado como insumo aparece dentro de "Materiales" (mismo
+      // bolsón de costo C, ver calcCostos.js) — se agrega al final, después de
+      // los materiales propios de la receta.
+      materiales: filas('material').concat(filas('auxiliar')),
       costoDiarioEquipos: r.costoDiarioEquipos,
       costoUnitarioEquipos: r.costoUnitarioEquipos,
       costoDiarioSeguridadCapataz: r.costoDiarioSeguridadCapataz,

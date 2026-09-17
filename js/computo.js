@@ -56,7 +56,11 @@ function costoUnitarioDe(itemKey) {
   if (!it) return 0;
   const version = versionDe(it);
   if (!version.lineas || !Object.keys(version.lineas).length) return 0;
-  const catalogos = { materiales, equipos, roles };
+  // Para que un ítem que use un auxiliar como insumo cueste lo mismo acá que
+  // en su A.P., Carga Fija, Presupuesto y Plan de Avance (ver
+  // calcCostoUnitarioItem, calcCostos.js).
+  const auxiliaresArr = Object.entries(auxiliares || {}).map(([key, a]) => ({ key, ...a }));
+  const catalogos = { materiales, equipos, roles, auxiliares: auxiliaresArr, items, obraKey };
   const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra);
   return r.costoUnitario;
 }

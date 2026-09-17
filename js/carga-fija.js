@@ -933,7 +933,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, configData, computoLineas, itemsData, materialesData, equiposData, rolesData] = await Promise.all([
+  const [obraData, lineasData, configData, computoLineas, itemsData, materialesData, equiposData, rolesData, auxiliaresData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/lineas.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
@@ -942,6 +942,7 @@ async function loadAll() {
     _fbGet('/materiales.json'),
     _fbGet('/equipos.json'),
     _fbGet(`/obras/${obraKey}/roles.json`),
+    _fbGet(`/obras/${obraKey}/auxiliares.json`),
   ]);
 
   if (!obraData) {
@@ -958,6 +959,11 @@ async function loadAll() {
     materiales: Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m })),
     equipos: Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e })),
     roles: Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r })),
+    // Para que un ítem del Cómputo que use un auxiliar como insumo cueste lo
+    // mismo acá que en su A.P. (ver calcCostoUnitarioItem, calcCostos.js).
+    auxiliares: Object.entries(auxiliaresData || {}).map(([key, a]) => ({ key, ...a })),
+    items,
+    obraKey,
   };
   paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
   paramsMO = { ...paramsMO, ...(obra.paramsMO || {}) };

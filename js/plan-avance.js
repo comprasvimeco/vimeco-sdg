@@ -25,6 +25,7 @@ let items = [];
 let materiales = [];
 let equipos = [];
 let roles = [];
+let auxiliares = [];
 let paramsEquipos = { tasaInteresPct: 10, reparacionesPct: 75, lubricantesPct: 50, precioCombustibleLitro: 0 };
 let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
 let preciosObra = {};
@@ -107,7 +108,7 @@ function costoUnitarioDe(itemKey, opts) {
   if (!it) return 0;
   const version = versionDe(it);
   if (!version.lineas || !Object.keys(version.lineas).length) return 0;
-  const catalogos = { materiales, equipos, roles };
+  const catalogos = { materiales, equipos, roles, auxiliares, items, obraKey };
   return window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra, opts).costoUnitario;
 }
 
@@ -960,7 +961,7 @@ async function loadAll() {
     return;
   }
   const [obraData, lineasData, rubrosData, itemsData, materialesData, equiposData, rolesData,
-         cfLineasData, cfConfigData, planConfigData, planItemsData, planRubrosData] = await Promise.all([
+         cfLineasData, cfConfigData, planConfigData, planItemsData, planRubrosData, auxiliaresData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),
     _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
@@ -973,6 +974,7 @@ async function loadAll() {
     _fbGet(`/obras/${obraKey}/planAvance/config.json`),
     _fbGet(`/obras/${obraKey}/planAvance/items.json`),
     _fbGet(`/obras/${obraKey}/planAvance/rubros.json`),
+    _fbGet(`/obras/${obraKey}/auxiliares.json`),
   ]);
 
   if (!obraData) {
@@ -986,6 +988,10 @@ async function loadAll() {
   materiales = Object.entries(materialesData || {}).map(([key, m]) => ({ key, ...m }));
   equipos = Object.entries(equiposData || {}).map(([key, e]) => ({ key, ...e }));
   roles = Object.entries(rolesData || {}).map(([key, r]) => ({ key, ...r }));
+  // Para que un ítem del Cómputo que use un auxiliar como insumo cueste lo
+  // mismo acá que en su A.P. y en Carga Fija (ver calcCostoUnitarioItem,
+  // calcCostos.js).
+  auxiliares = Object.entries(auxiliaresData || {}).map(([key, a]) => ({ key, ...a }));
   paramsEquipos = { ...paramsEquipos, ...(obra.paramsEquipos || {}) };
   paramsMO = { ...paramsMO, ...(obra.paramsMO || {}) };
   dolarObra = obra.dolar ? obra.dolar.valor : null;

@@ -144,17 +144,46 @@ window.precioVigenteMaterial = function (precio, dolarValor, opts) {
   return precio.precioUSD * venta;
 };
 
+// Ítem "fantasma" de un auxiliar: su receta real vive en
+// /items/{itemKey}/versionesObra/{obraKey}, igual que cualquier ítem del
+// Cómputo — ver window.versionDeItem más abajo.
+window.versionDeItem = function (item, obraKey) {
+  const propia = item && item.versionesObra && item.versionesObra[obraKey];
+  return propia || item || {};
+};
+
 window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO, preciosObra, dolarValor, opts) {
   preciosObra = preciosObra || {};
   opts = opts || {};
+  const auxVisitados = opts.auxVisitados || new Set();
   function catalogoFor(tipo) {
     if (tipo === 'material') return catalogos.materiales;
     if (tipo === 'equipo') return catalogos.equipos;
+    if (tipo === 'auxiliar') return catalogos.auxiliares || [];
     return catalogos.roles;
   }
   function precioUnitarioMaterial(mat) {
     if (!mat) return null;
     return window.precioVigenteMaterial(preciosObra[mat.key], dolarValor, opts);
+  }
+  // Costo unitario (el Subtotal A+B+C, por unidad) de un auxiliar usado como
+  // insumo de OTRO A.P. — se comporta como un material (cantidad fija por
+  // unidad de ítem, no se divide por rendimiento), pero su "precio" no está
+  // cargado a mano: sale de recalcular la receta del auxiliar, que puede a su
+  // vez usar otro auxiliar como insumo. `auxVisitados` corta un ciclo (A usa
+  // B, B usa A): si esta key ya está en la cadena, se devuelve costo
+  // desconocido (null) en vez de recursar infinito — la UI de item.js ya
+  // impide elegir un auxiliar que cerraría un ciclo, así que esto es sólo una
+  // red de seguridad.
+  function costoUnitarioAuxiliar(aux) {
+    if (!aux || auxVisitados.has(aux.key)) return null;
+    const it = (catalogos.items || []).find(i => i.key === aux.itemKey);
+    if (!it) return null;
+    const version = window.versionDeItem(it, catalogos.obraKey);
+    if (!version.lineas || !Object.keys(version.lineas).length) return null;
+    const r = window.calcCostoUnitarioItem(version, version.lineas, catalogos, paramsEquipos, paramsMO,
+      preciosObra, dolarValor, { ...opts, auxVisitados: new Set(auxVisitados).add(aux.key) });
+    return r.costoUnitario;
   }
   // costoUnitario acá es el precio de LA UNIDAD del material/equipo/rol
   // (ej. $/kg, costo diario del equipo, costo del jornal) — no el costo
@@ -172,6 +201,8 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     let costoUnitario;
     if (linea.tipo === 'material') {
       costoUnitario = precioUnitarioMaterial(entidad);
+    } else if (linea.tipo === 'auxiliar') {
+      costoUnitario = costoUnitarioAuxiliar(entidad);
     } else if (linea.tipo === 'equipo') {
       costoUnitario = window.calcCostoDiarioEquipo(entidad, paramsEquipos, paramsMO.jornadaHoras, dolarValor);
     } else {
@@ -190,7 +221,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     const d = costoLineaDetalle(l);
     if (!d) return;
     detallePorLinea[lineaKey] = d;
-    if (l.tipo === 'material') costoMateriales += d.costoTotal;
+    if (l.tipo === 'material' || l.tipo === 'auxiliar') costoMateriales += d.costoTotal;
     else if (l.tipo === 'equipo') costoDiarioEquipos += d.costoTotal;
     else costoDiarioMORoles += d.costoTotal;
   });

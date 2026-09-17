@@ -41,6 +41,8 @@ let detallePorLineaActivo = {};   // { lineaKey: { costoUnitario, costoTotal } }
 let materiales = [];
 let equipos = [];
 let roles = [];
+let auxiliaresDeObra = [];     // auxiliares de la obra activa, elegibles como insumo — ver activarVersion
+let auxiliaresPorObra = {};    // caché { obraKey: [{key, itemKey, nombre, unidad, ...}] }, ver cargarAuxiliaresObra
 // Un A.P. usa una sola familia de Mano de Obra a la vez (Arquitectura o
 // Vial) — ver window.ROLES_FIJOS_MO en calcCostos.js. Determina qué roles
 // se listan/aceptan en la sección de Mano de Obra de este A.P.
@@ -80,14 +82,16 @@ function calcularEquiposUsadosEnObra() {
   return set;
 }
 
-function costoComputoDeObra(obraKeyX, computoDataX) {
+function costoComputoDeObra(obraKeyX, computoDataX, auxiliaresDataX) {
   const obraFullX = obrasFull[obraKeyX] || {};
   const paramsEq = { ...DEFAULT_PARAMS_EQUIPOS, ...(obraFullX.paramsEquipos || {}) };
   const paramsMoX = { ...DEFAULT_PARAMS_MO, ...(obraFullX.paramsMO || {}) };
   const dolarX = obraFullX.dolar ? obraFullX.dolar.valor : null;
   const rolesX = Object.entries(obraFullX.roles || {}).map(([k, r]) => ({ key: k, ...r }));
   const preciosObraX = window.resolverPreciosObra(materiales, obraKeyX);
-  const catalogos = { materiales, equipos, roles: rolesX };
+  const auxiliaresX = Object.entries(auxiliaresDataX || {}).map(([k, a]) => ({ key: k, ...a }));
+  const itemsX = Object.entries(allItemsFull).map(([k, it]) => ({ key: k, ...it }));
+  const catalogos = { materiales, equipos, roles: rolesX, auxiliares: auxiliaresX, items: itemsX, obraKey: obraKeyX };
   return Object.values(computoDataX || {}).reduce((acc, l) => {
     if (!l.itemKey) return acc;
     const it = allItemsFull[l.itemKey];
@@ -103,12 +107,13 @@ function costoComputoDeObra(obraKeyX, computoDataX) {
 
 async function calcularKObra(obraKeyX) {
   if (kPorObra[obraKeyX] !== undefined) return kPorObra[obraKeyX];
-  const [computoDataX, cargaFijaLineasX, cargaFijaConfigX] = await Promise.all([
+  const [computoDataX, cargaFijaLineasX, cargaFijaConfigX, auxiliaresDataX] = await Promise.all([
     _fbGet(`/obras/${obraKeyX}/computo.json`),
     _fbGet(`/obras/${obraKeyX}/cargaFija/lineas.json`),
     _fbGet(`/obras/${obraKeyX}/cargaFija/config.json`),
+    _fbGet(`/obras/${obraKeyX}/auxiliares.json`),
   ]);
-  const costoComputo = costoComputoDeObra(obraKeyX, computoDataX);
+  const costoComputo = costoComputoDeObra(obraKeyX, computoDataX, auxiliaresDataX);
   const config = { ...(cargaFijaConfigX || {}) };
   // El K vive en calcCostos.js (calcCargaFija), compartido con Carga Fija,
   // Presupuesto y Plan de Avance. Los gastos fijos no se suman por separado:
@@ -143,13 +148,13 @@ function escucharKObraEnVivo(obraKeyX) {
 }
 
 const HINTS = {
-  material: 'Cantidad por unidad de ítem (no se divide por rendimiento).',
+  material: 'Cantidad por unidad de ítem (no se divide por rendimiento). Incluye los auxiliares usados como insumo.',
   equipo: 'Cantidad de uso por jornada — se divide por el rendimiento del ítem.',
   manoDeObra: 'Cantidad de trabajadores por jornada — se divide por el rendimiento del ítem.',
 };
 
 function labelFor(tipo, entidad) {
-  if (tipo === 'material') return entidad.nombre;
+  if (tipo === 'material' || tipo === 'auxiliar') return entidad.nombre;
   if (tipo === 'equipo') return `${entidad.tipo || ''}${entidad.potencia ? ` ${entidad.potencia} HP` : ''}`.trim();
   return entidad.nombre;
 }
@@ -157,7 +162,41 @@ function labelFor(tipo, entidad) {
 function catalogoFor(tipo) {
   if (tipo === 'material') return materiales;
   if (tipo === 'equipo') return equipos;
+  if (tipo === 'auxiliar') return auxiliaresDeObra;
   return roles;
+}
+
+// Auxiliares elegibles para una línea 'auxiliar' de ESTE A.P.: si el A.P. que
+// se está editando es a su vez un auxiliar (esAuxiliar()), se excluyen los que
+// —siguiendo su propia cadena de auxiliares-insumo— ya dependen de él, porque
+// elegirlos cerraría un ciclo (A usa B, B ya usa A). `refKeyActual` (el
+// elegido hoy en esta línea, si había uno) siempre queda en la lista aunque
+// igualmente dependa de algo raro, para no hacer desaparecer una selección
+// ya guardada.
+function auxiliarDependeDe(auxKey, objetivoKey, visitados) {
+  if (auxKey === objetivoKey) return true;
+  if (visitados.has(auxKey)) return false;
+  visitados.add(auxKey);
+  const aux = auxiliaresDeObra.find(a => a.key === auxKey);
+  if (!aux) return false;
+  const it = allItemsFull[aux.itemKey];
+  const version = it && it.versionesObra && it.versionesObra[activeVersion];
+  if (!version || !version.lineas) return false;
+  return Object.values(version.lineas).some(l =>
+    l.tipo === 'auxiliar' && l.refKey && auxiliarDependeDe(l.refKey, objetivoKey, visitados));
+}
+
+function auxiliaresSeleccionables(refKeyActual) {
+  if (!esAuxiliar()) return auxiliaresDeObra;
+  // La key propia sale de `lineaVinculada` (la entrada real en
+  // /obras/{obra}/auxiliares), no del parámetro `?aux=` de la URL: al navegar
+  // entre A.P. con las flechas, `hrefParaLinea` ya prefiere `?key=` (el
+  // itemKey) en cuanto el auxiliar tiene ítem creado — `keyLinea` quedaría
+  // vacío en ese caso.
+  const propiaKey = lineaVinculada && lineaVinculada.key;
+  if (!propiaKey) return auxiliaresDeObra;
+  return auxiliaresDeObra.filter(a =>
+    a.key === refKeyActual || (a.key !== propiaKey && !auxiliarDependeDe(a.key, propiaKey, new Set())));
 }
 
 // Cómo se lee una referencia a esta línea dentro de una fórmula (js/refs.js):
@@ -610,8 +649,12 @@ function aplicarSnapshotRemoto(dataCruda) {
 
   const lineasRemotas = data.lineas || {};
   if (seccionEnEdicion) {
-    const propias = Object.fromEntries(Object.entries(lineas).filter(([, l]) => l.tipo === seccionEnEdicion));
-    const ajenas = Object.fromEntries(Object.entries(lineasRemotas).filter(([, l]) => l.tipo !== seccionEnEdicion));
+    // La sección "material" en pantalla incluye también las líneas tipo
+    // 'auxiliar' (ver renderLineasSeccion) — sin esto, editar un auxiliar
+    // mientras llega un snapshot remoto lo pisaría con la versión vieja.
+    const esDeLaSeccion = l => l.tipo === seccionEnEdicion || (seccionEnEdicion === 'material' && l.tipo === 'auxiliar');
+    const propias = Object.fromEntries(Object.entries(lineas).filter(([, l]) => esDeLaSeccion(l)));
+    const ajenas = Object.fromEntries(Object.entries(lineasRemotas).filter(([, l]) => !esDeLaSeccion(l)));
     lineas = { ...ajenas, ...propias };
   } else {
     lineas = lineasRemotas;
@@ -630,6 +673,18 @@ function aplicarSnapshotRemoto(dataCruda) {
   renderTodasLasLineas(seccionEnEdicion ? [seccionEnEdicion] : []);
 }
 
+// Auxiliares de una obra puntual, cacheados por obraKey (mismo criterio que
+// kPorObra): item.html normalmente sólo tiene una obra activa (llega ya
+// cargada desde loadAll), esto sólo pega un fetch extra en el caso legado de
+// un ítem con versión en más de una obra (ver renderVersionTabs).
+async function cargarAuxiliaresObra(key) {
+  if (auxiliaresPorObra[key]) return auxiliaresPorObra[key];
+  const data = await _fbGet(`/obras/${key}/auxiliares.json`);
+  const arr = Object.entries(data || {}).map(([k, a]) => ({ key: k, ...a }));
+  auxiliaresPorObra[key] = arr;
+  return arr;
+}
+
 function activarVersion(key) {
   if (detenerListenerVersion) { detenerListenerVersion(); detenerListenerVersion = null; }
   activeVersion = key;
@@ -639,6 +694,12 @@ function activarVersion(key) {
   dolarObraActivo = (obraActiva && obraActiva.dolar) ? obraActiva.dolar.valor : null;
   window.setCotizacionObra(dolarObraActivo);
   roles = window.rolesOrdenados(Object.entries((obraActiva && obraActiva.roles) || {}).map(([k, r]) => ({ key: k, ...r })));
+  auxiliaresDeObra = auxiliaresPorObra[key] || [];
+  if (!auxiliaresPorObra[key]) {
+    cargarAuxiliaresObra(key).then(arr => {
+      if (activeVersion === key) { auxiliaresDeObra = arr; renderTodasLasLineas(); }
+    });
+  }
   const v = versionesObra[key];
   if (v) {
     lineas = v.lineas || {};
@@ -730,7 +791,11 @@ function renderVersionRendimiento() {
 // línea de la versión activa — lo usan tanto el resumen como cada sección
 // de líneas, para no repetir el cálculo.
 function calcularDetalleActivo() {
-  const catalogos = { materiales, equipos, roles };
+  const catalogos = {
+    materiales, equipos, roles, auxiliares: auxiliaresDeObra,
+    items: Object.entries(allItemsFull).map(([key, it]) => ({ key, ...it })),
+    obraKey: activeVersion,
+  };
   const preciosObra = window.resolverPreciosObra(materiales, activeVersion);
   const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo, sinSeguridadCapataz: sinSeguridadCapatazActivo }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObraActivo);
   detallePorLineaActivo = r.detallePorLinea;
@@ -815,7 +880,12 @@ async function toggleSinSeguridadCapataz(excluir) {
 function renderLineasSeccion(tipo, r) {
   const container = $(`lineas-${tipo}`);
   const cat = catalogoFor(tipo);
-  const entradas = Object.entries(lineas).filter(([, l]) => l.tipo === tipo);
+  // La sección "Materiales" muestra, además de sus propias líneas, las de
+  // tipo 'auxiliar' — un auxiliar usado como insumo se comporta como un
+  // material (cantidad fija por unidad de ítem, mismo bolsón de costo C) pero
+  // tiene su propio catálogo/selector, ver renderTodasLasLineas.
+  const entradas = Object.entries(lineas)
+    .filter(([, l]) => l.tipo === tipo || (tipo === 'material' && l.tipo === 'auxiliar'));
 
   // Equipos: desplegable, colapsado por defecto (la mayoría de los ítems no
   // llevan). Se abre solo mientras haya al menos una línea cargada, o si el
@@ -829,13 +899,14 @@ function renderLineasSeccion(tipo, r) {
     html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo cargado para este tipo.</p>';
   } else {
     html += `<div class="ap-linea ap-linea-header con-costo"><span></span><span>Cantidad</span><span>Costo unitario</span><span>Costo total</span><span></span></div>`;
-    html += entradas.map(([lineaKey]) => {
+    html += entradas.map(([lineaKey, l]) => {
       const d = detallePorLineaActivo[lineaKey];
+      const conBadge = tipo === 'material' || l.tipo === 'auxiliar';
       return `
         <div class="ap-linea con-costo" data-key="${escHtml(lineaKey)}">
           <div class="linea-select-wrap">
             <div class="linea-select-container"></div>
-            ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
+            ${conBadge ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}" ${window._soloLectura ? 'disabled' : ''}>
           <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d && d.costoTotal != null ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d && d.costoTotal != null ? fmtARS(d.costoTotal) : '—'}</span>
@@ -854,25 +925,31 @@ function renderLineasSeccion(tipo, r) {
   container.querySelectorAll('.ap-linea[data-key]').forEach(row => {
     const lineaKey = row.dataset.key;
     const linea = lineas[lineaKey];
+    // Cada línea de la sección Materiales resuelve su PROPIO catálogo/tipo —
+    // una fila puede ser 'material' o 'auxiliar' aunque las dos vivan en la
+    // misma sección visual (ver el filtro de `entradas` más arriba).
+    const tipoLinea = linea.tipo;
+    const catLinea = catalogoFor(tipoLinea);
     const cantidadInput = row.querySelector('.linea-cantidad');
 
     cantidadInput.dataset.calcValor = linea.cantidad ?? 0;
 
-    const options = cat.map(c => ({
+    const catOpciones = tipoLinea === 'auxiliar' ? auxiliaresSeleccionables(linea.refKey) : catLinea;
+    const options = catOpciones.map(c => ({
       value: c.key,
-      label: labelFor(tipo, c),
-      sublabel: tipo === 'material' ? c.unidad : undefined,
-      usado: tipo === 'equipo' ? equiposUsadosEnObra.has(c.key) : undefined,
+      label: labelFor(tipoLinea, c),
+      sublabel: (tipoLinea === 'material' || tipoLinea === 'auxiliar') ? c.unidad : undefined,
+      usado: tipoLinea === 'equipo' ? equiposUsadosEnObra.has(c.key) : undefined,
     }));
     createSearchableSelect(row.querySelector('.linea-select-container'), {
       options,
       value: linea.refKey,
-      placeholder: `Buscar ${tipo}…`,
+      placeholder: `Buscar ${tipoLinea === 'auxiliar' ? 'auxiliar' : tipoLinea}…`,
       onChange: v => updateLinea(lineaKey, { refKey: v }),
-      onCreateNew: tipo === 'material' ? texto => openQuickMaterialModal(texto, lineaKey) : null,
+      onCreateNew: tipoLinea === 'material' ? texto => openQuickMaterialModal(texto, lineaKey) : null,
       disabled: !!window._soloLectura,
     });
-    if (tipo === 'material') {
+    if (tipoLinea === 'material') {
       const mat = materiales.find(m => m.key === linea.refKey);
       const badge = row.querySelector('.linea-unidad-badge');
       badge.textContent = mat ? mat.unidad : '';
@@ -885,7 +962,21 @@ function renderLineasSeccion(tipo, r) {
           costoUnit.disabled = true;
         }
       }
-    } else if (tipo === 'equipo') {
+    } else if (tipoLinea === 'auxiliar') {
+      const aux = auxiliaresDeObra.find(a => a.key === linea.refKey);
+      const badge = row.querySelector('.linea-unidad-badge');
+      badge.textContent = aux ? (aux.unidad || '') : '';
+      const costoUnit = row.querySelector('.ap-linea-costo-unit');
+      if (costoUnit) {
+        if (aux) {
+          costoUnit.title = 'Clic para ver el Análisis de Precio de este auxiliar';
+          costoUnit.addEventListener('click', () => window.open(
+            `item.html?aux=${encodeURIComponent(aux.key)}&obra=${encodeURIComponent(activeVersion)}`, '_blank'));
+        } else {
+          costoUnit.disabled = true;
+        }
+      }
+    } else if (tipoLinea === 'equipo') {
       const eq = equipos.find(e => e.key === linea.refKey);
       const costoUnit = row.querySelector('.ap-linea-costo-unit');
       if (costoUnit) {
@@ -1398,6 +1489,7 @@ async function loadAll() {
   rubrosMap = {};
   rubros.forEach(r => { rubrosMap[r.key] = r.nombre; });
   allItemsFull = allItemsData || {};
+  if (obraParam) auxiliaresPorObra[obraParam] = Object.entries(auxiliaresData || {}).map(([k, a]) => ({ key: k, ...a }));
   equiposUsadosEnObra = calcularEquiposUsadosEnObra();
   populateRubroSelect();
 
@@ -1453,6 +1545,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-item-save').addEventListener('click', saveDatosModal);
 
   $('btn-add-linea-material').addEventListener('click', () => addLinea('material'));
+  $('btn-add-linea-auxiliar').addEventListener('click', () => addLinea('auxiliar'));
   $('btn-add-linea-equipo').addEventListener('click', () => addLinea('equipo'));
   $('equipos-toggle').addEventListener('click', () => setEquiposExpandido($('lineas-equipo').classList.contains('hidden')));
 
