@@ -176,6 +176,11 @@ function etiquetaLinea(lineaKey) {
 // tenía vincularItem(), sin paso intermedio de búsqueda.
 
 async function autoCrearYVincular() {
+  const obraDataX = await _fbGet(`/obras/${obraParam}.json`);
+  if (obraDataX && window.obraEsSoloLectura(obraDataX)) {
+    document.body.innerHTML = `<p style="padding:2rem;">Esta obra está en modo lectura — no se puede crear un Análisis de Precio nuevo. Volvé al <a href="computo.html?obra=${encodeURIComponent(obraParam)}">Cómputo</a> y activá "Modo Edición" si necesitás editar.</p>`;
+    return;
+  }
   try {
     const lineaActual = await _fbGet(`/obras/${obraParam}/${nodoLinea}/${keyLinea}.json`);
     const nombre = (lineaActual && lineaActual.nombre) || '';
@@ -376,6 +381,7 @@ function renderFamiliaMOSwitch() {
 // cargadas de la otra las borra, con confirmación (mismo patrón que "Usar
 // otro AP como base").
 async function cambiarFamiliaMO(nueva) {
+  if (guardBloqueoObra()) return;
   if (nueva === familiaMOActiva) return;
   const rolesObra = (obrasFull[activeVersion] && obrasFull[activeVersion].roles) || {};
   const familiaDeRol = refKey => (rolesObra[refKey] && rolesObra[refKey].familia) || 'arquitectura';
@@ -411,6 +417,7 @@ function fmtFechaCorta(ts) {
 }
 
 async function quitarNotaBase() {
+  if (guardBloqueoObra()) return;
   const ok = await showConfirm('Quitar nota', '¿Quitar la nota de qué AP se usó como base? La receta copiada no se toca.');
   if (!ok) return;
   baseUsadaActiva = null;
@@ -491,6 +498,7 @@ async function remapearManoDeObra(lineasCopiadas, obraOrigenKey) {
 }
 
 async function seleccionarUsarComoBase(value, opciones) {
+  if (guardBloqueoObra()) return;
   const opt = opciones.find(o => o.value === value);
   if (!opt) return;
   $('modal-usar-base').classList.add('hidden');
@@ -703,6 +711,7 @@ function renderVersionRendimiento() {
   attachCalcInput(input, rendimientoFormulaActiva);
   attachValorInput(input, rendimientoActivo);
   input.addEventListener('blur', () => {
+    if (guardBloqueoObra()) return;
     const n = valorCampo(input);
     const formula = getCalcFormula(input);
     if (n == null || isNaN(n) || n <= 0) { setValorCampo(input, rendimientoActivo); return; }
@@ -788,6 +797,7 @@ async function persistRendimiento(cambios) {
 // incluido (comportamiento normal) — PATCH con null lo borra en vez de
 // dejar un "false" colgado.
 async function toggleSinSeguridadCapataz(excluir) {
+  if (guardBloqueoObra()) return;
   sinSeguridadCapatazActivo = excluir;
   renderTodasLasLineas();
   const justCreated = await ensureVersionExists();
@@ -1037,12 +1047,14 @@ async function persistLineas() {
 }
 
 function updateLinea(lineaKey, cambios) {
+  if (guardBloqueoObra()) return;
   lineas[lineaKey] = { ...lineas[lineaKey], ...cambios };
   renderTodasLasLineas();
   persistLineas();
 }
 
 function addLinea(tipo) {
+  if (guardBloqueoObra()) return;
   if (tipo !== 'material' && !catalogoFor(tipo).length) {
     showToast('No hay nada cargado en ese catálogo todavía.', 'error');
     return;
@@ -1074,6 +1086,7 @@ function openQuickMaterialModal(texto, lineaKey) {
 }
 
 async function saveQuickMaterial() {
+  if (guardBloqueoObra()) return;
   const nombre = $('qm-nombre').value.trim();
   const unidad = $('qm-unidad').value.trim();
   const errEl = $('modal-material-error-qm');
@@ -1174,6 +1187,7 @@ function openEditarPrecioModal(mat) {
 }
 
 async function saveEditarPrecioModal() {
+  if (guardBloqueoObra()) return;
   const nombre = $('mep-nombre').value.trim();
   const unidad = $('mep-unidad').value.trim();
   const proveedor = $('mep-proveedor').value.trim();
@@ -1297,6 +1311,7 @@ function openDetalleRolModal(rol) {
 }
 
 async function deleteLinea(lineaKey) {
+  if (guardBloqueoObra()) return;
   delete lineas[lineaKey];
   renderTodasLasLineas();
   await persistLineas();
@@ -1390,6 +1405,7 @@ async function loadAll() {
   if (obraParam) {
     ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData);
     renderHeaderTabs(obraParam, 'analisis-precio');
+    setModoObra(obraParam, obrasFull[obraParam]);
   }
   renderDatos();
   renderApNav();

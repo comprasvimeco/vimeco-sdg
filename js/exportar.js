@@ -1374,6 +1374,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
   renderHeaderTabs(obraKey, 'exportar');
+  setModoObra(obraKey, modelo.obra);
   renderSecciones();
   engancharConfig();
   engancharLogo();

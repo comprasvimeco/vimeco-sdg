@@ -482,6 +482,7 @@
   }
 
   async function saveQuickMaterialInline() {
+    if (guardBloqueoObra()) return;
     const nombre = document.getElementById('cqm-nombre').value.trim();
     const unidad = document.getElementById('cqm-unidad').value.trim();
     const errEl = document.getElementById('cqm-error');
@@ -517,6 +518,7 @@
 
   // --- Confirmar: aplicar precios sobre un archivo ya guardado ---
   async function confirmarCotizacion() {
+    if (guardBloqueoObra()) return;
     const errEl = document.getElementById('cotiz-revision-error');
     errEl.classList.add('hidden');
 

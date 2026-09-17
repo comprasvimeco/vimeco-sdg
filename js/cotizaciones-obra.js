@@ -118,6 +118,7 @@ function validarArchivo(file) {
 }
 
 async function subirArchivos(fileList) {
+  if (guardBloqueoObra()) return;
   const files = Array.from(fileList || []);
   if (!files.length) return;
 
@@ -180,6 +181,7 @@ async function subirArchivos(fileList) {
 }
 
 async function deleteCotizacion(key) {
+  if (guardBloqueoObra()) return;
   const c = cotizaciones[key] || {};
   const aviso = (c.lineasAplicadas || []).length
     ? 'Se borra el archivo de la carpeta. Los precios de materiales que ya se aplicaron NO se revierten — esto sólo elimina la evidencia.'
@@ -217,6 +219,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Cotizaciones — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'cotizaciones');
+  setModoObra(obraKey, obra);
   renderCotizaciones();
 
   $('main-loading').style.display = 'none';

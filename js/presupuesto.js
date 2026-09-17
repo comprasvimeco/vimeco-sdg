@@ -83,6 +83,7 @@ function engancharInputsOficial(container) {
     attachCalcInput(input);
     attachMoneyInput(input);
     input.addEventListener('blur', async () => {
+      if (guardBloqueoObra()) return;
       const lineaKey = input.dataset.lineaKey;
       const n = parseMoneyString(input.value);
       const precioOficial = isNaN(n) ? null : n;
@@ -188,6 +189,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Presupuesto — ' + modelo.obra.nombre;
   renderHeaderTabs(obraKey, 'presupuesto');
+  setModoObra(obraKey, modelo.obra);
   renderTodo();
 
   $('btn-toggle-oficial').addEventListener('click', () => {

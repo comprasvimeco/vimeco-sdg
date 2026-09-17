@@ -238,6 +238,7 @@ function renderLineas() {
   container.querySelectorAll('.computo-rubro-nombre-input').forEach(input => {
     const rubroId = input.dataset.rubroId;
     input.addEventListener('blur', () => {
+      if (guardBloqueoObra()) return;
       const v = input.value.trim();
       const rubro = rubros.find(r => r.key === rubroId);
       if (rubro && v && v !== rubro.nombre) { rubro.nombre = v; persistRubroCambios(rubroId, { nombre: v }); renderResumen(); }
@@ -296,6 +297,7 @@ function engancharCodigos(container) {
     const anterior = entidad.codigo != null ? String(entidad.codigo) : '';
 
     input.addEventListener('blur', () => {
+      if (guardBloqueoObra()) return;
       const v = input.value.trim();
       if (v === anterior) return;
 
@@ -474,6 +476,7 @@ async function persistRubroCambios(rubroId, cambios) {
 }
 
 function updateLinea(lineaKey, cambios, aux) {
+  if (guardBloqueoObra()) return;
   const datos = tienda(aux).datos;
   datos[lineaKey] = { ...datos[lineaKey], ...cambios };
   renderTodo();
@@ -494,6 +497,7 @@ async function persistNombreUnidadItem(itemKey, cambios) {
 }
 
 function addRubro() {
+  if (guardBloqueoObra()) return;
   const rubroId = 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   const orden = rubros.length ? Math.max(...rubros.map(r => r.orden || 0)) + 1 : 1;
   rubros.push({ key: rubroId, nombre: '', orden });
@@ -509,6 +513,7 @@ function addRubro() {
    necesitan un rubro que las contenga igual (el modelo no cambió), así que si
    todavía no hay ninguno se crea uno sin nombre, invisible en pantalla. */
 async function addItemPlano() {
+  if (guardBloqueoObra()) return;
   let rubroId = rubros.length ? rubros[0].key : null;
   if (!rubroId) {
     rubroId = 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
@@ -519,6 +524,7 @@ async function addItemPlano() {
 }
 
 function moverRubro(rubroId, dir) {
+  if (guardBloqueoObra()) return;
   const ordenados = [...rubros].sort((a, b) => (a.orden || 0) - (b.orden || 0));
   const idx = ordenados.findIndex(r => r.key === rubroId);
   const otroIdx = idx + dir;
@@ -532,6 +538,7 @@ function moverRubro(rubroId, dir) {
 }
 
 async function eliminarRubro(rubroId) {
+  if (guardBloqueoObra()) return;
   if (lineasDeRubro(rubroId).length) { showToast('Vaciá el rubro antes de eliminarlo.', 'error'); return; }
   const rubro = rubros.find(r => r.key === rubroId);
   const ok = await showConfirm('Eliminar rubro', `¿Eliminar "${rubro ? rubro.nombre || '(sin nombre)' : rubroId}"?`);
@@ -546,6 +553,7 @@ async function eliminarRubro(rubroId) {
 }
 
 function crearLineaEnRubro(rubroId) {
+  if (guardBloqueoObra()) return;
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   const grupo = lineasDeRubro(rubroId);
   const orden = grupo.length ? Math.max(...grupo.map(([, l]) => l.orden || 0)) + 1 : 1;
@@ -559,6 +567,7 @@ function crearLineaEnRubro(rubroId) {
 }
 
 function moverLinea(lineaKey, dir, aux) {
+  if (guardBloqueoObra()) return;
   const grupo = grupoDe(lineaKey, aux);
   const idx = grupo.findIndex(([k]) => k === lineaKey);
   const otroIdx = idx + dir;
@@ -584,6 +593,7 @@ function moverLineaARubro(lineaKey, rubroIdDestino) {
 // original se puede traer con "Usar como base" desde el AP de la nueva línea
 // si hace falta la misma receta.
 function duplicarLinea(lineaKey, aux) {
+  if (guardBloqueoObra()) return;
   const datos = tienda(aux).datos;
   const original = datos[lineaKey];
   const nuevaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
@@ -604,6 +614,7 @@ function duplicarLinea(lineaKey, aux) {
 }
 
 async function deleteLinea(lineaKey, aux) {
+  if (guardBloqueoObra()) return;
   const t = tienda(aux);
   const linea = t.datos[lineaKey];
   const ok = await showConfirm('Eliminar ítem', `¿Eliminar "${linea && linea.nombre || '(sin nombre)'}"?`);
@@ -622,6 +633,7 @@ async function deleteLinea(lineaKey, aux) {
    Precio de la fila lo crea y lo vincula solo (item.html?aux=…), igual que una
    línea nueva del Cómputo. */
 function crearAuxiliar() {
+  if (guardBloqueoObra()) return;
   const auxKey = 'aux_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   const ordenes = Object.values(auxiliares).map(a => a.orden || 0);
   auxiliares[auxKey] = {
@@ -788,6 +800,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Cómputo — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'computo');
+  setModoObra(obraKey, obra);
   renderTodo();
 
   $('main-loading').style.display = 'none';

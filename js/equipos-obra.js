@@ -24,6 +24,7 @@ function fillParamsForm() {
 }
 
 async function saveParams() {
+  if (guardBloqueoObra()) return;
   const tasaInteresPct        = parseFloat($('param-interes').value.replace(',', '.'));
   const reparacionesPct       = parseFloat($('param-reparaciones').value.replace(',', '.'));
   const lubricantesPct        = parseFloat($('param-lubricantes').value.replace(',', '.'));
@@ -133,6 +134,7 @@ async function onElegirObraOrigenEq(obraOrigenKey) {
 }
 
 async function confirmarImportarEq() {
+  if (guardBloqueoObra()) return;
   if (!paramsOrigen) return;
   const btn = $('importar-eq-confirmar');
   btn.disabled = true;
@@ -181,6 +183,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Equipos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'equipos');
+  setModoObra(obraKey, obra);
   fillParamsForm();
   applyFilter();
 

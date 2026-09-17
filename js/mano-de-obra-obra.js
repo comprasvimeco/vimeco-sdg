@@ -67,6 +67,7 @@ function fillParamsForm() {
 }
 
 async function saveParams() {
+  if (guardBloqueoObra()) return;
   const asistenciaPct = parseFloat($('param-asistencia').value.replace(',', '.'));
   const cargasPct      = parseFloat($('param-cargas').value.replace(',', '.'));
   const diasMes         = parseFloat($('param-dias').value.replace(',', '.'));
@@ -111,6 +112,7 @@ async function asegurarOrden() {
 }
 
 function moverRol(rolKey, dir) {
+  if (guardBloqueoObra()) return;
   const idx = allRoles.findIndex(r => r.key === rolKey);
   const otroIdx = idx + dir;
   if (idx < 0 || otroIdx < 0 || otroIdx >= allRoles.length) return;
@@ -272,6 +274,7 @@ function updatePreview() {
 }
 
 async function saveRolModal() {
+  if (guardBloqueoObra()) return;
   const nombre = $('rol-nombre').value.trim();
   const fecha  = $('rol-fecha').value || todayIso();
   const errEl  = $('modal-rol-error');
@@ -339,6 +342,7 @@ async function saveRolModal() {
 }
 
 async function deleteRol(rol) {
+  if (guardBloqueoObra()) return;
   const ok = await showConfirm('Eliminar rol', `¿Eliminar "${rol.nombre}"? Esta acción no se puede deshacer.`);
   if (!ok) return;
   try {
@@ -442,6 +446,7 @@ async function onElegirObraOrigenMo(obraOrigenKey) {
 }
 
 async function confirmarImportarMo() {
+  if (guardBloqueoObra()) return;
   const traerParams = paramsOrigen && $('importar-mo-params').checked;
   const traerRoles  = rolesOrigen  && $('importar-mo-roles').checked;
   if (!traerParams && !traerRoles) return;
@@ -535,6 +540,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Mano de Obra — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'mano-obra');
+  setModoObra(obraKey, obra);
   fillParamsForm();
   renderFamiliaSwitch();
   await loadRoles();

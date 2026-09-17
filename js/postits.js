@@ -152,6 +152,7 @@
   }
 
   function saveTexto(key, el) {
+    if (guardBloqueoObra()) return;
     clearTimeout(saveTimers[key]);
     delete saveTimers[key];
     if (!postits[key]) return;
@@ -165,6 +166,7 @@
   // texto plano, se ignora el formato/HTML de origen (Word, otra web, etc.)
   // para no arrastrar estilos ni marcado ajeno.
   async function onPaste(key, el, e) {
+    if (guardBloqueoObra()) { e.preventDefault(); return; }
     const items = Array.from((e.clipboardData || {}).items || []);
     const imgItem = items.find(it => it.type && it.type.startsWith('image/'));
     if (imgItem) {
@@ -194,6 +196,7 @@
   // borrar texto que se esté escribiendo en otro post-it (o en éste mismo,
   // si el debounce del autosave todavía no disparó).
   function cambiarColor(key, color) {
+    if (guardBloqueoObra()) return;
     if (!postits[key] || postits[key].color === color) return;
     postits[key].color = color;
     const card = container.querySelector(`.postit[data-key="${key}"]`);
@@ -238,6 +241,7 @@
   // Secuencial a propósito, mismo motivo que en Cotizaciones: el plan free de
   // Cloudinary no agradece ráfagas.
   async function onAdjuntar(key, files) {
+    if (guardBloqueoObra()) return;
     const arr = Array.from(files || []);
     if (!arr.length || !postits[key]) return;
     let huboError = false;
@@ -262,6 +266,7 @@
   }
 
   async function eliminarArchivo(postitKey, archivoKey) {
+    if (guardBloqueoObra()) return;
     if (postits[postitKey] && postits[postitKey].archivos) delete postits[postitKey].archivos[archivoKey];
     const card = container.querySelector(`.postit[data-key="${postitKey}"]`);
     const btn = card && card.querySelector(`[data-archivo-del="${archivoKey}"]`);
@@ -279,6 +284,7 @@
   // Inserta sólo la tarjeta nueva al final del grid (no reconstruye las
   // demás, mismo motivo que cambiarColor/onAdjuntar).
   function agregarPostit() {
+    if (guardBloqueoObra()) return;
     const key = 'postit_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const entradas = ordenadas();
     const orden = entradas.length ? Math.max(...entradas.map(([, p]) => p.orden || 0)) + 1 : 1;
@@ -295,6 +301,7 @@
   }
 
   async function eliminarPostit(key) {
+    if (guardBloqueoObra()) return;
     const ok = await showConfirm('Eliminar post-it',
       'Se borra esta nota. Los adjuntos no se borran de Cloudinary, sólo dejan de estar linkeados acá. ¿Continuar?');
     if (!ok) return;
@@ -337,6 +344,7 @@
   }
 
   function persistirOrden() {
+    if (guardBloqueoObra()) return;
     const claves = [...container.querySelectorAll('.postit[data-key]')].map(el => el.dataset.key);
     const cambios = {};
     let huboCambio = false;

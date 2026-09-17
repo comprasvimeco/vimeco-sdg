@@ -340,6 +340,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Insumos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'insumos');
+  setModoObra(obraKey, obra);
   renderTodo();
 
   $('main-loading').style.display = 'none';
@@ -394,6 +395,7 @@ function openEditarPrecioModal(mat) {
 }
 
 async function saveEditarPrecioModal() {
+  if (guardBloqueoObra()) return;
   const nombre = $('mep-nombre').value.trim();
   const unidad = $('mep-unidad').value.trim();
   const proveedor = $('mep-proveedor').value.trim();

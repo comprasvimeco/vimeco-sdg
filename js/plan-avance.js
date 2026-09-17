@@ -734,6 +734,7 @@ function distDe(scope) {
 }
 
 function setCelda(scope, rowKey, i, frac) {
+  if (guardBloqueoObra()) return;
   const store = distDe(scope);
   if (!store[rowKey]) store[rowKey] = {};
   if (frac == null) delete store[rowKey][pk(i)];
@@ -742,6 +743,7 @@ function setCelda(scope, rowKey, i, frac) {
 }
 
 function updateConfig(cambios) {
+  if (guardBloqueoObra()) return;
   config = { ...config, ...cambios };
   persistConfig(cambios);
   renderTodo();
@@ -882,6 +884,7 @@ function cerrarModalDistribuir() {
 }
 
 function aplicarDistribuir() {
+  if (guardBloqueoObra()) return;
   if (!distribuirDestino) return;
   const n = cantidadPeriodos();
   const desde = Math.max(1, Math.min(n, parseInt($('distribuir-desde').value, 10) || 1));
@@ -996,6 +999,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Plan de Avance — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'plan-avance');
+  setModoObra(obraKey, obra);
   renderControles();
   renderTodo();
 

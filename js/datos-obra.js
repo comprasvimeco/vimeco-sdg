@@ -88,6 +88,7 @@ function crearLista(cfg) {
   }
 
   function update(campoKey, cambios) {
+    if (guardBloqueoObra()) return;
     const actual = datos()[campoKey];
     if (!actual) return;
     Object.assign(actual, cambios);
@@ -98,6 +99,7 @@ function crearLista(cfg) {
   // entradas y se persisten juntas, un solo PATCH multi-path sobre el nodo
   // de la lista (no reescribe cada campo entero).
   function mover(campoKey, dir) {
+    if (guardBloqueoObra()) return;
     const entradas = entradasOrdenadas();
     const idx = entradas.findIndex(([k]) => k === campoKey);
     const otroIdx = idx + dir;
@@ -140,6 +142,7 @@ function crearLista(cfg) {
   }
 
   function persistirOrdenDesdeDom() {
+    if (guardBloqueoObra()) return;
     const container = $(contenedorId);
     const keysEnOrden = [...container.querySelectorAll('.datos-extra-linea[data-key]')].map(row => row.dataset.key);
     const cambios = {};
@@ -158,6 +161,7 @@ function crearLista(cfg) {
   }
 
   function agregar() {
+    if (guardBloqueoObra()) return;
     const campoKey = 'campo_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     datos()[campoKey] = { etiqueta: '', valor: '', orden: Date.now() };
     render();
@@ -167,6 +171,7 @@ function crearLista(cfg) {
   }
 
   async function borrar(campoKey) {
+    if (guardBloqueoObra()) return;
     delete datos()[campoKey];
     render();
     try {
@@ -231,6 +236,7 @@ function setupDolar() {
   attachMoneyInput(input);
 
   async function guardarDolar() {
+    if (guardBloqueoObra()) return;
     const n = parseMoneyString(input.value);
     if (isNaN(n)) return;
     dolarObra = { valor: n, fecha: todayIso() };
@@ -259,6 +265,7 @@ function setupPresupuestoOficial() {
   attachMoneyInput(input);
 
   input.addEventListener('blur', async () => {
+    if (guardBloqueoObra()) return;
     const n = parseMoneyString(input.value);
     const presupuestoOficial = isNaN(n) ? null : n;
     try {
@@ -288,6 +295,7 @@ function setupNumeracion() {
   grupo.classList.toggle('hidden', !check.checked);
 
   async function guardar(cambios) {
+    if (guardBloqueoObra()) return;
     try {
       await _fbPatch(`/obras/${obraKey}.json`, cambios);
     } catch (_) {
@@ -322,6 +330,7 @@ function setupSinRubros() {
   check.checked = !!obra.sinRubros;
 
   check.addEventListener('change', async () => {
+    if (guardBloqueoObra()) { check.checked = !check.checked; return; }
     // Apagarlo no toca datos: la obra vuelve a mostrar el rubro que quedó.
     if (!check.checked) {
       obra.sinRubros = null;
@@ -423,6 +432,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Datos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'datos');
+  setModoObra(obraKey, obra);
   setupDolar();
   setupPresupuestoOficial();
   setupNumeracion();

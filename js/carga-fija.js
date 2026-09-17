@@ -65,6 +65,7 @@ function normalizarOrdenLineas() {
 }
 
 function moverLinea(lineaKey, dir) {
+  if (guardBloqueoObra()) return;
   const ordenadas = lineasOrdenadas();
   const idx = ordenadas.findIndex(([k]) => k === lineaKey);
   const otroIdx = idx + dir;
@@ -118,6 +119,7 @@ function engancharDragContainerCF() {
 }
 
 function persistirOrdenDesdeDom() {
+  if (guardBloqueoObra()) return;
   const container = $('lineas-carga-fija');
   const keysEnOrden = [...container.querySelectorAll('.cf-linea[data-key]')].map(row => row.dataset.key);
   const cambios = {};
@@ -162,6 +164,7 @@ function engancharDuracion() {
   attachCalcInput(input, config.duracionMesesFormula);
   attachValorInput(input, config.duracionMeses ?? null);
   input.addEventListener('blur', () => {
+    if (guardBloqueoObra()) return;
     const n = valorCampo(input);
     const formula = getCalcFormula(input);
     if (n === (config.duracionMeses ?? null) && formula === (config.duracionMesesFormula || null)) return;
@@ -612,12 +615,14 @@ async function persistImpuestoNuevo(key, impuesto) {
 }
 
 function updateLinea(lineaKey, cambios) {
+  if (guardBloqueoObra()) return;
   lineas[lineaKey] = { ...lineas[lineaKey], ...cambios };
   renderTodo();
   persistLineaCambios(lineaKey, cambios);
 }
 
 function updateConfig(cambios) {
+  if (guardBloqueoObra()) return;
   config = { ...config, ...cambios };
   renderCoeficienteK();
   persistConfigCambios(cambios);
@@ -678,6 +683,7 @@ function asegurarListaImpuestos() {
 }
 
 function updateImpuesto(key, cambios) {
+  if (guardBloqueoObra()) return;
   const base = asegurarListaImpuestos();
   config.impuestos = { ...config.impuestos, [key]: { ...(config.impuestos || {})[key], ...cambios } };
   renderCoeficienteK();
@@ -693,6 +699,7 @@ function updateImpuesto(key, cambios) {
 }
 
 function agregarImpuesto() {
+  if (guardBloqueoObra()) return;
   const base = asegurarListaImpuestos();
   const key = 'imp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   const orden = Object.values(config.impuestos || {}).reduce((max, i) => Math.max(max, i.orden || 0), -1) + 1;
@@ -704,6 +711,7 @@ function agregarImpuesto() {
 }
 
 async function eliminarImpuesto(key) {
+  if (guardBloqueoObra()) return;
   const base = asegurarListaImpuestos();
   const impuestos = { ...config.impuestos };
   delete impuestos[key];
@@ -728,6 +736,7 @@ function ultimoOrden() {
 }
 
 function addLinea() {
+  if (guardBloqueoObra()) return;
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   // Arranca con la duración de la obra si está cargada: es lo que va a tener
   // el 90% de los conceptos y si no corresponde se cambia en la línea.
@@ -740,6 +749,7 @@ function addLinea() {
 }
 
 async function deleteLinea(lineaKey) {
+  if (guardBloqueoObra()) return;
   delete lineas[lineaKey];
   renderTodo();
   try {
@@ -800,6 +810,7 @@ async function onElegirObraOrigenImportar(obraOrigenKey) {
 }
 
 async function confirmarImportarCf() {
+  if (guardBloqueoObra()) return;
   if (!lineasOrigenImportar) return;
   const nuevas = {};
   // En el mismo orden que tienen en la obra origen, y a continuación de los
@@ -955,6 +966,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Carga Fija — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'carga-fija');
+  setModoObra(obraKey, obra);
   engancharDuracion();
   renderTodo();
 

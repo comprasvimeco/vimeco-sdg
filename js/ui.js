@@ -117,3 +117,69 @@ window.showConfirm = function (title, msg) {
     document.getElementById('modal-confirm-yes').onclick = () => { modal.classList.add('hidden'); resolve(true); };
   });
 };
+
+/* Modo lectura / edición de una obra. En Ejecución o Terminada el default es
+   siempre lectura (aunque se confirme editar, es un desbloqueo temporal de
+   esta carga de página, nunca se persiste); en Preparación es un candado
+   manual guardado en obra.soloLectura, que sí queda entre sesiones.
+   window._soloLectura es lo que consultan los guards de guardado de cada
+   pantalla (ver guardBloqueoObra). */
+window.obraEsSoloLectura = function (obra) {
+  const forzadaLectura = obra.estado === 'ejecucion' || obra.estado === 'terminada';
+  return forzadaLectura || !!obra.soloLectura;
+};
+
+window.setModoObra = function (obraKey, obra) {
+  const forzadaLectura = obra.estado === 'ejecucion' || obra.estado === 'terminada';
+  window._soloLectura = forzadaLectura || !!obra.soloLectura;
+
+  const btn = document.getElementById('header-modo');
+  if (!btn) return;
+
+  function pintar() {
+    btn.textContent = window._soloLectura ? '🔒 Modo Lectura' : '✏️ Modo Edición';
+  }
+  pintar();
+
+  btn.onclick = async () => {
+    if (window._soloLectura) {
+      if (forzadaLectura) {
+        const label = obra.estado === 'terminada' ? 'terminada' : 'en ejecución';
+        const ok = await showConfirm('Pasar a modo edición',
+          `Esta obra está ${label}. ¿Confirmás editar igual? Al volver a entrar queda en modo lectura de nuevo.`);
+        if (!ok) return;
+        window._soloLectura = false;
+        pintar();
+      } else {
+        try {
+          await _fbPatch(`/obras/${obraKey}.json`, { soloLectura: false });
+        } catch (_) {
+          showToast('Error al cambiar el modo de la obra.', 'error');
+          return;
+        }
+        location.reload();
+      }
+    } else {
+      if (forzadaLectura) {
+        window._soloLectura = true;
+        pintar();
+      } else {
+        try {
+          await _fbPatch(`/obras/${obraKey}.json`, { soloLectura: true });
+        } catch (_) {
+          showToast('Error al cambiar el modo de la obra.', 'error');
+          return;
+        }
+        location.reload();
+      }
+    }
+  };
+};
+
+window.guardBloqueoObra = function () {
+  if (window._soloLectura) {
+    toast('Esta obra está en modo lectura. Activá "Modo Edición" en el encabezado para guardar cambios.', 'warning');
+    return true;
+  }
+  return false;
+};
