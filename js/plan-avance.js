@@ -189,15 +189,23 @@ function construirDatos() {
   const num = window.numerarComputo(obra, rubros, lineas);
 
   const gruposRubro = rubros.map(r => {
-    const grupo = lineasDeRubro(r.key).map(([lineaKey, l]) => ({
-      key: lineaKey,
-      numero: num.codigoDeLinea[lineaKey],
-      linea: l,
-      cantidad: cantidadDe(l),
-      precioUnitario: costoUnitarioDe(l.itemKey) * k,
-      precioTotal: costoUnitarioDe(l.itemKey) * k * cantidadDe(l),
-      duracion: duracionDe(l.itemKey, cantidadDe(l)),
-    }));
+    const grupo = lineasDeRubro(r.key).map(([lineaKey, l]) => {
+      // Mismo redondeo real a 2 decimales que el Presupuesto (ver
+      // presupuestoDatos.js y window.round2 en calc.js): el total de línea
+      // sale de cantidad × precio unitario YA redondeado, así el total de
+      // Plan de Avance cierra centavo a centavo con el del Presupuesto en
+      // vez de coincidir sólo cuando el ruido de punto flotante se cancela.
+      const precioUnitario = window.round2(costoUnitarioDe(l.itemKey) * k);
+      return {
+        key: lineaKey,
+        numero: num.codigoDeLinea[lineaKey],
+        linea: l,
+        cantidad: cantidadDe(l),
+        precioUnitario,
+        precioTotal: window.round2(precioUnitario * cantidadDe(l)),
+        duracion: duracionDe(l.itemKey, cantidadDe(l)),
+      };
+    });
     return {
       rubro: r,
       numero: num.codigoDeRubro[r.key],
