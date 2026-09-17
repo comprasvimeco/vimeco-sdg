@@ -571,6 +571,7 @@
      con INDEX/MATCH — por eso esas dos columnas no se usan para nada más. */
 
   const HOJA_AP = "'A.P'";
+  const HOJA_APAUX = "'A.P auxiliares'";
 
   function columnasAP(ws) {
     ws.getColumn(1).width = 3;
@@ -752,6 +753,28 @@
       r++;
       const mat0 = r;
       ap.materiales.forEach(fila => {
+        if (fila.esAuxiliar) {
+          // Un auxiliar usado como insumo no está en la hoja Materiales — su
+          // costo (el Subtotal A+B+C de su propio bloque, sin Carga Fija) sale
+          // de la hoja "A.P auxiliares" por su código (A1, A2…), único dentro
+          // de esta obra. La columna A (angosta, sin uso en esta hoja) guarda
+          // ese código como llave oculta del INDEX/MATCH — la Denominación
+          // visible sigue siendo el nombre, como texto.
+          ws.getCell(r, 1).value = fila.codigo || '';
+          ws.getCell(r, 3).value = fila.nombre;
+          ws.getCell(r, 6).value = fila.unidad || '';
+          ws.getCell(r, 6).alignment = { horizontal: 'center' };
+          ws.getCell(r, 7).value = num(fila.cantidad);
+          ws.getCell(r, 7).numFmt = FMT_CANT;
+          ws.getCell(r, 8).value = fila.codigo && ref.auxiliares
+            ? f(`=INDEX(${ref.auxiliares.rangoSubtotales},MATCH($A${r},${ref.auxiliares.rangoCodigos},0))`)
+            : 0;
+          ws.getCell(r, 8).numFmt = FMT_ARS;
+          ws.getCell(r, 9).value = f(`=+G${r}*H${r}`);
+          ws.getCell(r, 9).numFmt = FMT_ARS;
+          r++;
+          return;
+        }
         const nombre = fila.refKey ? ref.materiales.nombres[fila.refKey] : null;
         ws.getCell(r, 3).value = nombre || fila.nombre;
         ws.getCell(r, 6).value = nombre ? f(`=VLOOKUP(C${r},${ref.materiales.rango},${ref.materiales.colUnidad},FALSE)`) : '';
@@ -784,10 +807,17 @@
       negrita(ws, r, 2, 9);
       bordear(ws, r, 2, r, 9, fuerteBorde);
 
-      /* Un análisis auxiliar termina acá: su resultado es un costo, que después
-         se copia a mano a Carga Fija. Multiplicarlo por el K sería cargarlo dos
-         veces, así que el subtotal se lleva el cierre de la hoja. */
+      /* Un análisis auxiliar termina acá: su resultado es un costo, que se
+         puede copiar a mano a Carga Fija, o quedar referenciado en vivo desde
+         la sección "C — Materiales" de OTRO A.P. (de un ítem del Cómputo o de
+         otro auxiliar) que lo use como insumo — ver ref.auxiliares, armado
+         antes de escribir esta hoja. Multiplicarlo por el K sería cargarlo dos
+         veces, así que nunca lleva Carga Fija ni Precio Unitario. La celda K
+         de la fila del código, sin rótulo visible (igual que L en la hoja A.P
+         normal), es la que ese otro A.P. lee con INDEX/MATCH. */
       if (literal) {
+        ws.getCell(filaCodigo, 11).value = f(`=I${r}`);
+        ws.getCell(filaCodigo, 11).numFmt = FMT_ARS;
         pintar(ws, r, 2, 9, AZUL);
         negrita(ws, r, 2, 9, 'FFFFFFFF');
         return r + 3;
@@ -844,10 +874,14 @@
 
   /* ===== Hoja A.P auxiliares =====
      Los análisis que no son parte de la obra. Misma pinta que la hoja A.P, pero
-     suelta: nadie la referencia y ella no referencia a CyP (ver `literal` en
-     bloqueAP). Sí sigue leyendo los precios de las hojas Materiales, Equipos y
-     Datos, que listan el catálogo completo — o sea que el auxiliar también se
-     recalcula solo si se toca un precio en el Excel. */
+     no referencia a CyP (ver `literal` en bloqueAP) ni lleva Carga Fija. Sí
+     sigue leyendo los precios de las hojas Materiales, Equipos y Datos, que
+     listan el catálogo completo — o sea que el auxiliar también se recalcula
+     solo si se toca un precio en el Excel. Un auxiliar puede además ser
+     referenciado desde la sección "C — Materiales" de OTRO A.P. (un ítem del
+     Cómputo, o incluso otro auxiliar) que lo use como insumo, vía
+     ref.auxiliares — armado ANTES de escribir esta hoja y la de A.P, ver la
+     función principal de exportación. */
 
   function hojaAPAuxiliares(ws, ctx, ref) {
     const m = ctx.modelo;
@@ -1773,6 +1807,21 @@
     hojaDatos(hojas.datos, ctx, ref);
     hojaMateriales(hojas.materiales, ctx, ref);
     hojaEquipos(hojas.equipos, ctx, ref);
+    // ref.auxiliares se arma ANTES de escribir la hoja A.P (un ítem del
+    // Cómputo puede usar un auxiliar como insumo) y ANTES de A.P auxiliares
+    // (un auxiliar puede usar a otro) — a diferencia de ref.ap (que sale de
+    // recorrer hojaAP y se conoce recién después), acá el rango se estima
+    // generoso de entrada, no hace falta que sea exacto. Los valores reales
+    // los escribe hojaAPAuxiliares más abajo, en cualquier orden: una fórmula
+    // que apunta a una celda que se llena después en el mismo libro anda
+    // igual — Excel no recalcula hasta abrirlo.
+    if (hojas.apAux) {
+      const hastaAux = Math.max(ctx.modelo.auxiliares.length * 40 + 200, 300);
+      ref.auxiliares = {
+        rangoCodigos: `${HOJA_APAUX}!$C$2:$C$${hastaAux}`,
+        rangoSubtotales: `${HOJA_APAUX}!$K$2:$K$${hastaAux}`,
+      };
+    }
     hojaAP(hojas.ap, ctx, ref);
     if (hojas.apAux) hojaAPAuxiliares(hojas.apAux, ctx, ref);
     hojaCyP(hojas.cyp, ctx, ref, logoId);

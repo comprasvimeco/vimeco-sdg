@@ -259,8 +259,13 @@
             // Un auxiliar usado como insumo se marca aparte: la exportación a
             // Excel lo busca en la hoja "A.P auxiliares" (ref.auxiliares), no
             // en la hoja Materiales — no tiene un precio cargado a mano, es un
-            // Subtotal A+B+C recalculado (ver calcCostos.js).
+            // Subtotal A+B+C recalculado (ver calcCostos.js). `codigo` es su
+            // numeración A1, A2… (window.numerarAuxiliares) — única dentro de
+            // esta obra, es la llave que usa ese VLOOKUP/INDEX-MATCH.
             esAuxiliar: tipo === 'auxiliar' || undefined,
+            codigo: tipo === 'auxiliar' && entidad
+              ? ((modelo.auxiliares || []).find(a => a.key === entidad.key) || {}).numero || null
+              : undefined,
             nombre: entidad ? nombreDe(tipo, entidad) : '(sin elegir)',
             unidad: (tipo === 'material' || tipo === 'auxiliar') && entidad ? (entidad.unidad || '') : '',
             cantidad: l.cantidad != null && !isNaN(l.cantidad) ? Number(l.cantidad) : null,
