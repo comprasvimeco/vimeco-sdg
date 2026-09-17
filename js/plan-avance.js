@@ -259,7 +259,7 @@ function attrCalc(n) {
 }
 
 function celdaEditable(scope, rowKey, i, frac) {
-  return `<td class="pa-celda"><input type="text" class="pa-input" data-scope="${scope}" data-row="${escHtml(rowKey)}" data-p="${i}" value="${pctInputValue(frac)}"${attrCalc(frac ? window.roundLimpio(frac * 100) : null)} inputmode="decimal"></td>`;
+  return `<td class="pa-celda"><input type="text" class="pa-input" data-scope="${scope}" data-row="${escHtml(rowKey)}" data-p="${i}" value="${pctInputValue(frac)}"${attrCalc(frac ? window.roundLimpio(frac * 100) : null)} inputmode="decimal" ${window._soloLectura ? 'disabled' : ''}></td>`;
 }
 
 function celdaDerivada(valor, clase, num) {
@@ -330,7 +330,7 @@ function renderTabla(d) {
         <td class="pa-col-nombre">
           <span class="pa-rubro-numero">${escHtml(g.numero)}.</span>
           <span class="pa-rubro-nombre">${escHtml(g.rubro.nombre || '(sin nombre)')}</span>
-          ${modoRubros ? `<button class="pa-btn-distribuir" data-scope="rubro" data-row="${escHtml(g.rubro.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>` : ''}
+          ${modoRubros ? `<button class="pa-btn-distribuir" data-scope="rubro" data-row="${escHtml(g.rubro.key)}" title="Distribuir parejo" ${window._soloLectura ? 'disabled' : ''}>${icSvg('sheet')}</button>` : ''}
         </td>
         <td class="pa-col-un"></td>
         <td class="pa-col-num"></td>
@@ -353,7 +353,7 @@ function renderTabla(d) {
             <div class="pa-nombre-linea">
               <span class="pa-item-numero">${escHtml(x.numero)}</span>
               <span class="pa-item-nombre">${escHtml(x.linea.nombre || '(sin nombre)')}</span>
-              ${modoRubros ? '' : `<button class="pa-btn-distribuir" data-scope="item" data-row="${escHtml(x.key)}" title="Distribuir parejo">${icSvg('sheet')}</button>`}
+              ${modoRubros ? '' : `<button class="pa-btn-distribuir" data-scope="item" data-row="${escHtml(x.key)}" title="Distribuir parejo" ${window._soloLectura ? 'disabled' : ''}>${icSvg('sheet')}</button>`}
             </div>
             ${x.duracion != null ? `<div class="pa-item-duracion" title="Duración estimada: cantidad ÷ rendimiento">≈ ${fmtNum(x.duracion)} jorn.</div>` : ''}
           </td>
@@ -999,7 +999,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Plan de Avance — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'plan-avance');
-  setModoObra(obraKey, obra);
+  setModoObra(obraKey, obra, renderTodo);
   renderControles();
   renderTodo();
 

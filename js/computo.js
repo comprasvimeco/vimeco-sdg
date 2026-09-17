@@ -112,7 +112,7 @@ function celdaNumero(clase, tipo, entidad, codigo, codigoAuto, sufijo) {
     return `<span class="${clase}">${escHtml(codigo)}${sufijo || ''}</span>`;
   }
   const aMano = entidad.codigo != null ? String(entidad.codigo) : '';
-  return `<input type="text" class="${clase} computo-codigo-input" data-codigo-tipo="${tipo}" data-codigo-key="${escHtml(entidad.key)}" value="${escHtml(aMano)}" placeholder="${escHtml(codigoAuto)}" title="Código del pliego — vacío usa la numeración automática">`;
+  return `<input type="text" class="${clase} computo-codigo-input" data-codigo-tipo="${tipo}" data-codigo-key="${escHtml(entidad.key)}" value="${escHtml(aMano)}" placeholder="${escHtml(codigoAuto)}" title="Código del pliego — vacío usa la numeración automática" ${window._soloLectura ? 'disabled' : ''}>`;
 }
 
 function numeracionPersonalizada() {
@@ -129,15 +129,16 @@ function sinRubros() {
 function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
   const grupoLineas = lineasDeRubro(rubro.key);
   const vacio = !grupoLineas.length;
+  const ro = !!window._soloLectura;
   return `
     <div class="computo-rubro-header" data-rubro-id="${escHtml(rubro.key)}">
       ${celdaNumero('computo-rubro-numero', 'rubro', rubro, numero, numeroAuto, '.')}
-      <input type="text" class="form-control computo-rubro-nombre-input" data-rubro-id="${escHtml(rubro.key)}" value="${escHtml(rubro.nombre || '')}" placeholder="Nombre del rubro">
+      <input type="text" class="form-control computo-rubro-nombre-input" data-rubro-id="${escHtml(rubro.key)}" value="${escHtml(rubro.nombre || '')}" placeholder="Nombre del rubro" ${ro ? 'disabled' : ''}>
       <span class="computo-rubro-acciones">
-        <button class="computo-rubro-add-linea" data-rubro-id="${escHtml(rubro.key)}" title="Agregar ítem en este rubro">${icSvg('plus')}</button>
-        <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="-1" title="Subir rubro" ${esPrimero ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
-        <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="1" title="Bajar rubro" ${esUltimo ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
-        <button class="computo-rubro-del" data-rubro-id="${escHtml(rubro.key)}" title="${vacio ? 'Eliminar rubro' : 'Vaciá el rubro antes de eliminarlo'}" ${vacio ? '' : 'disabled'}>${icSvg('x')}</button>
+        <button class="computo-rubro-add-linea" data-rubro-id="${escHtml(rubro.key)}" title="Agregar ítem en este rubro" ${ro ? 'disabled' : ''}>${icSvg('plus')}</button>
+        <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="-1" title="Subir rubro" ${esPrimero || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+        <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="1" title="Bajar rubro" ${esUltimo || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+        <button class="computo-rubro-del" data-rubro-id="${escHtml(rubro.key)}" title="${vacio ? 'Eliminar rubro' : 'Vaciá el rubro antes de eliminarlo'}" ${vacio && !ro ? '' : 'disabled'}>${icSvg('x')}</button>
       </span>
       <span class="computo-rubro-subtotal"${calcAttrs(subtotalGrupo(grupoLineas), `computo:rubro:${rubro.key}:subtotal`, `${numero}. ${rubro.nombre || 'Rubro'} · Subtotal`)}>${fmtARS(subtotalGrupo(grupoLineas))}</span>
     </div>
@@ -160,20 +161,21 @@ function renderLineaRow(lineaKey, linea, numero, numeroAuto, esPrimero, esUltimo
   const celda = aux
     ? `<span class="computo-linea-numero">${escHtml(numero)}</span>`
     : celdaNumero('computo-linea-numero', 'linea', { key: lineaKey, codigo: linea.codigo }, numero, numeroAuto);
+  const ro = !!window._soloLectura;
   return `
-    <div class="computo-linea" data-key="${escHtml(lineaKey)}" draggable="${aux || sinRubros() ? 'false' : 'true'}">
+    <div class="computo-linea" data-key="${escHtml(lineaKey)}" draggable="${aux || sinRubros() || ro ? 'false' : 'true'}">
       ${celda}
-      <input type="text" class="form-control linea-nombre" placeholder="Ítem" value="${escHtml(linea.nombre || '')}">
-      <input type="text" class="form-control linea-unidad" placeholder="Unidad" value="${escHtml(linea.unidad || '')}">
-      <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="${pre}:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiqueta + ' · Cantidad')}">
+      <input type="text" class="form-control linea-nombre" placeholder="Ítem" value="${escHtml(linea.nombre || '')}" ${ro ? 'disabled' : ''}>
+      <input type="text" class="form-control linea-unidad" placeholder="Unidad" value="${escHtml(linea.unidad || '')}" ${ro ? 'disabled' : ''}>
+      <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="${pre}:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiqueta + ' · Cantidad')}" ${ro ? 'disabled' : ''}>
       <span class="computo-linea-costo"${calcAttrs(costo, `${pre}:${lineaKey}:costoUnit`, etiqueta + ' · Costo unit.')}>${fmtARS(costo)}</span>
       <span class="computo-linea-total"${calcAttrs(total, `${pre}:${lineaKey}:total`, etiqueta + ' · Total')}>${fmtARS(total)}</span>
       <span class="computo-linea-acciones">
-        <button class="computo-linea-mover" data-dir="-1" title="Subir" ${esPrimero ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
-        <button class="computo-linea-mover" data-dir="1" title="Bajar" ${esUltimo ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
-        <button class="computo-linea-dup" title="Duplicar">${icSvg('copy')}</button>
+        <button class="computo-linea-mover" data-dir="-1" title="Subir" ${esPrimero || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+        <button class="computo-linea-mover" data-dir="1" title="Bajar" ${esUltimo || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+        <button class="computo-linea-dup" title="Duplicar" ${ro ? 'disabled' : ''}>${icSvg('copy')}</button>
         <a class="computo-linea-ap" href="${hrefAP}" title="Análisis de Precio">${icSvg('layers')}</a>
-        <button class="computo-linea-del" title="Eliminar línea">${icSvg('x')}</button>
+        <button class="computo-linea-del" title="Eliminar línea" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
       </span>
     </div>`;
 }
@@ -382,7 +384,7 @@ function renderResumen() {
 function actualizarBotonComputoIA() {
   const btn = $('btn-computo-ia');
   if (!btn) return;
-  btn.disabled = computoCargado();
+  btn.disabled = computoCargado() || !!window._soloLectura;
   btn.title = computoCargado() ? 'Sólo disponible con el cómputo vacío' : '';
 }
 
@@ -800,7 +802,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Cómputo — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'computo');
-  setModoObra(obraKey, obra);
+  setModoObra(obraKey, obra, renderTodo);
   renderTodo();
 
   $('main-loading').style.display = 'none';

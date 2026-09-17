@@ -194,7 +194,7 @@ function tipoSelectHtml(tipo) {
     ['pctPrecioConIva', '% Presup. c/IVA'],
     ['pctOficial', '% Presup. oficial'],
   ];
-  return `<select class="form-control cf-tipo">${opciones.map(([v, label]) =>
+  return `<select class="form-control cf-tipo" ${window._soloLectura ? 'disabled' : ''}>${opciones.map(([v, label]) =>
     `<option value="${v}" ${v === tipo ? 'selected' : ''}>${label}</option>`).join('')}</select>`;
 }
 
@@ -202,18 +202,19 @@ function tipoSelectHtml(tipo) {
 // apuntar a ellos (ver js/refs.js).
 function camposLineaHtml(lineaKey, l, tipo) {
   const et = l.concepto || 'Concepto';
+  const ro = window._soloLectura ? 'disabled' : '';
   const ref = (campo, label) =>
     ` data-calc-id="cargafija:linea:${escHtml(lineaKey)}:${campo}" data-calc-label="${escHtml(et + ' · ' + label)}"`;
   if (window.tipoCargaFijaEsPorcentaje(tipo)) {
     return `
-      <input type="text" class="form-control cf-porcentaje" value="${l.porcentaje ?? ''}" placeholder="0"${ref('porcentaje', '%')}>
+      <input type="text" class="form-control cf-porcentaje" value="${l.porcentaje ?? ''}" placeholder="0"${ref('porcentaje', '%')} ${ro}>
       <span class="cf-base-label">${TIPO_BASE_LABEL[tipo]}</span>
       <span></span>`;
   }
   return `
-    <input type="text" class="form-control cf-cantidad" value="${l.cantidad ?? ''}" placeholder="0"${ref('cantidad', 'Cantidad')}>
-    <input type="text" class="form-control cf-precio" value="${escHtml(formatMoneyString(l.precioUnitario))}" placeholder="0"${ref('precioUnitario', 'Precio unit.')}>
-    <input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0"${ref('meses', 'Meses')}>`;
+    <input type="text" class="form-control cf-cantidad" value="${l.cantidad ?? ''}" placeholder="0"${ref('cantidad', 'Cantidad')} ${ro}>
+    <input type="text" class="form-control cf-precio" value="${escHtml(formatMoneyString(l.precioUnitario))}" placeholder="0"${ref('precioUnitario', 'Precio unit.')} ${ro}>
+    <input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0"${ref('meses', 'Meses')} ${ro}>`;
 }
 
 function renderLineas() {
@@ -227,17 +228,18 @@ function renderLineas() {
       const tipo = l.tipo || 'monto';
       const total = cf.totalPorLinea[lineaKey];
       const incidencia = cf.gastosFijos > 0 && total != null ? total / cf.gastosFijos : null;
+      const ro = !!window._soloLectura;
       return `
-        <div class="cf-linea" data-key="${escHtml(lineaKey)}" draggable="true">
-          <input type="text" class="form-control cf-concepto" value="${escHtml(l.concepto || '')}" placeholder="Ej: Jefe de obra">
+        <div class="cf-linea" data-key="${escHtml(lineaKey)}" draggable="${ro ? 'false' : 'true'}">
+          <input type="text" class="form-control cf-concepto" value="${escHtml(l.concepto || '')}" placeholder="Ej: Jefe de obra" ${ro ? 'disabled' : ''}>
           ${tipoSelectHtml(tipo)}
           ${camposLineaHtml(lineaKey, l, tipo)}
           <span class="cf-linea-total"${calcAttrs(total, `cargafija:linea:${lineaKey}:total`, `${l.concepto || 'Concepto'} · Total`)}>${total != null ? fmtARS(total) : '—'}</span>
           <span class="cf-linea-incidencia"${calcAttrs(incidencia != null ? incidencia * 100 : null, `cargafija:linea:${lineaKey}:incidencia`, `${l.concepto || 'Concepto'} · Incidencia %`)}>${fmtPct(incidencia)}</span>
           <span class="cf-linea-acciones">
-            <button class="cf-linea-mover" data-dir="-1" title="Subir" ${idx === 0 ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
-            <button class="cf-linea-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
-            <button class="cf-linea-del" title="Eliminar concepto">${icSvg('x')}</button>
+            <button class="cf-linea-mover" data-dir="-1" title="Subir" ${idx === 0 || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+            <button class="cf-linea-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+            <button class="cf-linea-del" title="Eliminar concepto" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
           </span>
         </div>`;
     }).join('');
@@ -325,7 +327,7 @@ function filaK({ label, medio, aporte, clase, id, calcLabel }) {
 }
 
 function pctInputHtml(id, valor, placeholder, calcId, calcLabel) {
-  return `<input type="text" class="form-control cf-pct" id="${id}" value="${valor ?? ''}" placeholder="${placeholder}" data-calc-id="${calcId}" data-calc-label="${escHtml(calcLabel)}">`;
+  return `<input type="text" class="form-control cf-pct" id="${id}" value="${valor ?? ''}" placeholder="${placeholder}" data-calc-id="${calcId}" data-calc-label="${escHtml(calcLabel)}" ${window._soloLectura ? 'disabled' : ''}>`;
 }
 
 /* El presupuesto que sale de este K, en sus dos versiones. Es la base sobre la
@@ -373,9 +375,9 @@ function renderCoeficienteK() {
   // marca a mano acá: sale de impuestosDeConfig, por nombre ("iva" en el
   // nombre) salvo que la obra ya tenga un ivaMarcado guardado de antes.
   const filasImpuestos = r.impuestos.map(i => filaK({
-    label: `<input type="text" class="form-control cf-impuesto-nombre" data-key="${escHtml(i.key)}" value="${escHtml(i.nombre)}" placeholder="Nombre del impuesto">`,
+    label: `<input type="text" class="form-control cf-impuesto-nombre" data-key="${escHtml(i.key)}" value="${escHtml(i.nombre)}" placeholder="Nombre del impuesto" ${window._soloLectura ? 'disabled' : ''}>`,
     medio: `${pctInputHtml('cf-imp-' + i.key, i.porcentaje, '0', `cargafija:impuesto:${i.key}`, i.nombre || 'Impuesto')}
-            <button class="cf-impuesto-del" data-key="${escHtml(i.key)}" title="Eliminar impuesto">${icSvg('x')}</button>`,
+            <button class="cf-impuesto-del" data-key="${escHtml(i.key)}" title="Eliminar impuesto" ${window._soloLectura ? 'disabled' : ''}>${icSvg('x')}</button>`,
     aporte: r.aportePorImpuesto[i.key],
     clase: 'cf-fila-impuesto',
     id: `cargafija:impuesto:${i.key}:aporte`,
@@ -416,7 +418,7 @@ function renderCoeficienteK() {
     ${filaK({ label: 'Subtotal con gasto financiero', aporte: r.subtotalConFinanciero, clase: 'cf-subtotal', id: 'cargafija:subtotalConFinanciero', calcLabel: 'Subtotal con gasto financiero' })}
     <div class="cf-impuestos-titulo">Impuestos${avisoSinIva}</div>
     ${filasImpuestos || '<p class="form-hint">Esta obra no tiene impuestos cargados.</p>'}
-    <button type="button" class="btn btn-sm btn-outline cf-impuesto-add" id="cf-add-impuesto">+ Agregar impuesto</button>
+    <button type="button" class="btn btn-sm btn-outline cf-impuesto-add" id="cf-add-impuesto" ${window._soloLectura ? 'disabled' : ''}>+ Agregar impuesto</button>
     ${filaK({ label: 'Impuesto', aporte: r.impuestoFrac, clase: 'cf-subtotal', id: 'cargafija:impuestoTotal', calcLabel: 'Impuesto (total)' })}
     ${filaK({ label: 'TOTAL (Carga Fija)', aporte: r.k, clase: 'total', id: 'cargafija:k', calcLabel: 'Carga Fija' })}
     ${filasPresupuesto(r)}
@@ -966,7 +968,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Carga Fija — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'carga-fija');
-  setModoObra(obraKey, obra);
+  setModoObra(obraKey, obra, renderTodo);
   engancharDuracion();
   renderTodo();
 

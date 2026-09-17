@@ -340,7 +340,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Insumos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'insumos');
-  setModoObra(obraKey, obra);
+  setModoObra(obraKey, obra, renderTodo);
   renderTodo();
 
   $('main-loading').style.display = 'none';
@@ -390,6 +390,9 @@ function openEditarPrecioModal(mat) {
     onChange: v => loadMepPrecioFields(mat, v),
   });
   loadMepPrecioFields(mat, obraKey);
+  const ro = !!window._soloLectura;
+  ['mep-nombre', 'mep-unidad', 'mep-precio-usd', 'mep-precio-ars', 'mep-proveedor', 'mep-fecha'].forEach(id => { $(id).disabled = ro; });
+  $('modal-mep-save').disabled = ro;
   $('modal-mep-error').classList.add('hidden');
   $('modal-material-editar-precio').classList.remove('hidden');
 }

@@ -77,8 +77,8 @@ function renderCotizaciones() {
         </div>
         <div class="item-card-actions">
           ${c.archivoUrl ? `<a class="btn btn-sm btn-outline" href="${escHtml(c.archivoUrl)}" target="_blank" rel="noopener">${icSvg('file')} Ver archivo</a>` : ''}
-          ${esExtraible(c) ? `<button class="btn btn-sm btn-outline btn-extraer-cotizacion">${icSvg('sparkles')} ${estado === 'pendiente' ? 'Extraer con IA' : 'Volver a extraer'}</button>` : ''}
-          <button class="btn btn-sm btn-danger btn-del-cotizacion">Eliminar</button>
+          ${esExtraible(c) ? `<button class="btn btn-sm btn-outline btn-extraer-cotizacion" ${window._soloLectura ? 'disabled' : ''}>${icSvg('sparkles')} ${estado === 'pendiente' ? 'Extraer con IA' : 'Volver a extraer'}</button>` : ''}
+          <button class="btn btn-sm btn-danger btn-del-cotizacion" ${window._soloLectura ? 'disabled' : ''}>Eliminar</button>
         </div>
       </div>`;
   }).join('');
@@ -219,7 +219,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Cotizaciones — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'cotizaciones');
-  setModoObra(obraKey, obra);
+  setModoObra(obraKey, obra, renderCotizaciones);
   renderCotizaciones();
 
   $('main-loading').style.display = 'none';

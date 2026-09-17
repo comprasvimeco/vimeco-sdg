@@ -127,7 +127,7 @@
     <nav class="header-tabs" id="header-tabs"></nav>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
-      <button class="btn btn-sm btn-outline" id="header-modo"></button>
+      <button class="btn btn-sm btn-outline btn-icon" id="header-modo" aria-label="Modo de la obra" title="Modo de la obra"></button>
       <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
     </div>
   </header>
@@ -139,7 +139,7 @@
         <span class="card-title">Ítems del cómputo</span>
         <div class="flex gap-2">
           <button class="btn btn-sm btn-outline" id="btn-computo-ia"><span id="computo-ia-icon"></span> Armar con IA</button>
-          <button class="btn btn-sm btn-outline" id="btn-add-rubro">+ Agregar rubro</button>
+          <button class="btn btn-sm btn-outline" id="btn-add-rubro" data-solo-edicion>+ Agregar rubro</button>
         </div>
       </div>
       <div class="card-body" id="lineas-computo"></div>
@@ -157,7 +157,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Análisis auxiliares</span>
-        <button class="btn btn-sm btn-outline" id="btn-add-auxiliar">+ Agregar auxiliar</button>
+        <button class="btn btn-sm btn-outline" id="btn-add-auxiliar" data-solo-edicion>+ Agregar auxiliar</button>
       </div>
       <div class="card-body" id="lineas-auxiliares"></div>
     </div>

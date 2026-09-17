@@ -108,7 +108,7 @@
     <nav class="header-tabs" id="header-tabs"></nav>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
-      <button class="btn btn-sm btn-outline" id="header-modo"></button>
+      <button class="btn btn-sm btn-outline btn-icon" id="header-modo" aria-label="Modo de la obra" title="Modo de la obra"></button>
       <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
     </div>
   </header>
@@ -119,14 +119,14 @@
       <div class="card-header">
         <span class="card-title">Gastos fijos de la obra</span>
         <div class="flex gap-2">
-          <button class="btn btn-sm btn-outline" id="btn-importar-cf">Importar de otra obra</button>
-          <button class="btn btn-sm btn-primary" id="btn-add-linea">+ Agregar concepto</button>
+          <button class="btn btn-sm btn-outline" id="btn-importar-cf" data-solo-edicion>Importar de otra obra</button>
+          <button class="btn btn-sm btn-primary" id="btn-add-linea" data-solo-edicion>+ Agregar concepto</button>
         </div>
       </div>
       <div class="card-body">
         <div class="cf-duracion">
           <label for="cf-duracion">Duración de la obra</label>
-          <input type="text" class="form-control" id="cf-duracion" placeholder="0" data-calc-id="cargafija:duracionMeses" data-calc-label="Duración de la obra (meses)">
+          <input type="text" class="form-control" id="cf-duracion" placeholder="0" data-calc-id="cargafija:duracionMeses" data-calc-label="Duración de la obra (meses)" data-solo-edicion>
           <span style="font-size:.85rem;color:var(--gray-500);">meses</span>
           <span class="form-hint">Completa la columna Meses de todos los conceptos de monto fijo; después cada línea se puede ajustar a mano.</span>
         </div>

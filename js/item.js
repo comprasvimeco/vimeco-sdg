@@ -348,14 +348,15 @@ function opcionesUsarComoBase() {
 function renderUsarBase() {
   const wrap = $('ap-usar-base-wrap');
   const b = baseUsadaActiva;
+  const ro = window._soloLectura ? 'disabled' : '';
   wrap.innerHTML = b
     ? `<div class="ap-base-nota">
          ${icSvg('copy')}
          <span class="ap-base-nota-texto">Se usó <strong>${escHtml(b.itemNombre || '(sin nombre)')}</strong>${b.unidad ? ` (unidad: ${escHtml(b.unidad)})` : ''}${b.obraNombre ? ` de <strong>${escHtml(b.obraNombre)}</strong>` : ''} como base${b.copiadoEn ? ` · ${fmtFechaCorta(b.copiadoEn)}` : ''}</span>
-         <button class="btn btn-sm btn-outline" id="btn-usar-como-base">Cambiar</button>
-         <button class="ap-base-nota-del" id="btn-quitar-base-nota" title="Quitar esta nota">${icSvg('x')}</button>
+         <button class="btn btn-sm btn-outline" id="btn-usar-como-base" ${ro}>Cambiar</button>
+         <button class="ap-base-nota-del" id="btn-quitar-base-nota" title="Quitar esta nota" ${ro}>${icSvg('x')}</button>
        </div>`
-    : '<button class="btn btn-sm btn-outline" id="btn-usar-como-base">Usar otro AP como base</button>';
+    : `<button class="btn btn-sm btn-outline" id="btn-usar-como-base" ${ro}>Usar otro AP como base</button>`;
 
   $('btn-usar-como-base').addEventListener('click', openUsarComoBaseModal);
   const del = $('btn-quitar-base-nota');
@@ -369,7 +370,7 @@ function renderFamiliaMOSwitch() {
   const wrap = $('mo-familia-switch-ap');
   if (!wrap) return;
   wrap.innerHTML = ['arquitectura', 'vial'].map(f => `
-    <button class="btn btn-sm ${f === familiaMOActiva ? 'btn-primary' : 'btn-outline'} btn-familia-mo-ap" data-familia="${f}">${f === 'arquitectura' ? 'Arquitectura' : 'Vial'}</button>`).join('');
+    <button class="btn btn-sm ${f === familiaMOActiva ? 'btn-primary' : 'btn-outline'} btn-familia-mo-ap" data-familia="${f}" ${window._soloLectura ? 'disabled' : ''}>${f === 'arquitectura' ? 'Arquitectura' : 'Vial'}</button>`).join('');
   wrap.querySelectorAll('.btn-familia-mo-ap').forEach(btn => {
     btn.addEventListener('click', () => cambiarFamiliaMO(btn.dataset.familia));
   });
@@ -705,7 +706,7 @@ function renderVersionRendimiento() {
   const wrap = $('version-rendimiento');
   wrap.classList.remove('hidden');
   wrap.innerHTML = `<span>Rendimiento en esta obra:</span>
-    <input type="text" class="form-control" id="rend-obra-input" style="max-width:140px;"${calcAttrs(rendimientoActivo, 'ap:rendimiento', 'Rendimiento')}>
+    <input type="text" class="form-control" id="rend-obra-input" style="max-width:140px;"${calcAttrs(rendimientoActivo, 'ap:rendimiento', 'Rendimiento')} ${window._soloLectura ? 'disabled' : ''}>
     <span>uds./jornada</span>`;
   const input = $('rend-obra-input');
   attachCalcInput(input, rendimientoFormulaActiva);
@@ -835,9 +836,9 @@ function renderLineasSeccion(tipo, r) {
             <div class="linea-select-container"></div>
             ${tipo === 'material' ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
-          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}">
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}" ${window._soloLectura ? 'disabled' : ''}>
           <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d && d.costoTotal != null ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d && d.costoTotal != null ? fmtARS(d.costoTotal) : '—'}</span>
-          <button class="ap-linea-del" title="Eliminar línea">${icSvg('x')}</button>
+          <button class="ap-linea-del" title="Eliminar línea" ${window._soloLectura ? 'disabled' : ''}>${icSvg('x')}</button>
         </div>`;
     }).join('');
   }
@@ -868,6 +869,7 @@ function renderLineasSeccion(tipo, r) {
       placeholder: `Buscar ${tipo}…`,
       onChange: v => updateLinea(lineaKey, { refKey: v }),
       onCreateNew: tipo === 'material' ? texto => openQuickMaterialModal(texto, lineaKey) : null,
+      disabled: !!window._soloLectura,
     });
     if (tipo === 'material') {
       const mat = materiales.find(m => m.key === linea.refKey);
@@ -932,7 +934,7 @@ function renderManoDeObraSeccion(r) {
       return `
         <div class="ap-linea-mo con-costo" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
-          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}" data-calc-valor="${cantidad ?? 0}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}">
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" value="${cantidad ?? ''}" data-calc-valor="${cantidad ?? 0}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}" ${window._soloLectura ? 'disabled' : ''}>
           <button type="button" class="ap-linea-costo-unit" title="Clic para ver el detalle del costo de esta categoría"${costoUnit != null ? calcAttrs(costoUnit, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${costoUnit != null ? fmtARS(costoUnit) : '—'}</button><span class="ap-linea-costo-total"${costoTotal != null ? calcAttrs(costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${costoTotal != null ? fmtARS(costoTotal) : '—'}</span>
         </div>`;
     }).join('');
@@ -944,7 +946,7 @@ function renderManoDeObraSeccion(r) {
   const hayLineasMO = Object.values(lineas).some(l => l.tipo === 'manoDeObra' && l.cantidad);
   if (paramsMO.seguridadCapatazActivo && hayLineasMO) {
     if (sinSeguridadCapatazActivo) {
-      html += `<div class="ap-subtotal-linea"><span>Seguridad y Capataz — excluido en este AP</span><button type="button" class="btn btn-sm btn-outline" id="btn-restaurar-seg-cap">Incluir</button></div>`;
+      html += `<div class="ap-subtotal-linea"><span>Seguridad y Capataz — excluido en este AP</span><button type="button" class="btn btn-sm btn-outline" id="btn-restaurar-seg-cap" ${window._soloLectura ? 'disabled' : ''}>Incluir</button></div>`;
     } else if (r) {
       html += `
         <div class="ap-linea-mo con-costo" data-extra="seguridadCapataz">
@@ -953,7 +955,7 @@ function renderManoDeObraSeccion(r) {
           <span class="ap-linea-costo-unit">—</span>
           <span class="ap-linea-costo-total">
             <span data-calc-valor="${r.costoDiarioSeguridadCapataz}">${fmtARS(r.costoDiarioSeguridadCapataz)}</span>
-            <button type="button" class="ap-linea-del" id="btn-excluir-seg-cap" title="Excluir de este AP" style="margin-left:.4rem;">${icSvg('x')}</button>
+            <button type="button" class="ap-linea-del" id="btn-excluir-seg-cap" title="Excluir de este AP" style="margin-left:.4rem;" ${window._soloLectura ? 'disabled' : ''}>${icSvg('x')}</button>
           </span>
         </div>`;
     }
@@ -1182,6 +1184,9 @@ function openEditarPrecioModal(mat) {
     onChange: v => loadMepPrecioFields(mat, v),
   });
   loadMepPrecioFields(mat, activeVersion);
+  const ro = !!window._soloLectura;
+  ['mep-nombre', 'mep-unidad', 'mep-precio-usd', 'mep-precio-ars', 'mep-proveedor', 'mep-fecha'].forEach(id => { $(id).disabled = ro; });
+  $('modal-mep-save').disabled = ro;
   $('modal-mep-error').classList.add('hidden');
   $('modal-material-editar-precio').classList.remove('hidden');
 }
@@ -1405,7 +1410,13 @@ async function loadAll() {
   if (obraParam) {
     ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData);
     renderHeaderTabs(obraParam, 'analisis-precio');
-    setModoObra(obraParam, obrasFull[obraParam]);
+    setModoObra(obraParam, obrasFull[obraParam], () => {
+      renderVersionRendimiento();
+      renderUsarBase();
+      renderFamiliaMOSwitch();
+      renderTodasLasLineas();
+      if (window._postitsRender) window._postitsRender();
+    });
   }
   renderDatos();
   renderApNav();

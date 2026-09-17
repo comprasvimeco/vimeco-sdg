@@ -183,7 +183,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Equipos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'equipos');
-  setModoObra(obraKey, obra);
+  setModoObra(obraKey, obra, fillParamsForm);
   fillParamsForm();
   applyFilter();
 

@@ -129,7 +129,19 @@ window.obraEsSoloLectura = function (obra) {
   return forzadaLectura || !!obra.soloLectura;
 };
 
-window.setModoObra = function (obraKey, obra) {
+// Botones/inputs que sólo tienen sentido en modo edición pero no se
+// regeneran en cada render (viven fijos en el HTML, engancha su listener
+// una sola vez en DOMContentLoaded) — se marcan con data-solo-edicion y esta
+// función los deshabilita/habilita cada vez que cambia el modo. Lo que sí se
+// regenera en cada render (inputs de una lista, botones por fila) resuelve su
+// propio "disabled" leyendo window._soloLectura directo en la plantilla.
+window.aplicarModoLecturaEstatico = function () {
+  document.querySelectorAll('[data-solo-edicion]').forEach(el => {
+    el.disabled = !!window._soloLectura;
+  });
+};
+
+window.setModoObra = function (obraKey, obra, onChange) {
   const forzadaLectura = obra.estado === 'ejecucion' || obra.estado === 'terminada';
   window._soloLectura = forzadaLectura || !!obra.soloLectura;
 
@@ -137,9 +149,19 @@ window.setModoObra = function (obraKey, obra) {
   if (!btn) return;
 
   function pintar() {
-    btn.textContent = window._soloLectura ? '🔒 Modo Lectura' : '✏️ Modo Edición';
+    btn.innerHTML = icSvg(window._soloLectura ? 'eye' : 'edit');
+    btn.title = window._soloLectura
+      ? 'Obra en modo lectura — clic para pasar a edición'
+      : 'Obra en modo edición — clic para pasar a lectura';
+    btn.setAttribute('aria-label', btn.title);
+    window.aplicarModoLecturaEstatico();
   }
   pintar();
+
+  function aplicarCambio() {
+    pintar();
+    if (typeof onChange === 'function') onChange();
+  }
 
   btn.onclick = async () => {
     if (window._soloLectura) {
@@ -149,7 +171,7 @@ window.setModoObra = function (obraKey, obra) {
           `Esta obra está ${label}. ¿Confirmás editar igual? Al volver a entrar queda en modo lectura de nuevo.`);
         if (!ok) return;
         window._soloLectura = false;
-        pintar();
+        aplicarCambio();
       } else {
         try {
           await _fbPatch(`/obras/${obraKey}.json`, { soloLectura: false });
@@ -157,12 +179,13 @@ window.setModoObra = function (obraKey, obra) {
           showToast('Error al cambiar el modo de la obra.', 'error');
           return;
         }
-        location.reload();
+        window._soloLectura = false;
+        aplicarCambio();
       }
     } else {
       if (forzadaLectura) {
         window._soloLectura = true;
-        pintar();
+        aplicarCambio();
       } else {
         try {
           await _fbPatch(`/obras/${obraKey}.json`, { soloLectura: true });
@@ -170,15 +193,19 @@ window.setModoObra = function (obraKey, obra) {
           showToast('Error al cambiar el modo de la obra.', 'error');
           return;
         }
-        location.reload();
+        window._soloLectura = true;
+        aplicarCambio();
       }
     }
   };
 };
 
+// Red de seguridad: con los controles ya deshabilitados en modo lectura esto
+// no debería dispararse en el uso normal, pero queda como última barrera
+// (y para cualquier escritura que se dispare por código, no por un control).
 window.guardBloqueoObra = function () {
   if (window._soloLectura) {
-    toast('Esta obra está en modo lectura. Activá "Modo Edición" en el encabezado para guardar cambios.', 'warning');
+    toast('Esta obra está en modo lectura. Activá el modo edición en el encabezado para guardar cambios.', 'warning');
     return true;
   }
   return false;

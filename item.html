@@ -135,7 +135,7 @@
     <nav class="header-tabs hidden" id="header-tabs"></nav>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
-      <button class="btn btn-sm btn-outline" id="header-modo"></button>
+      <button class="btn btn-sm btn-outline btn-icon" id="header-modo" aria-label="Modo de la obra" title="Modo de la obra"></button>
       <span class="flex items-center gap-2 hidden" id="ap-nav">
         <button class="btn btn-sm btn-outline btn-icon" id="btn-ap-prev" aria-label="Análisis de Precio anterior" title="AP anterior"><svg class="icon" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
         <button class="btn btn-sm btn-outline btn-icon" id="btn-ap-next" aria-label="Análisis de Precio siguiente" title="AP siguiente"><svg class="icon" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
@@ -168,7 +168,7 @@
             <span class="card-title u-pointer ap-toggle-title" id="equipos-toggle">
               <span class="ap-chevron" id="equipos-chevron">&#9656;</span> Equipos
             </span>
-            <button class="btn btn-sm btn-primary" id="btn-add-linea-equipo">+ Agregar</button>
+            <button class="btn btn-sm btn-primary" id="btn-add-linea-equipo" data-solo-edicion>+ Agregar</button>
           </span>
         </div>
         <div class="card-body hidden" id="lineas-equipo"></div>
@@ -185,7 +185,7 @@
       </div>
 
       <div class="card">
-        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><button class="btn btn-sm btn-primary" id="btn-add-linea-material">+ Agregar</button></span></div>
+        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><button class="btn btn-sm btn-primary" id="btn-add-linea-material" data-solo-edicion>+ Agregar</button></span></div>
         <div class="card-body" id="lineas-material"></div>
       </div>
 
@@ -198,7 +198,7 @@
         <div class="card-header">
           <span class="ap-section-header" style="width:100%">
             <span class="card-title">Notas</span>
-            <button class="btn btn-sm btn-primary" id="btn-add-postit">+ Nuevo post-it</button>
+            <button class="btn btn-sm btn-primary" id="btn-add-postit" data-solo-edicion>+ Nuevo post-it</button>
           </span>
         </div>
         <div class="card-body"><div class="postits-grid" id="postits-grid"></div></div>

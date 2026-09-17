@@ -20,7 +20,7 @@
     <nav class="header-tabs" id="header-tabs"></nav>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
-      <button class="btn btn-sm btn-outline" id="header-modo"></button>
+      <button class="btn btn-sm btn-outline btn-icon" id="header-modo" aria-label="Modo de la obra" title="Modo de la obra"></button>
       <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
     </div>
   </header>
@@ -37,7 +37,7 @@
 
         <div class="form-group">
           <label for="export-notas">Notas al pie</label>
-          <textarea class="form-control" id="export-notas" rows="3" placeholder="Aclaraciones que van al pie del resumen."></textarea>
+          <textarea class="form-control" id="export-notas" rows="3" placeholder="Aclaraciones que van al pie del resumen." data-solo-edicion></textarea>
           <p class="form-hint">Se guardan en la obra y salen al pie del Resumen.</p>
         </div>
 
@@ -47,9 +47,9 @@
           </span>
           <div class="export-logo-row hidden" id="logo-body">
             <img id="export-logo-preview" class="export-logo-preview" alt="Logo actual del membrete">
-            <button type="button" class="btn btn-sm btn-outline btn-icon" id="export-logo-elegir" title="Cambiar logo" aria-label="Cambiar logo"><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
+            <button type="button" class="btn btn-sm btn-outline btn-icon" id="export-logo-elegir" title="Cambiar logo" aria-label="Cambiar logo" data-solo-edicion><svg class="icon" viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg></button>
             <input type="file" id="export-logo-input" accept="image/png,image/jpeg" hidden>
-            <button type="button" class="btn btn-outline btn-sm hidden" id="export-logo-reset">Restaurar predeterminado</button>
+            <button type="button" class="btn btn-outline btn-sm hidden" id="export-logo-reset" data-solo-edicion>Restaurar predeterminado</button>
             <p class="form-hint">Se guarda en la obra y reemplaza el logo VIMECO en el PDF y el Excel. PNG o JPG.</p>
           </div>
         </div>

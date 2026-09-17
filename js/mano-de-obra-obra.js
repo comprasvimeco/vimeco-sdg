@@ -60,10 +60,10 @@ function fillParamsForm() {
   $('param-jornada').value = paramsMO.jornadaHoras;
   $('param-seg-cap-activo').checked = !!paramsMO.seguridadCapatazActivo;
   $('param-seg-cap-pct').value = paramsMO.seguridadCapatazPct || '';
-  $('param-seg-cap-pct').disabled = !paramsMO.seguridadCapatazActivo;
+  $('param-seg-cap-pct').disabled = !paramsMO.seguridadCapatazActivo || !!window._soloLectura;
   $('param-comida-activo').checked = !!paramsMO.comidaActivo;
   $('param-comida-monto').value = formatMoneyString(paramsMO.comidaMonto);
-  $('param-comida-monto').disabled = !paramsMO.comidaActivo;
+  $('param-comida-monto').disabled = !paramsMO.comidaActivo || !!window._soloLectura;
 }
 
 async function saveParams() {
@@ -155,6 +155,7 @@ function renderRoles(list, ordenable) {
       meta = 'Sin datos de costo cargados';
     }
     const fijo = esRolFijo(r.key);
+    const ro = !!window._soloLectura;
     return `
       <div class="item-card" data-key="${escHtml(r.key)}">
         <div class="item-card-info">
@@ -163,10 +164,10 @@ function renderRoles(list, ordenable) {
         </div>
         <div class="item-card-actions">
           ${ordenable ? `
-          <button class="btn btn-sm btn-outline btn-icon btn-mover-rol" data-dir="-1" title="Subir" ${idx === 0 ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
-          <button class="btn btn-sm btn-outline btn-icon btn-mover-rol" data-dir="1" title="Bajar" ${idx === list.length - 1 ? 'disabled' : ''}>${icSvg('arrowDown')}</button>` : ''}
-          <button class="btn btn-sm btn-outline btn-edit-rol">Editar</button>
-          ${fijo ? '' : '<button class="btn btn-sm btn-danger btn-del-rol">Eliminar</button>'}
+          <button class="btn btn-sm btn-outline btn-icon btn-mover-rol" data-dir="-1" title="Subir" ${idx === 0 || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+          <button class="btn btn-sm btn-outline btn-icon btn-mover-rol" data-dir="1" title="Bajar" ${idx === list.length - 1 || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>` : ''}
+          <button class="btn btn-sm btn-outline btn-edit-rol">${ro ? 'Ver' : 'Editar'}</button>
+          ${fijo || ro ? '' : '<button class="btn btn-sm btn-danger btn-del-rol">Eliminar</button>'}
         </div>
       </div>`;
   }).join('');
@@ -243,14 +244,17 @@ function openAddModal() {
 function openEditModal(rol) {
   editingKey = rol.key;
   const fijo = esRolFijo(rol.key);
-  $('modal-rol-title').textContent = 'Editar rol' + (fijo ? ' (categoría fija)' : '');
+  const ro = !!window._soloLectura;
+  $('modal-rol-title').textContent = (ro ? 'Ver rol' : 'Editar rol') + (fijo ? ' (categoría fija)' : '');
   $('modal-rol-error').classList.add('hidden');
-  $('rol-nombre').disabled = fijo;
+  $('rol-nombre').disabled = fijo || ro;
   $('rol-nombre').value = rol.nombre || '';
   $('rol-basico').value = formatMoneyString(rol.basico);
   $('rol-extra').value = rol.extraPct ?? 0;
   $('rol-no-remunerativo').value = formatMoneyString(rol.noRemunerativoMensual);
   $('rol-fecha').value = rol.fecha || todayIso();
+  ['rol-basico', 'rol-extra', 'rol-no-remunerativo', 'rol-fecha'].forEach(id => { $(id).disabled = ro; });
+  $('modal-rol-save').disabled = ro;
   setCalcFormula($('rol-basico'), rol.basicoFormula);
   setCalcFormula($('rol-extra'), rol.extraPctFormula);
   setCalcFormula($('rol-no-remunerativo'), rol.noRemunerativoMensualFormula);
@@ -540,7 +544,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Mano de Obra — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'mano-obra');
-  setModoObra(obraKey, obra);
+  setModoObra(obraKey, obra, () => { fillParamsForm(); applyFilter(); });
   fillParamsForm();
   renderFamiliaSwitch();
   await loadRoles();

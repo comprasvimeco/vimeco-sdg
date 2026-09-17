@@ -54,14 +54,15 @@ function crearLista(cfg) {
       container.innerHTML = `<p class="text-muted" style="font-size:.85rem;">${escHtml(vacio)}</p>`;
       return;
     }
+    const ro = !!window._soloLectura;
     container.innerHTML = entradas.map(([campoKey, c], idx) => `
-      <div class="datos-extra-linea" data-key="${escHtml(campoKey)}" draggable="true">
-        <input type="text" class="form-control de-etiqueta" value="${escHtml(c.etiqueta || '')}" placeholder="${escHtml(placeholderEtiqueta)}">
-        <input type="text" class="form-control de-valor" value="${escHtml(c.valor || '')}" placeholder="${escHtml(placeholderValor)}">
+      <div class="datos-extra-linea" data-key="${escHtml(campoKey)}" draggable="${ro ? 'false' : 'true'}">
+        <input type="text" class="form-control de-etiqueta" value="${escHtml(c.etiqueta || '')}" placeholder="${escHtml(placeholderEtiqueta)}" ${ro ? 'disabled' : ''}>
+        <input type="text" class="form-control de-valor" value="${escHtml(c.valor || '')}" placeholder="${escHtml(placeholderValor)}" ${ro ? 'disabled' : ''}>
         <span class="datos-extra-acciones">
-          <button class="datos-extra-mover" data-dir="-1" title="Subir" ${idx === 0 ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
-          <button class="datos-extra-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
-          <button class="datos-extra-del" title="${escHtml(tituloBorrar)}">${icSvg('x')}</button>
+          <button class="datos-extra-mover" data-dir="-1" title="Subir" ${idx === 0 || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+          <button class="datos-extra-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+          <button class="datos-extra-del" title="${escHtml(tituloBorrar)}" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
         </span>
       </div>`).join('');
 
@@ -432,7 +433,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Datos — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'datos');
-  setModoObra(obraKey, obra);
+  setModoObra(obraKey, obra, () => { listaEncabezado.render(); listaDatosExtra.render(); });
   setupDolar();
   setupPresupuestoOficial();
   setupNumeracion();

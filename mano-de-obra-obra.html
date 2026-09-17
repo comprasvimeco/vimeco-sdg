@@ -19,7 +19,7 @@
     <nav class="header-tabs" id="header-tabs"></nav>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
-      <button class="btn btn-sm btn-outline" id="header-modo"></button>
+      <button class="btn btn-sm btn-outline btn-icon" id="header-modo" aria-label="Modo de la obra" title="Modo de la obra"></button>
       <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
     </div>
   </header>
@@ -29,32 +29,32 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Parámetros generales de esta obra</span>
-        <button class="btn btn-sm btn-outline" id="btn-importar-mo">Importar de otra obra</button>
+        <button class="btn btn-sm btn-outline" id="btn-importar-mo" data-solo-edicion>Importar de otra obra</button>
       </div>
       <div class="card-body">
         <div class="form-row">
           <div class="form-group">
             <label for="param-asistencia">Asistencia perfecta (%)</label>
-            <input type="text" id="param-asistencia" class="form-control" placeholder="Ej: 20">
+            <input type="text" id="param-asistencia" class="form-control" placeholder="Ej: 20" data-solo-edicion>
           </div>
           <div class="form-group">
             <label for="param-cargas">Cargas Sociales + ART (%)</label>
-            <input type="text" id="param-cargas" class="form-control" placeholder="Ej: 100">
+            <input type="text" id="param-cargas" class="form-control" placeholder="Ej: 100" data-solo-edicion>
           </div>
           <div class="form-group u-mb-0">
             <label for="param-dias">Días laborables / mes</label>
-            <input type="text" id="param-dias" class="form-control" placeholder="Ej: 22">
+            <input type="text" id="param-dias" class="form-control" placeholder="Ej: 22" data-solo-edicion>
           </div>
           <div class="form-group u-mb-0">
             <label for="param-jornada">Jornada (hs)</label>
-            <input type="text" id="param-jornada" class="form-control" placeholder="Ej: 8">
+            <input type="text" id="param-jornada" class="form-control" placeholder="Ej: 8" data-solo-edicion>
           </div>
         </div>
         <span class="form-hint">Se aplican solo a los roles de esta obra. Se guardan solos al salir del campo.</span>
 
         <div class="form-row" style="margin-top:1rem;align-items:flex-end;">
           <div class="form-group" style="display:flex;align-items:center;gap:.5rem;">
-            <input type="checkbox" id="param-seg-cap-activo" style="width:auto;">
+            <input type="checkbox" id="param-seg-cap-activo" style="width:auto;" data-solo-edicion>
             <label for="param-seg-cap-activo" style="margin:0;">Seguridad y Capataz</label>
           </div>
           <div class="form-group u-mb-0">
@@ -66,7 +66,7 @@
 
         <div class="form-row" style="margin-top:1rem;align-items:flex-end;">
           <div class="form-group" style="display:flex;align-items:center;gap:.5rem;">
-            <input type="checkbox" id="param-comida-activo" style="width:auto;">
+            <input type="checkbox" id="param-comida-activo" style="width:auto;" data-solo-edicion>
             <label for="param-comida-activo" style="margin:0;">Comida</label>
           </div>
           <div class="form-group u-mb-0">
@@ -81,7 +81,7 @@
     <div id="mo-familia-switch" class="version-tabs"></div>
     <div class="list-toolbar">
       <span class="list-toolbar-title">Roles y costo horario de esta obra</span>
-      <button class="btn btn-primary btn-sm" id="btn-add-rol">+ Agregar rol</button>
+      <button class="btn btn-primary btn-sm" id="btn-add-rol" data-solo-edicion>+ Agregar rol</button>
     </div>
     <div class="form-group">
       <input type="text" id="mo-search" class="form-control" placeholder="Buscar rol...">

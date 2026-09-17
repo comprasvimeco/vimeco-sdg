@@ -1184,17 +1184,18 @@ function ajustarSeccionAUnaHoja(seccionId) {
 function controlesHojaPlan() {
   const tam = hojaPlanElegida();
   const orient = hojaPlanOrientacionElegida();
+  const ro = !!window._soloLectura;
   const botonesTam = Object.keys(HOJA_TAMANOS).map(t =>
-    `<button type="button" class="hoja-btn hoja-tam-btn${t === tam ? ' active' : ''}" data-tam="${t}">${t}</button>`
+    `<button type="button" class="hoja-btn hoja-tam-btn${t === tam ? ' active' : ''}" data-tam="${t}" ${ro ? 'disabled' : ''}>${t}</button>`
   ).join('');
   const botonesOrient = [['horizontal', '↔', 'Horizontal (apaisada)'], ['vertical', '↕', 'Vertical']].map(([v, icono, titulo]) =>
-    `<button type="button" class="hoja-btn hoja-orient-btn${v === orient ? ' active' : ''}" data-orientacion="${v}" title="${titulo}">${icono}</button>`
+    `<button type="button" class="hoja-btn hoja-orient-btn${v === orient ? ' active' : ''}" data-orientacion="${v}" title="${titulo}" ${ro ? 'disabled' : ''}>${icono}</button>`
   ).join('');
   return `
     <span class="exportar-hoja" title="Tamaño y orientación de hoja del cronograma">
       <span class="hoja-segmented">${botonesTam}</span>
       <span class="hoja-segmented">${botonesOrient}</span>
-      <button type="button" class="hoja-ajustar-btn${config.hojaPlanAjustar ? ' active' : ''}" title="Ajustar todo a una sola hoja, achicando proporcionalmente">⤢ 1 hoja</button>
+      <button type="button" class="hoja-ajustar-btn${config.hojaPlanAjustar ? ' active' : ''}" title="Ajustar todo a una sola hoja, achicando proporcionalmente" ${ro ? 'disabled' : ''}>⤢ 1 hoja</button>
     </span>`;
 }
 
@@ -1203,8 +1204,9 @@ function controlesHojaPlan() {
 // desglose (esa fila más una por cada ítem en el que se usa).
 function controlesInsumos() {
   const desglose = !!config.insumosDesglose;
+  const ro = !!window._soloLectura;
   const botones = [[false, 'Sin desglose'], [true, 'Con desglose']].map(([v, label]) =>
-    `<button type="button" class="hoja-btn insumos-desglose-btn${desglose === v ? ' active' : ''}" data-desglose="${v}">${label}</button>`
+    `<button type="button" class="hoja-btn insumos-desglose-btn${desglose === v ? ' active' : ''}" data-desglose="${v}" ${ro ? 'disabled' : ''}>${label}</button>`
   ).join('');
   return `
     <span class="exportar-hoja" title="Nivel de detalle de la tabla de insumos">
@@ -1276,6 +1278,7 @@ function renderSecciones() {
 /* ===== Configuración del documento (se guarda en la obra) ===== */
 
 async function persistConfig(cambios) {
+  if (guardBloqueoObra()) return;
   try {
     await _fbPatch(`/obras/${obraKey}/export.json`, cambios);
   } catch (_) {
@@ -1374,7 +1377,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
   renderHeaderTabs(obraKey, 'exportar');
-  setModoObra(obraKey, modelo.obra);
+  setModoObra(obraKey, modelo.obra, () => renderSecciones());
   renderSecciones();
   engancharConfig();
   engancharLogo();

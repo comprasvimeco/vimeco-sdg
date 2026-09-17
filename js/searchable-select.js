@@ -21,9 +21,10 @@ window.createSearchableSelect = function (container, opts) {
     // inline aplasta el label en una columna angosta e ilegible.
     optionLayout = 'inline',
     minWidth = 280,
+    disabled = false,       // sólo lectura: no abre el dropdown ni acepta tipeo
   } = opts;
 
-  container.innerHTML = `<div class="ss-wrap"><input type="text" class="form-control ss-input" placeholder="${escHtml(placeholder)}" autocomplete="off"></div>`;
+  container.innerHTML = `<div class="ss-wrap"><input type="text" class="form-control ss-input" placeholder="${escHtml(placeholder)}" autocomplete="off" ${disabled ? 'disabled' : ''}></div>`;
 
   const wrap = container.querySelector('.ss-wrap');
   const input = wrap.querySelector('.ss-input');

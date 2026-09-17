@@ -54,23 +54,24 @@
   function renderCard(key, p) {
     const color = COLORES.includes(p.color) ? p.color : 'amarillo';
     const archivos = Object.entries(p.archivos || {});
+    const ro = !!window._soloLectura;
     return `
-      <div class="postit postit-${color}" data-key="${escHtml(key)}" draggable="true">
+      <div class="postit postit-${color}" data-key="${escHtml(key)}" draggable="${ro ? 'false' : 'true'}">
         <div class="postit-toolbar">
           <span class="postit-colores">
-            ${COLORES.map(c => `<button type="button" class="postit-color-dot postit-color-${c}${c === color ? ' activo' : ''}" data-color="${c}" title="Color ${c}"></button>`).join('')}
+            ${COLORES.map(c => `<button type="button" class="postit-color-dot postit-color-${c}${c === color ? ' activo' : ''}" data-color="${c}" title="Color ${c}" ${ro ? 'disabled' : ''}></button>`).join('')}
           </span>
           <span class="postit-formato">
-            <button type="button" class="postit-fmt" data-cmd="bold" title="Negrita"><b>N</b></button>
-            <button type="button" class="postit-fmt" data-cmd="italic" title="Cursiva"><i>K</i></button>
-            <button type="button" class="postit-fmt" data-cmd="insertUnorderedList" title="Lista">&bull;&equiv;</button>
+            <button type="button" class="postit-fmt" data-cmd="bold" title="Negrita" ${ro ? 'disabled' : ''}><b>N</b></button>
+            <button type="button" class="postit-fmt" data-cmd="italic" title="Cursiva" ${ro ? 'disabled' : ''}><i>K</i></button>
+            <button type="button" class="postit-fmt" data-cmd="insertUnorderedList" title="Lista" ${ro ? 'disabled' : ''}>&bull;&equiv;</button>
           </span>
           <span class="postit-acciones">
-            <label class="postit-adjuntar" title="Adjuntar archivo">${icSvg('clip')}<input type="file" class="postit-file-input" multiple hidden></label>
-            <button type="button" class="postit-del" title="Eliminar post-it">${icSvg('x')}</button>
+            <label class="postit-adjuntar" title="Adjuntar archivo">${icSvg('clip')}<input type="file" class="postit-file-input" multiple hidden ${ro ? 'disabled' : ''}></label>
+            <button type="button" class="postit-del" title="Eliminar post-it" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
           </span>
         </div>
-        <div class="postit-body" contenteditable="true" data-placeholder="Escribí acá...">${sanitize(p.texto)}</div>
+        <div class="postit-body" contenteditable="${ro ? 'false' : 'true'}" data-placeholder="Escribí acá...">${sanitize(p.texto)}</div>
         ${archivos.length ? `<div class="postit-archivos">${archivos.map(([ak, a]) => renderArchivo(ak, a)).join('')}</div>` : ''}
       </div>`;
   }
@@ -78,14 +79,15 @@
   function renderArchivo(archivoKey, a) {
     const esImagen = (a.tipo || '').startsWith('image/');
     const info = `${escHtml(a.nombre || 'Archivo')}${a.tamano ? ' · ' + fmtTamano(a.tamano) : ''}`;
+    const delBtn = `<button type="button" class="postit-chip-del" data-archivo-del="${escHtml(archivoKey)}" title="Quitar adjunto" ${window._soloLectura ? 'disabled' : ''}>${icSvg('x')}</button>`;
     return esImagen
       ? `<span class="postit-chip postit-chip-img">
            <a href="${escHtml(a.url)}" target="_blank" rel="noopener"><img src="${escHtml(a.url)}" alt="${escHtml(a.nombre || '')}"></a>
-           <button type="button" class="postit-chip-del" data-archivo-del="${escHtml(archivoKey)}" title="Quitar adjunto">${icSvg('x')}</button>
+           ${delBtn}
          </span>`
       : `<span class="postit-chip">
            <a href="${escHtml(a.url)}" target="_blank" rel="noopener">${icSvg('file')} ${info}</a>
-           <button type="button" class="postit-chip-del" data-archivo-del="${escHtml(archivoKey)}" title="Quitar adjunto">${icSvg('x')}</button>
+           ${delBtn}
          </span>`;
   }
 
@@ -361,6 +363,11 @@
   }
 
   // -- Init -----------------------------------------------------------------
+
+  // Se llama desde el onChange del switch de modo lectura/edición (js/ui.js,
+  // vía item.js) para repintar las tarjetas ya cargadas con el nuevo estado
+  // de habilitado/deshabilitado, sin volver a pedirlas a Firebase.
+  window._postitsRender = function () { render(); };
 
   // Se llama desde activarVersion() en item.js cada vez que cambia la obra
   // activa de este AP (incluida la carga inicial). `basePath` ya viene

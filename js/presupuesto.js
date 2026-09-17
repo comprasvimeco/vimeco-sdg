@@ -29,7 +29,7 @@ function renderLineaRow(linea) {
   const et = `${linea.numero} ${linea.nombre || 'Ítem'}`;
   const id = `presupuesto:linea:${linea.key}`;
   const colOficial = mostrarOficial ? `
-      <span class="presupuesto-linea-oficial"><input type="text" class="form-control cmp-oficial-input" data-linea-key="${escHtml(linea.key)}" placeholder="0" value="${linea.precioOficial != null ? escHtml(formatMoneyString(linea.precioOficial)) : ''}" data-calc-id="${id}:precioOficial" data-calc-label="${escHtml(et + ' · Precio oficial')}"></span>
+      <span class="presupuesto-linea-oficial"><input type="text" class="form-control cmp-oficial-input" data-linea-key="${escHtml(linea.key)}" placeholder="0" value="${linea.precioOficial != null ? escHtml(formatMoneyString(linea.precioOficial)) : ''}" data-calc-id="${id}:precioOficial" data-calc-label="${escHtml(et + ' · Precio oficial')}" ${window._soloLectura ? 'disabled' : ''}></span>
       <span class="presupuesto-linea-dif${claseDif(linea)}">${fmtDif(linea)}</span>` : '';
   // Mismo destino que el ícono de A.P. en Cómputo (js/computo.js): si la
   // línea ya está vinculada a un ítem va directo a su análisis, si no a
@@ -189,7 +189,7 @@ async function loadAll() {
 
   $('header-obra-nombre').textContent = 'Presupuesto — ' + modelo.obra.nombre;
   renderHeaderTabs(obraKey, 'presupuesto');
-  setModoObra(obraKey, modelo.obra);
+  setModoObra(obraKey, modelo.obra, renderTodo);
   renderTodo();
 
   $('btn-toggle-oficial').addEventListener('click', () => {

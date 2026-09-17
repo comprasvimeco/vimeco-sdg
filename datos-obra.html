@@ -35,7 +35,7 @@
     <nav class="header-tabs" id="header-tabs"></nav>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
-      <button class="btn btn-sm btn-outline" id="header-modo"></button>
+      <button class="btn btn-sm btn-outline btn-icon" id="header-modo" aria-label="Modo de la obra" title="Modo de la obra"></button>
       <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
     </div>
   </header>
@@ -48,34 +48,34 @@
         <div class="form-row">
           <div class="form-group u-mb-0">
             <label for="obra-dolar">Dólar de esta obra ($)</label>
-            <input type="text" id="obra-dolar" class="form-control" placeholder="Ej: 1.520,00">
+            <input type="text" id="obra-dolar" class="form-control" placeholder="Ej: 1.520,00" data-solo-edicion>
           </div>
           <div class="form-group u-mb-0">
             <label for="obra-presupuesto-oficial">Presupuesto oficial ($)</label>
-            <input type="text" id="obra-presupuesto-oficial" class="form-control" placeholder="Ej: 50.000.000,00">
+            <input type="text" id="obra-presupuesto-oficial" class="form-control" placeholder="Ej: 50.000.000,00" data-solo-edicion>
           </div>
         </div>
         <div class="dolar-vivo-hint">
           <span id="dolar-vivo-txt">Dólar oficial en vivo: —</span>
-          <button type="button" id="btn-usar-dolar-vivo">Usar este valor</button>
+          <button type="button" id="btn-usar-dolar-vivo" data-solo-edicion>Usar este valor</button>
         </div>
         <span class="form-hint">El dólar se usa en todos los cálculos de esta obra (materiales, equipos). No se actualiza solo — cargalo a mano cuando quieras cambiarlo.</span>
 
         <div class="form-row" style="margin-top:1rem;align-items:flex-end;">
           <div class="form-group" style="display:flex;align-items:center;gap:.5rem;">
-            <input type="checkbox" id="obra-numeracion-personalizada" style="width:auto;">
+            <input type="checkbox" id="obra-numeracion-personalizada" style="width:auto;" data-solo-edicion>
             <label for="obra-numeracion-personalizada" style="margin:0;">Numeración personalizada</label>
           </div>
           <div class="form-group u-mb-0 hidden" id="grupo-estilo-numeracion">
             <label for="obra-estilo-numeracion">Estilo del número automático</label>
-            <select id="obra-estilo-numeracion" class="form-control"></select>
+            <select id="obra-estilo-numeracion" class="form-control" data-solo-edicion></select>
           </div>
         </div>
         <span class="form-hint" id="hint-numeracion">Sin activarla, los rubros y los ítems se numeran solos 1, 1.1, 1.2… Activala cuando el pliego numere de otra forma: además del estilo, en el Cómputo podés escribir a mano el código de cada rubro y de cada ítem.</span>
 
         <div class="form-row" style="margin-top:1rem;">
           <div class="form-group u-mb-0" style="display:flex;align-items:center;gap:.5rem;">
-            <input type="checkbox" id="obra-sin-rubros" style="width:auto;">
+            <input type="checkbox" id="obra-sin-rubros" style="width:auto;" data-solo-edicion>
             <label for="obra-sin-rubros" style="margin:0;">Sin rubros (lista plana)</label>
           </div>
         </div>
@@ -86,7 +86,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Datos generales</span>
-        <button class="btn btn-sm btn-primary" id="btn-add-encabezado">+ Agregar campo</button>
+        <button class="btn btn-sm btn-primary" id="btn-add-encabezado" data-solo-edicion>+ Agregar campo</button>
       </div>
       <div class="card-body">
         <p class="form-hint" style="margin:0 0 .75rem;">Son los que salen en el encabezado del presupuesto, en el PDF y en el Excel. Se pueden editar, agregar y borrar: cada licitación pide lo suyo.</p>
@@ -100,7 +100,7 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Datos adicionales</span>
-        <button class="btn btn-sm btn-primary" id="btn-add-dato">+ Agregar dato</button>
+        <button class="btn btn-sm btn-primary" id="btn-add-dato" data-solo-edicion>+ Agregar dato</button>
       </div>
       <div class="card-body">
         <p class="form-hint" style="margin:0 0 .75rem;">De uso interno: no salen en el encabezado ni en nada que se exporte.</p>

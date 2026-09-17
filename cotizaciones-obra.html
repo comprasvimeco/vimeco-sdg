@@ -51,7 +51,7 @@
     <nav class="header-tabs" id="header-tabs"></nav>
     <div class="flex items-center gap-3">
       <span class="header-dolar" id="header-dolar">USD = —</span>
-      <button class="btn btn-sm btn-outline" id="header-modo"></button>
+      <button class="btn btn-sm btn-outline btn-icon" id="header-modo" aria-label="Modo de la obra" title="Modo de la obra"></button>
       <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
     </div>
   </header>
@@ -61,13 +61,13 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Cotizaciones</span>
-        <button class="btn btn-sm btn-primary" id="btn-add-cotizacion">+ Subir archivos</button>
+        <button class="btn btn-sm btn-primary" id="btn-add-cotizacion" data-solo-edicion>+ Subir archivos</button>
       </div>
       <div class="card-body">
         <span class="form-hint" style="display:block;margin-bottom:.75rem;">Carpeta de presupuestos de proveedores de esta obra. Los archivos se guardan apenas los subís; después, desde cada ficha, podés extraer los precios con IA y aplicarlos a los materiales.</span>
         <div class="cotiz-dropzone" id="cotiz-dropzone">
           <div class="cotiz-file-row">
-            <button type="button" class="btn btn-sm btn-outline" id="btn-cotiz-elegir-archivo"><span id="cotiz-elegir-icon"></span> Elegir archivos</button>
+            <button type="button" class="btn btn-sm btn-outline" id="btn-cotiz-elegir-archivo" data-solo-edicion><span id="cotiz-elegir-icon"></span> Elegir archivos</button>
           </div>
           <span class="form-hint" style="display:block;margin-top:.5rem;">o arrastrá los archivos acá (podés soltar varios de una)</span>
         </div>
