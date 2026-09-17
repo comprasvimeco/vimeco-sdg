@@ -31,6 +31,7 @@ window.createSearchableSelect = function (container, opts) {
   let dropdown = null; // se crea al abrir y se saca del DOM al cerrar (evita huérfanos en body)
 
   let currentValue = value;
+  let activeIndex = -1; // índice resaltado por teclado dentro de items(); -1 = ninguno
   // Las opciones viven en una variable propia (no se usa el parámetro directo)
   // porque el catálogo puede crecer con el combobox ya montado — p. ej. al dar
   // de alta un material desde el propio dropdown. Sin esto el widget se
@@ -98,26 +99,45 @@ window.createSearchableSelect = function (container, opts) {
     }
 
     dropdown.innerHTML = html;
+    activeIndex = -1; // cada render (tipeo) arranca sin resaltado; se activa recién al usar flechas
     positionDropdown();
 
     dropdown.querySelectorAll('.ss-option').forEach(el => {
-      el.addEventListener('mousedown', e => {
-        e.preventDefault();
-        currentValue = el.dataset.value;
-        input.value = labelFor(currentValue);
-        closeDropdown();
-        onChange(currentValue);
-      });
+      el.addEventListener('mousedown', e => { e.preventDefault(); selectItem(el); });
     });
 
     const createEl = dropdown.querySelector('.ss-create:not(.disabled)');
     if (createEl) {
-      createEl.addEventListener('mousedown', e => {
-        e.preventDefault();
-        const texto = input.value.trim();
-        closeDropdown();
-        onCreateNew(texto);
-      });
+      createEl.addEventListener('mousedown', e => { e.preventDefault(); selectItem(createEl); });
+    }
+  }
+
+  // Opciones navegables con flechas: las .ss-option más, al final, el
+  // "+ Crear ..." si está habilitado (mismo orden en que se ven en pantalla).
+  function navItems() {
+    return dropdown ? Array.from(dropdown.querySelectorAll('.ss-option, .ss-create:not(.disabled)')) : [];
+  }
+
+  function setActive(idx) {
+    const els = navItems();
+    els.forEach(el => el.classList.remove('ss-option--active', 'ss-create--active'));
+    if (idx < 0 || idx >= els.length) { activeIndex = -1; return; }
+    activeIndex = idx;
+    const el = els[idx];
+    el.classList.add(el.classList.contains('ss-create') ? 'ss-create--active' : 'ss-option--active');
+    el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function selectItem(el) {
+    if (el.classList.contains('ss-create')) {
+      const texto = input.value.trim();
+      closeDropdown();
+      onCreateNew(texto);
+    } else {
+      currentValue = el.dataset.value;
+      input.value = labelFor(currentValue);
+      closeDropdown();
+      onChange(currentValue);
     }
   }
 
@@ -130,7 +150,28 @@ window.createSearchableSelect = function (container, opts) {
       input.value = labelFor(currentValue);
     }, 150);
   });
-  input.addEventListener('keydown', e => { if (e.key === 'Escape') input.blur(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { input.blur(); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      // Si el dropdown está cerrado con el input igual enfocado (p. ej. recién
+      // se eligió una opción con Enter, sin blur de por medio), reabrir con
+      // la lista completa — el input ya tiene el label elegido como texto, y
+      // filtrar por eso mostraría un solo resultado en vez de dejar navegar.
+      if (!dropdown) { renderList(''); return; }
+      const n = navItems().length;
+      if (!n) return;
+      const next = e.key === 'ArrowDown'
+        ? (activeIndex < n - 1 ? activeIndex + 1 : 0)
+        : (activeIndex > 0 ? activeIndex - 1 : n - 1);
+      setActive(next);
+      return;
+    }
+    if (e.key === 'Enter' && dropdown && activeIndex >= 0) {
+      e.preventDefault();
+      selectItem(navItems()[activeIndex]);
+    }
+  });
 
   return {
     setValue(v) { currentValue = v; input.value = labelFor(v); },
