@@ -20,6 +20,15 @@ window.roundLimpio = function (n) {
   return parseFloat(n.toPrecision(15));
 };
 
+// Redondeo real a 2 decimales (no de vista, no elegible desde el header):
+// usado donde el valor calculado ES la plata, como el precio unitario del
+// Presupuesto (costoUnitario × K) y su total de línea — no arrastran más
+// precisión que la que tiene un peso.
+window.round2 = function (n) {
+  if (typeof n !== 'number' || !isFinite(n)) return n;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+};
+
 (function () {
   // Coeficiente K (Carga Fija) de la obra abierta — referenciable como "k" en
   // cualquier fórmula "=..." de la app (mismo mecanismo que "pi"). Lo registra

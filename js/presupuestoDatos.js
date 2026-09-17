@@ -118,9 +118,12 @@
 
     // El total sale de TODAS las líneas del cómputo, incluidas las que
     // apuntan a un rubro que ya no existe: son plata cargada en la obra
-    // aunque ninguna tabla las muestre.
+    // aunque ninguna tabla las muestre. Cada línea redondea su precio
+    // unitario y su total a 2 decimales antes de sumar (igual que en
+    // rubrosModelo más abajo), para que este total coincida centavo a
+    // centavo con la suma de los subtotales que se ven en pantalla.
     const total = k == null ? null : Object.values(lineas)
-      .reduce((acc, l) => acc + costoUnitarioDe(l.itemKey) * k * num(l.cantidad), 0);
+      .reduce((acc, l) => acc + window.round2(window.round2(costoUnitarioDe(l.itemKey) * k) * num(l.cantidad)), 0);
 
     /* ---- Árbol rubro → línea ---- */
 
@@ -133,8 +136,13 @@
       const lineasModelo = rubro.lineas.map(l => {
         const cantidad = num(l.cantidad);
         const costoUnitario  = costoUnitarioDe(l.itemKey);
-        const precioUnitario = k == null ? null : costoUnitario * k;
-        const totalLinea     = precioUnitario == null ? null : precioUnitario * cantidad;
+        // Precio unitario y total de línea: redondeo real a 2 decimales (no
+        // el selector del header), pedido explícito del dueño del proyecto
+        // para el Presupuesto — el total sale de multiplicar por el precio
+        // YA redondeado, como una planilla, no por el valor de precisión
+        // completa. Ver window.round2 en js/calc.js.
+        const precioUnitario = k == null ? null : window.round2(costoUnitario * k);
+        const totalLinea     = precioUnitario == null ? null : window.round2(precioUnitario * cantidad);
         return {
           key: l.key,
           numero: l.codigo,

@@ -799,7 +799,10 @@
       ws.getCell(r, 9).numFmt = FMT_COEF;
       r++;
       ws.getCell(r, 2).value = 'PRECIO UNITARIO';
-      ws.getCell(r, 9).value = f(`=I${filaSub}*I${r - 1}`);
+      // Redondeado a 2 decimales de verdad (no sólo formato de celda): el
+      // total de CyP multiplica por este valor, así que tiene que ser el
+      // mismo que ve/usa la pantalla Presupuesto (ver round2 en calc.js).
+      ws.getCell(r, 9).value = f(`=ROUND(I${filaSub}*I${r - 1},2)`);
       ws.getCell(r, 9).numFmt = FMT_ARS;
       pintar(ws, r, 2, 9, AZUL);
       negrita(ws, r, 2, 9, 'FFFFFFFF');
@@ -951,7 +954,10 @@
         // Materiales se propaga hasta acá sin volver a exportar.
         ws.getCell(r, 6).value = f(`=INDEX(${ref.ap.rangoPrecios},MATCH($B${r},${ref.ap.rangoCodigos},0))`);
         ws.getCell(r, 6).numFmt = FMT_ARS;
-        ws.getCell(r, 7).value = f(`=+E${r}*F${r}`);
+        // Redondeado a 2 decimales de verdad: cantidad × precio unitario
+        // (que ya viene redondeado desde el A.P) puede dar más de 2
+        // decimales si la cantidad los tiene.
+        ws.getCell(r, 7).value = f(`=ROUND(E${r}*F${r},2)`);
         ws.getCell(r, 7).numFmt = FMT_ARS;
         ws.getCell(r, 8).value = f(`=IFERROR(G${r}/$G$${filaTotal},0)`);
         ws.getCell(r, 8).numFmt = FMT_PCT;
