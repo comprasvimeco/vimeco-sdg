@@ -31,10 +31,17 @@ function renderLineaRow(linea) {
   const colOficial = mostrarOficial ? `
       <span class="presupuesto-linea-oficial"><input type="text" class="form-control cmp-oficial-input" data-linea-key="${escHtml(linea.key)}" placeholder="0" value="${linea.precioOficial != null ? escHtml(formatMoneyString(linea.precioOficial)) : ''}" data-calc-id="${id}:precioOficial" data-calc-label="${escHtml(et + ' · Precio oficial')}"></span>
       <span class="presupuesto-linea-dif${claseDif(linea)}">${fmtDif(linea)}</span>` : '';
+  // Mismo destino que el ícono de A.P. en Cómputo (js/computo.js): si la
+  // línea ya está vinculada a un ítem va directo a su análisis, si no a
+  // buscar/crear uno. Sin target="_blank" a propósito: acá se navega en la
+  // misma pestaña.
+  const hrefAP = linea.itemKey
+    ? `item.html?key=${encodeURIComponent(linea.itemKey)}&obra=${encodeURIComponent(obraKey)}`
+    : `item.html?linea=${encodeURIComponent(linea.key)}&obra=${encodeURIComponent(obraKey)}`;
   return `
     <div class="presupuesto-linea">
       <span class="presupuesto-linea-numero">${linea.numero}</span>
-      <span class="presupuesto-linea-nombre">${escHtml(linea.nombre)}</span>
+      <a class="presupuesto-linea-nombre" href="${hrefAP}" title="Ver Análisis de Precio">${escHtml(linea.nombre)}</a>
       <span class="presupuesto-linea-unidad">${escHtml(linea.unidad)}</span>
       <span class="presupuesto-linea-cantidad"${calcAttrs(linea.cantidad, `${id}:cantidad`, `${et} · Cantidad`)}>${linea.cantidad != null ? fmtNum(linea.cantidad) : '—'}</span>
       <span class="presupuesto-linea-precio"${calcAttrs(linea.precioUnitario, `${id}:precioUnit`, `${et} · Precio unit.`)}>${fmtARS(linea.precioUnitario)}</span>
