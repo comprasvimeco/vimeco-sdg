@@ -318,6 +318,32 @@
     </div>
   </div>
 
+  <!-- Modal: Alta rápida de auxiliar (desde una línea de Materiales del AP) -->
+  <div class="modal-overlay hidden" id="modal-auxiliar-quick">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Nuevo auxiliar</span>
+        <button class="modal-close" id="modal-auxiliar-quick-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <p class="form-hint" style="margin-bottom:.75rem;">Se crea sin Análisis de Precio — se arma después, abriendo esta línea desde su costo.</p>
+        <div class="form-group">
+          <label for="qa-nombre">Nombre *</label>
+          <input type="text" id="qa-nombre" class="form-control">
+        </div>
+        <div class="form-group u-mb-0">
+          <label for="qa-unidad">Unidad *</label>
+          <input type="text" id="qa-unidad" class="form-control" placeholder="Ej: kg, m3, u">
+        </div>
+        <div id="modal-auxiliar-error-qa" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-auxiliar-quick-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-auxiliar-quick-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Editar precio de un material (inline, por línea del AP) -->
   <div class="modal-overlay hidden" id="modal-material-editar-precio">
     <div class="modal modal--sm">
@@ -421,6 +447,7 @@
   <script src="js/config.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/firebase.js"></script>
+  <script src="js/undo.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/numeracion.js"></script>
   <script src="js/item.js"></script>

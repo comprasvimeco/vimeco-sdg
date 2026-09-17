@@ -731,19 +731,29 @@ function rubroIdEnFoco() {
   return null;
 }
 
+/* Un cambio que entra por acá puede ser de otro usuario o del propio Ctrl+Z
+   (js/undo.js escribe en la base y se entera por este mismo listener). Si es el
+   undo, hay que pintarlo sí o sí: ni se preserva la celda en foco ni se pausa el
+   render, porque justamente lo que hay que mostrar es el valor que volvió. */
+function esUndoPropio() {
+  return !!(window.undoRecienAplicado && window.undoRecienAplicado());
+}
+
 function aplicarLineasRemotas(dataCruda) {
   const remoto = dataCruda || {};
-  const key = lineaKeyEnFocoDentroDe('#lineas-computo');
+  const undo = esUndoPropio();
+  const key = undo ? null : lineaKeyEnFocoDentroDe('#lineas-computo');
   const anterior = JSON.stringify(lineas);
   lineas = (key && lineas[key]) ? { ...remoto, [key]: lineas[key] } : remoto;
   if (JSON.stringify(lineas) === anterior) return;
-  if (focoDentroDeComputo()) return;
+  if (!undo && focoDentroDeComputo()) return;
   renderTodo();
 }
 
 function aplicarRubrosRemotos(dataCruda) {
   const remoto = dataCruda || {};
-  const rubroIdFoco = rubroIdEnFoco();
+  const undo = esUndoPropio();
+  const rubroIdFoco = undo ? null : rubroIdEnFoco();
   const anterior = JSON.stringify(rubros);
   const mapaActual = Object.fromEntries(rubros.map(r => [r.key, r]));
   const mapaNuevo = Object.fromEntries(Object.entries(remoto).map(([key, r]) => [key, { key, ...r }]));
@@ -751,17 +761,18 @@ function aplicarRubrosRemotos(dataCruda) {
   rubros = Object.values(mapaFinal);
   ordenarRubros();
   if (JSON.stringify(rubros) === anterior) return;
-  if (focoDentroDeComputo()) return;
+  if (!undo && focoDentroDeComputo()) return;
   renderTodo();
 }
 
 function aplicarAuxiliaresRemotos(dataCruda) {
   const remoto = dataCruda || {};
-  const key = lineaKeyEnFocoDentroDe('#lineas-auxiliares');
+  const undo = esUndoPropio();
+  const key = undo ? null : lineaKeyEnFocoDentroDe('#lineas-auxiliares');
   const anterior = JSON.stringify(auxiliares);
   auxiliares = (key && auxiliares[key]) ? { ...remoto, [key]: auxiliares[key] } : remoto;
   if (JSON.stringify(auxiliares) === anterior) return;
-  if (focoDentroDeAuxiliares()) return;
+  if (!undo && focoDentroDeAuxiliares()) return;
   renderAuxiliares();
 }
 
@@ -802,7 +813,9 @@ async function loadAll() {
   window.setCotizacionObra(dolarObra);
   preciosObra = window.resolverPreciosObra(materiales, obraKey);
 
-  await migrarARubrosEntidad(rubrosComputoData, computoRubrosViejo || {});
+  // La migración corre sola al abrir la pantalla: no es un cambio del usuario,
+  // así que no tiene que quedar como primer paso deshacible (js/undo.js).
+  await window.undoOmitir(() => migrarARubrosEntidad(rubrosComputoData, computoRubrosViejo || {}));
 
   $('header-obra-nombre').textContent = 'Cómputo — ' + obra.nombre;
   renderHeaderTabs(obraKey, 'computo');

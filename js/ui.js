@@ -174,7 +174,8 @@ window.setModoObra = function (obraKey, obra, onChange) {
         aplicarCambio();
       } else {
         try {
-          await _fbPatch(`/obras/${obraKey}.json`, { soloLectura: false });
+          // El candado no es un dato de la obra: no va a la pila de deshacer.
+          await window.undoOmitir(() => _fbPatch(`/obras/${obraKey}.json`, { soloLectura: false }));
         } catch (_) {
           showToast('Error al cambiar el modo de la obra.', 'error');
           return;
@@ -188,7 +189,7 @@ window.setModoObra = function (obraKey, obra, onChange) {
         aplicarCambio();
       } else {
         try {
-          await _fbPatch(`/obras/${obraKey}.json`, { soloLectura: true });
+          await window.undoOmitir(() => _fbPatch(`/obras/${obraKey}.json`, { soloLectura: true }));
         } catch (_) {
           showToast('Error al cambiar el modo de la obra.', 'error');
           return;
@@ -210,3 +211,11 @@ window.guardBloqueoObra = function () {
   }
   return false;
 };
+
+/* Deshacer: versiones vacías de la API de js/undo.js, que se carga después y
+   las pisa. Así una pantalla puede llamarlas sin preguntar si el undo está
+   cargado, y una pantalla sin undo.js sigue funcionando igual. */
+window.undoOmitir          = fn => fn();
+window.undoAgrupar         = (etiqueta, raices, fn) => fn();
+window.undoRecienAplicado  = () => false;
+window.registrarRecargaUndo = () => {};

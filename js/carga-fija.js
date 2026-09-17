@@ -896,15 +896,24 @@ function impuestoKeyEnFoco() {
 // una sola vez en loadAll(), no en cada render, y su guardado lee el input
 // vivo al hacer blur) — se lo incluye en la guarda igual, por si el día de
 // mañana pasa a formar parte de un render.
-function renderCFSegunFoco() {
-  if (!focoDentroDeLineasCF()) renderLineas();
-  if (!focoDentroDeConfigCF()) renderCoeficienteK();
+/* Un cambio que entra por el listener puede ser de otro usuario o del propio
+   Ctrl+Z (js/undo.js escribe en la base y se entera por acá). Si es el undo hay
+   que pintarlo sí o sí: lo que tiene que verse es justamente el valor que
+   volvió, no el que quedó en el campo en foco. */
+function esUndoPropio() {
+  return !!(window.undoRecienAplicado && window.undoRecienAplicado());
+}
+
+function renderCFSegunFoco(forzar) {
+  if (forzar || !focoDentroDeLineasCF()) renderLineas();
+  if (forzar || !focoDentroDeConfigCF()) renderCoeficienteK();
   refrescarFormulasVivas();
 }
 
 function aplicarLineasCFRemotas(dataCruda) {
   const remoto = dataCruda || {};
-  const key = lineaKeyEnFocoCF();
+  const undo = esUndoPropio();
+  const key = undo ? null : lineaKeyEnFocoCF();
   const anterior = JSON.stringify(lineas);
   lineas = (key && lineas[key]) ? { ...remoto, [key]: lineas[key] } : remoto;
   // Obras viejas sin `orden` guardado: la normalización que se hizo en memoria
@@ -912,12 +921,13 @@ function aplicarLineasCFRemotas(dataCruda) {
   // listener la pisaría con las keys sin ordenar.
   normalizarOrdenLineas();
   if (JSON.stringify(lineas) === anterior) return;
-  renderCFSegunFoco();
+  renderCFSegunFoco(undo);
 }
 
 function aplicarConfigCFRemotas(dataCruda) {
   const remoto = dataCruda || {};
-  const impKey = impuestoKeyEnFoco();
+  const undo = esUndoPropio();
+  const impKey = undo ? null : impuestoKeyEnFoco();
   const anterior = JSON.stringify(config);
   const nuevo = { ...remoto };
   if (impKey && config.impuestos && config.impuestos[impKey]) {
@@ -925,7 +935,7 @@ function aplicarConfigCFRemotas(dataCruda) {
   }
   config = nuevo;
   if (JSON.stringify(config) === anterior) return;
-  renderCFSegunFoco();
+  renderCFSegunFoco(undo);
 }
 
 async function loadAll() {

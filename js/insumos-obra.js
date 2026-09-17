@@ -562,3 +562,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 window.onDecimalesVista(() => { if (modeloIns) renderTodo(); });
+
+/* Esta pantalla no escucha la base en tiempo real: después de un Ctrl+Z
+   (js/undo.js) vuelve a pedir los datos y se repinta. */
+window.registrarRecargaUndo(loadAll);

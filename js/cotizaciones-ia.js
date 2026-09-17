@@ -615,7 +615,6 @@
     btn.textContent = 'Guardando…';
 
     const fallos = [];
-
     // Los materiales nuevos se crean recién acá, con el dólar ya resuelto:
     // así no queda basura en la biblioteca si la confirmación se aborta antes.
     // Dos resguardos contra duplicados: si mientras tanto apareció uno con el
@@ -623,6 +622,13 @@
     // cotización con el mismo nombre crean un solo material.
     const creadosPorNombre = {};
     let creados = 0;
+
+    /* Todo lo que sigue es un solo acto: los materiales que se crean, sus
+       precios y el registro de la cotización se deshacen juntos con un Ctrl+Z.
+       Sin nodos raíz a propósito — esto escribe en /materiales, que es de todas
+       las obras: cada escritura se anota por separado y se revierte sólo lo que
+       tocó esta operación, sin pisar el catálogo de nadie. */
+    await window.undoAgrupar('los precios aplicados desde la cotización', null, async () => {
     for (const l of aLineas) {
       if (l.materialKey) continue;
       const nombre = l.materialNuevo.nombre;
@@ -669,6 +675,8 @@
       // El archivo y los precios ya se guardaron; el detalle de la cotización
       // es evidencia, no crítico para el cálculo — no reintentar acá.
     }
+
+    });
 
     const detalleCreados = creados ? ` Se ${creados === 1 ? 'creó 1 material nuevo' : `crearon ${creados} materiales nuevos`}.` : '';
     showToast(fallos.length

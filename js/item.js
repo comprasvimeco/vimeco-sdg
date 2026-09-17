@@ -199,6 +199,39 @@ function auxiliaresSeleccionables(refKeyActual) {
     a.key === refKeyActual || (a.key !== propiaKey && !auxiliarDependeDe(a.key, propiaKey, new Set())));
 }
 
+// Auxiliares de todas las obras salvo la activa, para poder traer uno como
+// insumo (se copia a la obra activa, ver copiarAuxiliarDesdeObra). Sin fetch
+// propio: `obrasFull` ya viene de /obras.json completo (loadAll), que trae
+// cada obra con TODO su árbol anidado — auxiliares incluido — así que ya está
+// en memoria.
+function auxiliaresDeOtrasObras() {
+  const lista = [];
+  Object.entries(obrasFull).forEach(([obraK, o]) => {
+    if (obraK === activeVersion) return;
+    Object.entries(o.auxiliares || {}).forEach(([auxKey, a]) => {
+      lista.push({ obraKey: obraK, auxKey, nombre: a.nombre || '(sin nombre)', unidad: a.unidad || '', itemKey: a.itemKey || null });
+    });
+  });
+  return lista;
+}
+
+// Opciones listas para el buscador de una línea de auxiliar: las de la obra
+// activa (con el filtro de ciclos de auxiliaresSeleccionables) + las de todas
+// las demás obras, codificadas como "otraObra::{obraKey}::{auxKey}" — el
+// onChange de la línea (renderLineasSeccion) detecta ese prefijo y copia el
+// auxiliar antes de asignarlo, ver copiarAuxiliarDesdeObra.
+function opcionesAuxiliar(refKeyActual) {
+  const locales = auxiliaresSeleccionables(refKeyActual).map(a => ({
+    value: a.key, label: a.nombre || '(sin nombre)', sublabel: a.unidad || '',
+  }));
+  const foraneas = auxiliaresDeOtrasObras().map(a => ({
+    value: `otraObra::${a.obraKey}::${a.auxKey}`,
+    label: a.nombre,
+    sublabel: `${obrasMap[a.obraKey] || a.obraKey}${a.unidad ? ' · ' + a.unidad : ''}`,
+  }));
+  return locales.concat(foraneas);
+}
+
 // Cómo se lee una referencia a esta línea dentro de una fórmula (js/refs.js):
 // el nombre de lo que tiene elegido, que es como la reconoce el usuario.
 function etiquetaLinea(lineaKey) {
@@ -538,6 +571,112 @@ async function remapearManoDeObra(lineasCopiadas, obraOrigenKey) {
   return creados;
 }
 
+// Trae un auxiliar de OTRA obra como insumo: como un auxiliar es una entidad
+// propia de cada obra (ver memoria del proyecto), "traerlo" es copiarlo acá —
+// se crea de cero en /obras/{activeVersion}/auxiliares, con su propio ítem
+// fantasma, y por eso mismo pasa a listarse solo en la card "Análisis
+// auxiliares" del Cómputo de esta obra. Si a su vez usa OTRO auxiliar como
+// insumo, se copia también, recursivamente (confirmado con el dueño del
+// proyecto: no se deja nada sin resolver).
+//
+// No hace falta pegarle a Firebase para LEER nada: `obrasFull` (loadAll) ya
+// trae cada obra con su árbol completo —auxiliares incluidos— y
+// `allItemsFull` ya trae todos los ítems con sus versionesObra. Sólo hacen
+// falta los PUT de lo nuevo.
+//
+// `cache` (obraOrigen::auxKeyOrigen -> keyNuevaAcá) evita duplicar si el mismo
+// auxiliar anidado aparece más de una vez en la cadena. `enCadena` es la pila
+// de la copia en curso: si un auxiliar de origen ya estaba en camino, hay un
+// ciclo en los DATOS de la obra de origen (no debería poder pasar — la propia
+// obra de origen ya impide crear uno — pero es una red de seguridad para no
+// colgarse); esa línea queda sin refKey en vez de recursar infinito.
+async function copiarAuxiliarDesdeObra(obraOrigenKey, auxKeyOrigen, cache, enCadena) {
+  const cacheKey = `${obraOrigenKey}::${auxKeyOrigen}`;
+  if (cache[cacheKey]) return cache[cacheKey];
+  if (enCadena.has(cacheKey)) return null;
+  enCadena.add(cacheKey);
+
+  const auxOrigen = ((obrasFull[obraOrigenKey] || {}).auxiliares || {})[auxKeyOrigen];
+  if (!auxOrigen) return null;
+
+  let nuevoItemKey = null;
+  if (auxOrigen.itemKey) {
+    const itemOrigen = allItemsFull[auxOrigen.itemKey];
+    const versionOrigen = itemOrigen && itemOrigen.versionesObra && itemOrigen.versionesObra[obraOrigenKey];
+    if (versionOrigen && versionOrigen.lineas && Object.keys(versionOrigen.lineas).length) {
+      // Copia profunda: versionOrigen viene del caché en memoria (allItemsFull),
+      // sin clonar se mutaría en vivo el objeto cacheado de la obra de origen.
+      const lineasCopiadas = JSON.parse(JSON.stringify(versionOrigen.lineas));
+      if (obraOrigenKey !== activeVersion) await remapearManoDeObra(lineasCopiadas, obraOrigenKey);
+
+      for (const linea of Object.values(lineasCopiadas)) {
+        if (linea.tipo === 'auxiliar' && linea.refKey) {
+          linea.refKey = await copiarAuxiliarDesdeObra(obraOrigenKey, linea.refKey, cache, enCadena);
+        }
+      }
+
+      const base = (itemOrigen.nombre || auxOrigen.nombre || 'aux').toLowerCase()
+        .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40);
+      nuevoItemKey = base + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+      await _fbPut(`/items/${nuevoItemKey}.json`, {
+        nombre: itemOrigen.nombre || auxOrigen.nombre || '',
+        unidad: itemOrigen.unidad || auxOrigen.unidad || '',
+        creadoEn: Date.now(),
+      });
+      await _fbPut(`/items/${nuevoItemKey}/versionesObra/${activeVersion}.json`, {
+        rendimiento: versionOrigen.rendimiento || 1,
+        rendimientoFormula: versionOrigen.rendimientoFormula || null,
+        lineas: lineasCopiadas,
+        familiaMO: versionOrigen.familiaMO || 'arquitectura',
+      });
+    }
+  }
+  // Sin itemKey en origen (nunca se le cargó AP) o sin receta: se copia igual
+  // el nombre/unidad, nuevoItemKey queda null — mismo estado "sin AP cargado"
+  // que ya maneja la pantalla.
+
+  const ordenes = auxiliaresDeObra.map(a => a.orden || 0);
+  const nuevaKey = 'aux_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const nuevoAuxiliar = {
+    nombre: auxOrigen.nombre || '',
+    unidad: auxOrigen.unidad || '',
+    cantidad: null,
+    itemKey: nuevoItemKey,
+    orden: ordenes.length ? Math.max(...ordenes) + 1 : 1,
+    creadoEn: Date.now(),
+    // Sólo dato de procedencia (mismo espíritu que `baseUsada` en la receta de
+    // un ítem) — no condiciona ningún cálculo, no tiene UI propia todavía.
+    copiadoDe: { obraNombre: obrasMap[obraOrigenKey] || obraOrigenKey, auxNombre: auxOrigen.nombre || '', copiadoEn: Date.now() },
+  };
+  await _fbPut(`/obras/${activeVersion}/auxiliares/${nuevaKey}.json`, nuevoAuxiliar);
+
+  cache[cacheKey] = nuevaKey;
+  auxiliaresDeObra = auxiliaresDeObra.concat([{ key: nuevaKey, ...nuevoAuxiliar }]);
+  auxiliaresPorObra[activeVersion] = auxiliaresDeObra;
+  return nuevaKey;
+}
+
+// Dispara la copia desde el onChange de una línea de auxiliar que eligió una
+// opción "otraObra::obraKey::auxKey" (ver opcionesAuxiliar/renderLineasSeccion).
+async function traerAuxiliarDeOtraObra(lineaKey, obraOrigenKey, auxKeyOrigen) {
+  if (guardBloqueoObra()) return;
+  const nombreObra = obrasMap[obraOrigenKey] || obraOrigenKey;
+  showToast(`Trayendo auxiliar de ${nombreObra}…`);
+  try {
+    const nuevaKey = await copiarAuxiliarDesdeObra(obraOrigenKey, auxKeyOrigen, {}, new Set());
+    if (!nuevaKey) {
+      showToast('No se pudo traer ese auxiliar.', 'error');
+      renderTodasLasLineas();
+      return;
+    }
+    updateLinea(lineaKey, { refKey: nuevaKey });
+    showToast(`Auxiliar copiado desde ${nombreObra}.`);
+  } catch (_) {
+    showToast('Error al traer el auxiliar de otra obra.', 'error');
+    renderTodasLasLineas();
+  }
+}
+
 async function seleccionarUsarComoBase(value, opciones) {
   if (guardBloqueoObra()) return;
   const opt = opciones.find(o => o.value === value);
@@ -636,8 +775,11 @@ function seccionDeElemento(el) {
 function aplicarSnapshotRemoto(dataCruda) {
   const data = dataCruda || {};
   const foco = document.activeElement;
-  const seccionEnEdicion = seccionDeElemento(foco);
-  const editandoRendimiento = foco && foco.id === 'rend-obra-input';
+  // Si el cambio lo produjo el propio Ctrl+Z (js/undo.js), no se preserva nada
+  // de lo que esté en foco: lo que hay que mostrar es el valor que volvió.
+  const undo = !!(window.undoRecienAplicado && window.undoRecienAplicado());
+  const seccionEnEdicion = undo ? null : seccionDeElemento(foco);
+  const editandoRendimiento = !undo && foco && foco.id === 'rend-obra-input';
 
   if (!editandoRendimiento) {
     rendimientoActivo = data.rendimiento ?? 1;
@@ -934,19 +1076,29 @@ function renderLineasSeccion(tipo, r) {
 
     cantidadInput.dataset.calcValor = linea.cantidad ?? 0;
 
-    const catOpciones = tipoLinea === 'auxiliar' ? auxiliaresSeleccionables(linea.refKey) : catLinea;
-    const options = catOpciones.map(c => ({
+    // Auxiliar: opciones ya resueltas (local + de otras obras), ver
+    // opcionesAuxiliar — no sale de catalogoFor/labelFor como los demás tipos.
+    const options = tipoLinea === 'auxiliar' ? opcionesAuxiliar(linea.refKey) : catLinea.map(c => ({
       value: c.key,
       label: labelFor(tipoLinea, c),
-      sublabel: (tipoLinea === 'material' || tipoLinea === 'auxiliar') ? c.unidad : undefined,
+      sublabel: tipoLinea === 'material' ? c.unidad : undefined,
       usado: tipoLinea === 'equipo' ? equiposUsadosEnObra.has(c.key) : undefined,
     }));
     createSearchableSelect(row.querySelector('.linea-select-container'), {
       options,
       value: linea.refKey,
       placeholder: `Buscar ${tipoLinea === 'auxiliar' ? 'auxiliar' : tipoLinea}…`,
-      onChange: v => updateLinea(lineaKey, { refKey: v }),
-      onCreateNew: tipoLinea === 'material' ? texto => openQuickMaterialModal(texto, lineaKey) : null,
+      onChange: v => {
+        if (tipoLinea === 'auxiliar' && typeof v === 'string' && v.startsWith('otraObra::')) {
+          const [, obraOrigenKey, auxKeyOrigen] = v.split('::');
+          traerAuxiliarDeOtraObra(lineaKey, obraOrigenKey, auxKeyOrigen);
+        } else {
+          updateLinea(lineaKey, { refKey: v });
+        }
+      },
+      onCreateNew: tipoLinea === 'material' ? texto => openQuickMaterialModal(texto, lineaKey)
+        : tipoLinea === 'auxiliar' ? texto => openQuickAuxiliarModal(texto, lineaKey)
+        : null,
       disabled: !!window._soloLectura,
     });
     if (tipoLinea === 'material') {
@@ -1230,6 +1382,52 @@ async function saveQuickMaterial() {
     $('modal-material-quick').classList.add('hidden');
     showToast('Material creado.');
     if (pendingLineaKey) updateLinea(pendingLineaKey, { refKey: key });
+  } catch (_) {
+    errEl.textContent = 'Error al guardar. Intentá de nuevo.';
+    errEl.classList.remove('hidden');
+  }
+}
+
+let pendingLineaKeyAux = null;
+
+// Alta rápida de un auxiliar que todavía no existe en NINGUNA obra, desde el
+// buscador de una línea de Materiales — mismo patrón que openQuickMaterialModal,
+// sin precio (un auxiliar no lo tiene, se costea con su propio A.P. después).
+function openQuickAuxiliarModal(texto, lineaKey) {
+  pendingLineaKeyAux = lineaKey;
+  $('qa-nombre').value = texto || '';
+  $('qa-unidad').value = '';
+  $('modal-auxiliar-error-qa').classList.add('hidden');
+  $('modal-auxiliar-quick').classList.remove('hidden');
+  setTimeout(() => $('qa-nombre').focus(), 50);
+}
+
+async function saveQuickAuxiliar() {
+  if (guardBloqueoObra()) return;
+  const nombre = $('qa-nombre').value.trim();
+  const unidad = $('qa-unidad').value.trim();
+  const errEl = $('modal-auxiliar-error-qa');
+
+  if (!nombre || !unidad) {
+    errEl.textContent = 'Nombre y unidad son requeridos.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  // Nace vacío y sin AP (itemKey null) — mismo estado que crearAuxiliar() en
+  // computo.js: el AP se crea solo la primera vez que se abre desde su costo
+  // (item.html?aux=..., ver autoCrearYVincular).
+  const key = 'aux_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const ordenes = auxiliaresDeObra.map(a => a.orden || 0);
+  const auxiliarData = { nombre, unidad, cantidad: null, itemKey: null, orden: ordenes.length ? Math.max(...ordenes) + 1 : 1, creadoEn: Date.now() };
+
+  try {
+    await _fbPut(`/obras/${activeVersion}/auxiliares/${key}.json`, auxiliarData);
+    auxiliaresDeObra = auxiliaresDeObra.concat([{ key, ...auxiliarData }]);
+    auxiliaresPorObra[activeVersion] = auxiliaresDeObra;
+    $('modal-auxiliar-quick').classList.add('hidden');
+    showToast('Auxiliar creado — armale su Análisis de Precio desde el costo de esta línea.');
+    if (pendingLineaKeyAux) updateLinea(pendingLineaKeyAux, { refKey: key });
   } catch (_) {
     errEl.textContent = 'Error al guardar. Intentá de nuevo.';
     errEl.classList.remove('hidden');
@@ -1552,6 +1750,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-material-quick-close').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
   $('modal-material-quick-cancel').addEventListener('click', () => $('modal-material-quick').classList.add('hidden'));
   $('modal-material-quick-save').addEventListener('click', saveQuickMaterial);
+
+  $('modal-auxiliar-quick-close').addEventListener('click', () => $('modal-auxiliar-quick').classList.add('hidden'));
+  $('modal-auxiliar-quick-cancel').addEventListener('click', () => $('modal-auxiliar-quick').classList.add('hidden'));
+  $('modal-auxiliar-quick-save').addEventListener('click', saveQuickAuxiliar);
   attachCalcInput($('qm-precio-usd'));
   attachMoneyInput($('qm-precio-usd'));
   attachCalcInput($('qm-precio-ars'));

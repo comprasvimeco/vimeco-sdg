@@ -44,6 +44,39 @@ que vimeco-oc en `js/firebase.js`.
 - `js/config.js` — `FIREBASE_CONFIG` (TODO: crear el proyecto Firebase y completar valores reales)
 - `sw.js` — network-first para código de la app, cache-first para assets pesados
 
+## Deshacer (Ctrl+Z)
+
+`js/undo.js` es el motor, y engancha en el único lugar por el que la app escribe: las tres
+funciones de `js/firebase.js` le avisan qué van a tocar antes de tocarlo. Por eso el undo cubre
+las 21 pantallas sin que ninguna sepa que existe — mismo argumento que el login en `js/auth.js`.
+
+- Todo cambio se guarda como "este path valía X y pasó a valer Y". Deshacer escribe X, rehacer
+  escribe Y, y aplicar un valor es PUT si hay algo o DELETE si es null.
+- **Los snapshots son siempre del nodo entero**, nunca campo por campo: un PUT borra los hijos
+  anidados que no vengan en el body, así que restaurar con media foto sería perder datos en el
+  propio undo. Por lo mismo el inverso de un PATCH son PUT por sub-path, no un PATCH inverso
+  (un PATCH mergea y dejaría vivo lo que el cambio original agregó adentro).
+- **Un gesto, un Ctrl+Z.** Las escrituras se agrupan por acto del usuario: mover una línea son
+  dos PATCH y una fórmula viva recalcula en cascada, pero se deshacen juntas.
+- La pila vive en memoria y en la pestaña: al recargar o cambiar de pantalla arranca vacía.
+- Antes de revertir se controla que nadie haya tocado el dato en el medio. Si otro lo cambió,
+  no se pisa y se avisa.
+
+### Al agregar una pantalla o una operación nueva
+
+- Si la pantalla **no** escucha en tiempo real (`_fbListen`), registrá su recarga al final del
+  archivo: `window.registrarRecargaUndo(loadAll)`. Si escucha, dejá que el listener pinte el
+  cambio aunque haya foco en la tabla — se pregunta con `window.undoRecienAplicado()`.
+- Escrituras que no son un acto del usuario (migraciones, sembrados, el candado de modo lectura)
+  van dentro de `window.undoOmitir(() => ...)`, para que no queden como un paso deshacible.
+- Operaciones que escriben muchas veces se envuelven en `window.undoAgrupar(etiqueta, raices, fn)`.
+  Con `raices` saca una foto de esos nodos, que es barato pero **sólo sirve para nodos de esta
+  obra y de esta operación**: reponer la foto de un nodo compartido (`/materiales`) borraría lo
+  que otro agregó ahí mientras tanto. Para esos casos va `null` como raíces, y cada escritura se
+  anota por separado.
+- Las versiones vacías de esa API están en `js/ui.js`, así una pantalla puede llamarlas sin
+  preguntar si el undo está cargado. `js/undo.js` las pisa, y por eso va siempre después.
+
 ## Acceso (login con Google)
 
 El sitio es público — GitHub Pages no puede no serlo fuera de Enterprise Cloud. Lo que está

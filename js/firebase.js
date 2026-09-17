@@ -40,25 +40,43 @@
     _chequear(resp);
     return await resp.json();
   }
+  /* Deshacer (js/undo.js, opcional): antes de cada escritura se le avisa qué se
+     va a tocar, para que lea el estado previo y sepa cómo volver atrás. Devuelve
+     una función que hay que llamar al terminar — así el undo sabe si todavía
+     queda algo a mitad de camino. Si undo.js no está cargado, no pasa nada. */
+  async function _anotarUndo(metodo, path, data) {
+    if (!window._undoAnotar) return () => {};
+    try { return await window._undoAnotar(metodo, path, data); } catch (_) { return () => {}; }
+  }
+
   async function _put(path, data) {
-    const resp = await fetch(await _url(path), {
-      method:  'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(data)
-    });
-    _chequear(resp);
+    const listo = await _anotarUndo('put', path, data);
+    try {
+      const resp = await fetch(await _url(path), {
+        method:  'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(data)
+      });
+      _chequear(resp);
+    } finally { listo(); }
   }
   async function _patch(path, data) {
-    const resp = await fetch(await _url(path), {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(data)
-    });
-    _chequear(resp);
+    const listo = await _anotarUndo('patch', path, data);
+    try {
+      const resp = await fetch(await _url(path), {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(data)
+      });
+      _chequear(resp);
+    } finally { listo(); }
   }
   async function _del(path) {
-    const resp = await fetch(await _url(path), { method: 'DELETE' });
-    _chequear(resp);
+    const listo = await _anotarUndo('del', path);
+    try {
+      const resp = await fetch(await _url(path), { method: 'DELETE' });
+      _chequear(resp);
+    } finally { listo(); }
   }
 
   // Suscripción en tiempo real (SDK de Database, no REST). Reusa la sesión que

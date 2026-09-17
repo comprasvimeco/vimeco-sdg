@@ -288,3 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadObras();
   await loadItems();
 });
+
+/* Esta pantalla no escucha la base en tiempo real: después de un Ctrl+Z
+   (js/undo.js) vuelve a pedir los datos y se repinta. */
+window.registrarRecargaUndo(async () => { await loadRubros(); await loadObras(); await loadItems(); });

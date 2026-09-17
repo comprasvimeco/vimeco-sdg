@@ -323,35 +323,45 @@
     const plana = sinRubros();
     const nuevoRubroId = () => 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
     const rubroUnico = plana ? nuevoRubroId() : null;
-    if (plana) {
-      writes.push(
-        _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroUnico}.json`, { nombre: '', orden: 1 })
-          .catch(() => fallos.push('la lista de ítems'))
-      );
-    }
     let ordenPlano = 0;
 
-    rubrosValidos.forEach((r, i) => {
-      const rubroId = plana ? rubroUnico : nuevoRubroId();
-      if (!plana) {
-        writes.push(
-          _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroId}.json`, { nombre: r.nombre, orden: i + 1 })
-            .catch(() => fallos.push(`rubro "${r.nombre}"`))
-        );
+    /* Son decenas de escrituras de un mismo acto. En vez de anotarlas una por
+       una, js/undo.js saca una foto de los dos nodos antes y después: un solo
+       Ctrl+Z deshace el cómputo entero. */
+    await window.undoAgrupar(
+      'el cómputo armado con IA',
+      [`/obras/${obraKey}/computo.json`, `/obras/${obraKey}/rubrosComputo.json`],
+      async () => {
+        if (plana) {
+          writes.push(
+            _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroUnico}.json`, { nombre: '', orden: 1 })
+              .catch(() => fallos.push('la lista de ítems'))
+          );
+        }
+
+        rubrosValidos.forEach((r, i) => {
+          const rubroId = plana ? rubroUnico : nuevoRubroId();
+          if (!plana) {
+            writes.push(
+              _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroId}.json`, { nombre: r.nombre, orden: i + 1 })
+                .catch(() => fallos.push(`rubro "${r.nombre}"`))
+            );
+          }
+          r.items.forEach((it, j) => {
+            const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+            totalItems++;
+            writes.push(
+              _fbPut(`/obras/${obraKey}/computo/${lineaKey}.json`, {
+                rubroId, nombre: it.nombre.trim(), unidad: (it.unidad || '').trim(),
+                cantidad: it.cantidad, itemKey: null, orden: plana ? ++ordenPlano : j + 1,
+                creadoEn: Date.now(),
+              }).catch(() => fallos.push(`"${it.nombre}" (${r.nombre})`))
+            );
+          });
+        });
+        await Promise.all(writes);
       }
-      r.items.forEach((it, j) => {
-        const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
-        totalItems++;
-        writes.push(
-          _fbPut(`/obras/${obraKey}/computo/${lineaKey}.json`, {
-            rubroId, nombre: it.nombre.trim(), unidad: (it.unidad || '').trim(),
-            cantidad: it.cantidad, itemKey: null, orden: plana ? ++ordenPlano : j + 1,
-            creadoEn: Date.now(),
-          }).catch(() => fallos.push(`"${it.nombre}" (${r.nombre})`))
-        );
-      });
-    });
-    await Promise.all(writes);
+    );
 
     btn.disabled = false;
     btn.textContent = 'Confirmar y crear cómputo';
