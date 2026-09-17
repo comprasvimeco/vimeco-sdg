@@ -272,14 +272,14 @@ function hrefParaLinea(l) {
 }
 
 function renderApNav() {
-  const nav = $('ap-nav');
-  if (apNavIndex === -1 || lineasOrdenadas.length <= 1) {
-    nav.classList.add('hidden');
-    return;
-  }
-  nav.classList.remove('hidden');
-  $('btn-ap-prev').disabled = apNavIndex <= 0;
-  $('btn-ap-next').disabled = apNavIndex >= lineasOrdenadas.length - 1;
+  const prev = $('btn-ap-prev');
+  const next = $('btn-ap-next');
+  const mostrar = apNavIndex !== -1 && lineasOrdenadas.length > 1;
+  prev.classList.toggle('hidden', !mostrar);
+  next.classList.toggle('hidden', !mostrar);
+  if (!mostrar) return;
+  prev.disabled = apNavIndex <= 0;
+  next.disabled = apNavIndex >= lineasOrdenadas.length - 1;
 }
 
 function irAApVecino(dir) {
@@ -293,16 +293,17 @@ function irAApVecino(dir) {
 // cualquiera sin ir línea por línea.
 function renderApTerciario() {
   const bar = $('ap-terciario-bar');
+  const chips = $('ap-terciario-chips');
   if (lineasOrdenadas.length <= 1) {
     bar.classList.add('hidden');
-    bar.innerHTML = '';
+    chips.innerHTML = '';
     return;
   }
   bar.classList.remove('hidden');
-  bar.innerHTML = '<div class="ap-terciario">' + lineasOrdenadas.map((l, i) =>
+  chips.innerHTML = lineasOrdenadas.map((l, i) =>
     `<a class="ap-terciario-chip${i === apNavIndex ? ' active' : ''}" href="${hrefParaLinea(l)}" title="${escHtml(l.nombre || '(sin nombre)')}">${escHtml(l.numeracion || '—')}</a>`
-  ).join('') + '</div>';
-  const activo = bar.querySelector('.ap-terciario-chip.active');
+  ).join('');
+  const activo = chips.querySelector('.ap-terciario-chip.active');
   if (activo) activo.scrollIntoView({ block: 'nearest', inline: 'center' });
 }
 
