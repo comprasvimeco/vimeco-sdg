@@ -17,9 +17,12 @@
 (function () {
   const _base = () => FIREBASE_CONFIG.databaseURL;
 
+  // El path puede traer su propia query (`?shallow=true`, para listar las keys
+  // de un nodo sin bajarlo entero — lo usa la lista de cierres, donde cada
+  // hijo pesa lo que pesa una obra completa).
   async function _url(path) {
     const token = await window._authToken();
-    return _base() + path + '?auth=' + encodeURIComponent(token);
+    return _base() + path + (path.includes('?') ? '&' : '?') + 'auth=' + encodeURIComponent(token);
   }
 
   let _saliendo = false;

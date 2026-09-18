@@ -31,6 +31,12 @@ appHtml = appHtml.replace(versionRe, (_, pre, num, post) => {
 });
 fs.writeFileSync('app.html', appHtml);
 
+// Misma versión en js/version.js, para que cualquier pantalla pueda leerla
+// (window.APP_VERSION) sin ir a buscarla al drawer de app.html.
+let versionJs = fs.readFileSync('js/version.js', 'utf8');
+versionJs = versionJs.replace(/window\.APP_VERSION = 'v[\w.]+';/, `window.APP_VERSION = 'v${nextVersion}';`);
+fs.writeFileSync('js/version.js', versionJs);
+
 // Bump SW cache version so mobile devices detect the update
 let sw = fs.readFileSync('sw.js', 'utf8');
 sw = sw.replace(/vimeco-sdg-v[\w.]+/, 'vimeco-sdg-v' + Date.now());

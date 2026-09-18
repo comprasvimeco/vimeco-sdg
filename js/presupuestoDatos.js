@@ -29,11 +29,15 @@
     return propia || item;
   }
 
-  /* Devuelve el modelo completo del presupuesto de una obra, o null si la obra
-     no existe. Ver el final del archivo para la forma del objeto. */
-  window.cargarPresupuestoObra = async function (obraKey) {
-    const [obraData, computoData, rubrosData, auxiliaresData, itemsData, materialesData,
-           equiposData, rolesData, cfLineasData, cfConfigData, encabezadoData] = await Promise.all([
+  /* Todo lo que el presupuesto necesita de la base, en un objeto con nombre.
+     Está separado del armado del modelo a propósito: un presupuesto cerrado
+     repone exactamente estas once piezas desde su foto en vez de la base viva
+     (window.fuentesDesdeCierre, js/cierreDatos.js) y el resto de este archivo
+     no se entera de dónde vinieron — la misma cadena de cálculo corre igual
+     sobre datos vivos o congelados. */
+  window.leerFuentesObra = async function (obraKey) {
+    const [obra, computo, rubros, auxiliares, items, materiales,
+           equipos, roles, cfLineas, cfConfig, encabezado] = await Promise.all([
       _fbGet(`/obras/${obraKey}.json`),
       _fbGet(`/obras/${obraKey}/computo.json`),
       _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
@@ -46,6 +50,27 @@
       _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
       _fbGet(`/obras/${obraKey}/encabezado.json`),
     ]);
+    return { obra, computo, rubros, auxiliares, items, materiales, equipos, roles,
+             cfLineas, cfConfig, encabezado };
+  };
+
+  /* Devuelve el modelo completo del presupuesto de una obra, o null si la obra
+     no existe. Ver el final del archivo para la forma del objeto.
+     opts.fuentes: datos ya leídos (o congelados) con la forma de
+     leerFuentesObra — evita ir a la base. */
+  window.cargarPresupuestoObra = async function (obraKey, opts) {
+    const fuentes = (opts && opts.fuentes) || await window.leerFuentesObra(obraKey);
+    const obraData        = fuentes.obra;
+    const computoData     = fuentes.computo;
+    const rubrosData      = fuentes.rubros;
+    const auxiliaresData  = fuentes.auxiliares;
+    const itemsData       = fuentes.items;
+    const materialesData  = fuentes.materiales;
+    const equiposData     = fuentes.equipos;
+    const rolesData       = fuentes.roles;
+    const cfLineasData    = fuentes.cfLineas;
+    const cfConfigData    = fuentes.cfConfig;
+    const encabezadoData  = fuentes.encabezado;
 
     if (!obraData) return null;
 

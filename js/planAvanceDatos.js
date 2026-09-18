@@ -50,12 +50,17 @@
   window.PLAN_CONFIG_DEFAULT = { modo: 'items', unidad: 'semana', cantidad: 12, fechaInicio: '', anticipoPct: null };
 
   // Config y distribución del plan de una obra, con los defaults ya aplicados.
-  window.cargarPlanAvanceObra = async function (obraKey) {
-    const [configData, itemsData, rubrosData] = await Promise.all([
-      _fbGet(`/obras/${obraKey}/planAvance/config.json`),
-      _fbGet(`/obras/${obraKey}/planAvance/items.json`),
-      _fbGet(`/obras/${obraKey}/planAvance/rubros.json`),
-    ]);
+  // opts.planAvance: el nodo ya leído (o congelado por un cierre, ver
+  // js/cierreDatos.js) — con él no se va a la base.
+  window.cargarPlanAvanceObra = async function (obraKey, opts) {
+    const congelado = opts && opts.planAvance;
+    const [configData, itemsData, rubrosData] = congelado
+      ? [congelado.config, congelado.items, congelado.rubros]
+      : await Promise.all([
+        _fbGet(`/obras/${obraKey}/planAvance/config.json`),
+        _fbGet(`/obras/${obraKey}/planAvance/items.json`),
+        _fbGet(`/obras/${obraKey}/planAvance/rubros.json`),
+      ]);
     return {
       config: Object.assign({}, window.PLAN_CONFIG_DEFAULT, configData || {}),
       distItems: itemsData || {},

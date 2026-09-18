@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VIMECO — Cierres</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <meta name="theme-color" content="#1a3a5c">
+  <style>
+    .cierre-card.anulado .item-card-title { text-decoration: line-through; color: var(--gray-500); }
+    .cierre-total { font-weight: 700; color: var(--primary); white-space: nowrap; }
+    .cierre-card.anulado .cierre-total { color: var(--gray-500); }
+    .cierre-notas { font-size: .85rem; color: var(--gray-600); margin-top: .3rem; white-space: pre-wrap; }
+    .cierre-vivo { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+    .cierre-vivo-total { font-size: 1.15rem; font-weight: 700; color: var(--primary); white-space: nowrap; }
+    .cierre-difs { margin: .75rem 0 0; padding-left: 1.1rem; font-size: .85rem; color: var(--gray-700); }
+    .cierre-difs li { margin-bottom: .2rem; }
+    .cierre-verificando { display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 1.5rem 0; color: var(--gray-600); font-size: .9rem; }
+    .cierre-spinner { width: 20px; height: 20px; border: 2.5px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: cierre-spin .8s linear infinite; flex-shrink: 0; }
+    @keyframes cierre-spin { to { transform: rotate(360deg); } }
+    @media (max-width: 700px) {
+      .cierre-vivo { flex-direction: column; gap: .3rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
+      <img src="assets/logo_claro.png" alt="VIMECO S.A." class="header-logo">
+      <span class="header-title" id="header-obra-nombre">Cierres</span>
+    </div>
+    <nav class="header-tabs" id="header-tabs"></nav>
+    <div class="flex items-center gap-3">
+      <span class="header-dolar" id="header-dolar">USD = —</span>
+      <button class="btn btn-sm btn-outline btn-icon" onclick="window.location.href='obras.html'" aria-label="Volver" title="Volver"><svg class="icon" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg></button>
+    </div>
+  </header>
+  <nav class="subtabs-bar" id="header-subtabs"></nav>
+
+  <main class="app-main" id="main-content" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Presupuesto actual</span>
+        <button type="button" class="btn btn-sm btn-primary" id="btn-cerrar">Cerrar presupuesto</button>
+      </div>
+      <div class="card-body">
+        <div class="cierre-vivo">
+          <span class="form-hint" style="margin:0;">Así está el presupuesto en este momento. Cerrarlo guarda una foto de todos los datos que lo forman — el catálogo de equipos y materiales incluido — para que siga dando exactamente este número por más que después cambie cualquier cosa.</span>
+          <span class="cierre-vivo-total" id="total-vivo">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><span class="card-title">Presupuestos cerrados</span></div>
+      <div class="card-body" id="lista-cierres"></div>
+    </div>
+  </main>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando presupuesto…</div></div>
+
+  <!-- Cerrar -->
+  <div class="modal-overlay hidden" id="modal-cerrar">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">Cerrar presupuesto</span>
+        <button class="modal-close" id="modal-cerrar-x">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-cerrar-form">
+          <div class="form-group">
+            <label class="form-label" for="cierre-nombre">Nombre del cierre</label>
+            <input type="text" class="form-control" id="cierre-nombre" placeholder="Oferta original" autocomplete="off">
+            <span class="form-hint">Cómo se lo va a reconocer después: "Oferta original", "Mejora de oferta", "Redeterminación 1".</span>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="cierre-notas">Notas (opcional)</label>
+            <textarea class="form-control" id="cierre-notas" rows="3" placeholder="Presentado el 17/09 por expediente…"></textarea>
+          </div>
+        </div>
+        <div id="modal-cerrar-verificando" class="cierre-verificando hidden">
+          <span class="cierre-spinner"></span>
+          <span>Guardando la foto y verificando que dé el mismo número…</span>
+        </div>
+        <div id="modal-cerrar-error" class="hidden">
+          <p style="color:var(--danger);font-weight:600;">No se guardó el cierre.</p>
+          <p class="form-hint">La foto no reprodujo el presupuesto actual, así que guardarla habría dejado un cierre que miente. Esto es un problema del sistema, no de los datos de la obra — pasale este detalle a quien mantiene la app:</p>
+          <ul class="cierre-difs" id="modal-cerrar-difs"></ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-cerrar-cancelar">Cancelar</button>
+        <button class="btn btn-primary" id="modal-cerrar-ok">Cerrar presupuesto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Anular -->
+  <div class="modal-overlay hidden" id="modal-anular">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Anular cierre</span>
+        <button class="modal-close" id="modal-anular-x">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="form-hint">El cierre queda marcado como anulado, con la fecha y el motivo. Los números no se borran: se siguen pudiendo consultar.</p>
+        <div class="form-group">
+          <label class="form-label" for="anular-motivo">Motivo</label>
+          <input type="text" class="form-control" id="anular-motivo" placeholder="Se cerró por error" autocomplete="off">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-anular-cancelar">Cancelar</button>
+        <button class="btn btn-danger" id="modal-anular-ok">Anular</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay hidden" id="modal-confirm">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title" id="modal-confirm-title">Confirmar</span>
+      </div>
+      <div class="modal-body" style="text-align:center;padding:1.5rem 1.25rem;">
+        <p id="modal-confirm-msg" style="color:var(--gray-600);"></p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-confirm-no">Cancelar</button>
+        <button class="btn btn-primary" id="modal-confirm-yes">Confirmar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/version.js"></script>
+  <script src="js/calc.js"></script>
+  <script src="js/refs.js"></script>
+  <script src="js/dolar.js"></script>
+  <script src="js/moneda.js"></script>
+  <script src="js/calcCostos.js"></script>
+  <script src="js/vendor/firebase-app-compat.js"></script>
+  <script src="js/vendor/firebase-auth-compat.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/firebase.js"></script>
+  <script src="js/undo.js"></script>
+  <script src="js/numeracion.js"></script>
+  <script src="js/presupuestoDatos.js"></script>
+  <script src="js/planAvanceDatos.js"></script>
+  <script src="js/insumosDatos.js"></script>
+  <script src="js/cierreDatos.js"></script>
+  <script src="js/cierres.js"></script>
+</body>
+</html>

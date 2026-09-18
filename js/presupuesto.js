@@ -19,6 +19,11 @@ const $ = id => document.getElementById(id);
 
 const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
+// Con ?cierre= la pantalla no muestra el presupuesto vivo sino la foto de uno
+// enviado: los mismos cálculos, pero sobre los datos congelados de ese cierre
+// (ver js/cierreDatos.js). Todo queda en sólo lectura y sin enlaces a las
+// pantallas vivas, que ya no se corresponden con lo que se está mirando.
+const cierreKey = params.get('cierre');
 
 let modelo = null;
 let mostrarOficial = false;   // de sesión: nunca se guarda, arranca apagado
@@ -38,10 +43,14 @@ function renderLineaRow(linea) {
   const hrefAP = linea.itemKey
     ? `item.html?key=${encodeURIComponent(linea.itemKey)}&obra=${encodeURIComponent(obraKey)}`
     : `item.html?linea=${encodeURIComponent(linea.key)}&obra=${encodeURIComponent(obraKey)}`;
+  // Mirando un cierre, el A.P vivo puede no ser el que dio este precio: sin enlace.
+  const celdaNombre = cierreKey
+    ? `<span class="presupuesto-linea-nombre">${escHtml(linea.nombre)}</span>`
+    : `<a class="presupuesto-linea-nombre" href="${hrefAP}" title="Ver Análisis de Precio">${escHtml(linea.nombre)}</a>`;
   return `
     <div class="presupuesto-linea">
       <span class="presupuesto-linea-numero">${linea.numero}</span>
-      <a class="presupuesto-linea-nombre" href="${hrefAP}" title="Ver Análisis de Precio">${escHtml(linea.nombre)}</a>
+      ${celdaNombre}
       <span class="presupuesto-linea-unidad">${escHtml(linea.unidad)}</span>
       <span class="presupuesto-linea-cantidad"${calcAttrs(linea.cantidad, `${id}:cantidad`, `${et} · Cantidad`)}>${linea.cantidad != null ? fmtNum(linea.cantidad) : '—'}</span>
       <span class="presupuesto-linea-precio"${calcAttrs(linea.precioUnitario, `${id}:precioUnit`, `${et} · Precio unit.`)}>${fmtARS(linea.precioUnitario)}</span>
@@ -171,9 +180,40 @@ function renderTodo() {
     <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(modelo.costoComputo, 'presupuesto:costoComputo', 'Costo total del Cómputo')}>${fmtARS(modelo.costoComputo)}</span></div>
     <div class="ap-resumen-row"><span>Carga Fija</span><span${calcAttrs(modelo.k, 'presupuesto:k', 'Carga Fija')}>${fmtK(modelo.k)}</span></div>
     <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span${calcAttrs(modelo.total, 'presupuesto:total', 'Total del Presupuesto')}>${fmtARS(modelo.total)}</span></div>
-    <p class="form-hint" style="margin-top:.5rem;">La Carga Fija se recalcula en vivo a partir de su pantalla — no se cachea.</p>`;
+    <p class="form-hint" style="margin-top:.5rem;">${cierreKey
+      ? 'Estos números salen de los datos congelados al cerrar: no los mueve ningún cambio posterior, ni de esta obra ni del catálogo.'
+      : 'La Carga Fija se recalcula en vivo a partir de su pantalla — no se cachea.'}</p>`;
 
   renderComparacionOficial();
+}
+
+/* Un presupuesto cerrado: se reconstruye desde su foto y se verifica que siga
+   dando lo que dio el día que se cerró. Si no —sólo puede pasar si cambiaron
+   las fórmulas— igual se muestra, con la banda en rojo: el número que vale es
+   el que quedó registrado en el cierre. */
+async function loadCierre() {
+  const cierre = await _fbGet(`/obras/${obraKey}/cierres/${cierreKey}.json`);
+  if (!cierre || !cierre.datos) {
+    document.body.innerHTML = '<p style="padding:2rem;">No se encontró el cierre.</p>';
+    return false;
+  }
+  const res = await window.abrirCierre(obraKey, cierre);
+  if (!res) {
+    document.body.innerHTML = '<p style="padding:2rem;">No se pudo reconstruir el presupuesto de este cierre.</p>';
+    return false;
+  }
+  modelo = res.modelo;
+  // Sólo lectura sin botón de desbloqueo: un cierre no se edita, ni temporalmente.
+  window._soloLectura = true;
+  const btnModo = document.getElementById('header-modo');
+  if (btnModo) btnModo.classList.add('hidden');
+
+  $('header-obra-nombre').textContent = 'Presupuesto — ' + modelo.obra.nombre;
+  renderHeaderTabs(obraKey, 'presupuesto', { cierreKey });
+  const guardado = (cierre.resultado || {}).total;
+  renderBandaCierre(obraKey, cierreKey, cierre.meta || {}, res.difs,
+    guardado != null ? `total cerrado ${fmtARS(guardado)}` : null);
+  return true;
 }
 
 async function loadAll() {
@@ -181,15 +221,19 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  modelo = await window.cargarPresupuestoObra(obraKey);
-  if (!modelo) {
-    document.body.innerHTML = '<p style="padding:2rem;">No se encontró la obra.</p>';
-    return;
+  if (cierreKey) {
+    const ok = await loadCierre();
+    if (!ok) return;
+  } else {
+    modelo = await window.cargarPresupuestoObra(obraKey);
+    if (!modelo) {
+      document.body.innerHTML = '<p style="padding:2rem;">No se encontró la obra.</p>';
+      return;
+    }
+    $('header-obra-nombre').textContent = 'Presupuesto — ' + modelo.obra.nombre;
+    renderHeaderTabs(obraKey, 'presupuesto');
+    setModoObra(obraKey, modelo.obra, renderTodo);
   }
-
-  $('header-obra-nombre').textContent = 'Presupuesto — ' + modelo.obra.nombre;
-  renderHeaderTabs(obraKey, 'presupuesto');
-  setModoObra(obraKey, modelo.obra, renderTodo);
   renderTodo();
 
   $('btn-toggle-oficial').addEventListener('click', () => {
