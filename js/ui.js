@@ -142,7 +142,7 @@ window.renderBandaCierre = function (obraKey, cierreKey, meta, difs, detalle) {
         meta && meta.fecha ? new Date(meta.fecha).toLocaleDateString('es-AR') : '',
         meta && (meta.autorNombre || meta.autorMail) || '',
         meta && meta.appVersion || '',
-        meta && meta.enviada ? 'ENVIADA' : '',
+        meta && meta.enviada ? 'PRESENTADA' : '',
         anulado ? 'ANULADA' : '',
       ].filter(Boolean).join(' · '))}</span>
       ${roto ? `<span class="banda-cierre-alerta">Las fórmulas cambiaron desde que se guardó: ${difs.length} ${difs.length === 1 ? 'valor no coincide' : 'valores no coinciden'} con lo registrado. El número válido es el que quedó guardado${detalle ? ' — ' + escHtml(detalle) : ''}.</span>` : ''}

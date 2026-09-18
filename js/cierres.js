@@ -29,6 +29,7 @@ let insumosVivos = null;
 let cierres = [];        // [{ key, meta }] — sólo la ficha, nunca las fotos
 let anulandoKey = null;
 let restaurandoKey = null;
+let editandoKey = null;
 let restaurandoCierre = null;
 // La obra en modo lectura no se restaura sin desbloquearla antes: restaurar sí
 // la modifica, y bastante (ver js/ui.js, modo lectura/edición por obra).
@@ -67,7 +68,7 @@ function renderCierres() {
           <div class="item-card-badges">
             <span class="cierre-total">${m.total != null ? fmtARS(m.total) : '—'}</span>
             ${anulado ? '<span class="u-badge u-badge-neutro">Anulada</span>' : ''}
-            ${enviada && !anulado ? '<span class="u-badge u-badge-activo">Enviada</span>' : ''}
+            ${enviada && !anulado ? '<span class="u-badge u-badge-activo">Presentada</span>' : ''}
           </div>
           ${m.notas ? `<div class="cierre-notas">${escHtml(m.notas)}</div>` : ''}
           ${anulado ? `<div class="cierre-notas">Anulada el ${escHtml(fmtFechaHora(m.anulado.fecha))}${m.anulado.motivo ? ' — ' + escHtml(m.anulado.motivo) : ''}</div>` : ''}
@@ -75,28 +76,39 @@ function renderCierres() {
         <div class="item-card-actions">
           <a class="btn btn-sm btn-outline" href="${href}">Ver</a>
           ${anulado ? '' : `<button class="btn btn-sm btn-outline btn-restaurar"${obraBloqueada ? ' disabled title="La obra está en modo lectura"' : ''}>Restaurar</button>`}
-          ${anulado ? '' : `<button class="btn btn-sm btn-outline btn-enviada">${enviada ? 'Quitar marca' : 'Marcar enviada'}</button>`}
-          ${anulado ? ''
-            : enviada
-              ? '<button class="btn btn-sm btn-outline btn-anular">Anular</button>'
-              : '<button class="btn btn-sm btn-outline btn-borrar">Borrar</button>'}
+          ${anulado ? '' : `
+          <button class="btn btn-sm btn-outline btn-icon btn-editar" aria-label="Editar los datos de la versión" title="Editar los datos de la versión">${icSvg('edit')}</button>
+          <span class="cierre-menu-wrap">
+            <button class="btn btn-sm btn-outline btn-icon btn-menu" aria-label="Más acciones" title="Más acciones">${icSvg('dots')}</button>
+            <div class="cierre-menu hidden">
+              ${enviada
+                ? '<button class="mi-anular peligro">Anular</button>'
+                : '<button class="mi-borrar peligro">Borrar</button>'}
+            </div>
+          </span>`}
         </div>
       </div>`;
   }).join('');
 
-  cont.querySelectorAll('.btn-anular').forEach(btn => {
-    btn.addEventListener('click', () => abrirModalAnular(btn.closest('.cierre-card').dataset.key));
-  });
-  cont.querySelectorAll('.btn-enviada').forEach(btn => {
-    btn.addEventListener('click', () => alternarEnviada(btn.closest('.cierre-card').dataset.key));
-  });
-  cont.querySelectorAll('.btn-borrar').forEach(btn => {
-    btn.addEventListener('click', () => borrar(btn.closest('.cierre-card').dataset.key));
-  });
-  cont.querySelectorAll('.btn-restaurar').forEach(btn => {
-    btn.addEventListener('click', () => abrirModalRestaurar(btn.closest('.cierre-card').dataset.key));
-  });
+  const keyDe = el => el.closest('.cierre-card').dataset.key;
+  cont.querySelectorAll('.mi-anular').forEach(b => b.addEventListener('click', () => abrirModalAnular(keyDe(b))));
+  cont.querySelectorAll('.mi-borrar').forEach(b => b.addEventListener('click', () => borrar(keyDe(b))));
+  cont.querySelectorAll('.btn-editar').forEach(b => b.addEventListener('click', () => abrirModalEditar(keyDe(b))));
+  cont.querySelectorAll('.btn-restaurar').forEach(b => b.addEventListener('click', () => abrirModalRestaurar(keyDe(b))));
+  cont.querySelectorAll('.btn-menu').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const menu = b.nextElementSibling;
+    const abierto = !menu.classList.contains('hidden');
+    cerrarMenus();
+    if (!abierto) menu.classList.remove('hidden');
+  }));
 }
+
+function cerrarMenus() {
+  document.querySelectorAll('.cierre-menu').forEach(m => m.classList.add('hidden'));
+}
+// Un click en cualquier otro lado lo cierra, igual que el chip de usuario.
+document.addEventListener('click', cerrarMenus);
 
 /* ===== Restaurar =====
 
@@ -185,18 +197,40 @@ async function confirmarRestaurar() {
   await loadAll();
 }
 
-/* Marcar cuál se presentó. Sólo una por obra tiene sentido como "la enviada",
-   pero no se fuerza: una obra puede presentar una oferta y después una mejora,
-   y las dos se enviaron. */
-async function alternarEnviada(key) {
+/* Editar cómo se nombra una versión: nombre, notas y si es la que se presentó.
+   Los datos guardados y sus números no se tocan — para eso está el lápiz y no
+   un botón más grande.
+
+   Más de una versión puede quedar marcada como presentada, a propósito: una
+   obra puede presentar una oferta y después una mejora, y las dos se
+   presentaron. */
+function abrirModalEditar(key) {
   const c = cierres.find(x => x.key === key);
   if (!c) return;
+  editandoKey = key;
+  $('editar-nombre').value = c.meta.nombre || '';
+  $('editar-notas').value = c.meta.notas || '';
+  $('editar-presentada').checked = !!c.meta.enviada;
+  $('modal-editar').classList.remove('hidden');
+  $('editar-nombre').focus();
+}
+
+async function confirmarEditar() {
+  if (!editandoKey) return;
+  const nombre = $('editar-nombre').value.trim();
+  if (!nombre) { toast('Poné un nombre para la versión.', 'warning'); $('editar-nombre').focus(); return; }
   try {
-    await window.marcarVersionEnviada(obraKey, key, !c.meta.enviada);
+    await window.editarMetaVersion(obraKey, editandoKey, {
+      nombre,
+      notas: $('editar-notas').value.trim() || null,
+      enviada: $('editar-presentada').checked,
+    });
   } catch (_) {
-    toast('Error al marcar la versión.', 'error');
+    toast('Error al guardar los datos de la versión.', 'error');
     return;
   }
+  $('modal-editar').classList.add('hidden');
+  editandoKey = null;
   await cargarLista();
   renderCierres();
 }
@@ -223,6 +257,7 @@ async function borrar(key) {
 function abrirModalCerrar() {
   $('cierre-nombre').value = '';
   $('cierre-notas').value = '';
+  $('cierre-presentada').checked = false;
   $('modal-cerrar-form').classList.remove('hidden');
   $('modal-cerrar-verificando').classList.add('hidden');
   $('modal-cerrar-error').classList.add('hidden');
@@ -247,7 +282,9 @@ async function confirmarCierre() {
   let res;
   try {
     res = await window.cerrarPresupuesto(modeloVivo, planVivo, insumosVivos, {
-      nombre, notas: $('cierre-notas').value.trim() || null,
+      nombre,
+      notas: $('cierre-notas').value.trim() || null,
+      enviada: $('cierre-presentada').checked,
     });
   } catch (e) {
     $('modal-cerrar-verificando').classList.add('hidden');
@@ -351,6 +388,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-cerrar-x').addEventListener('click', cerrarModalCerrar);
   $('modal-cerrar-cancelar').addEventListener('click', cerrarModalCerrar);
   $('modal-cerrar-ok').addEventListener('click', confirmarCierre);
+  $('modal-editar-x').addEventListener('click', () => $('modal-editar').classList.add('hidden'));
+  $('modal-editar-cancelar').addEventListener('click', () => $('modal-editar').classList.add('hidden'));
+  $('modal-editar-ok').addEventListener('click', confirmarEditar);
   $('modal-restaurar-x').addEventListener('click', () => $('modal-restaurar').classList.add('hidden'));
   $('modal-restaurar-cancelar').addEventListener('click', () => $('modal-restaurar').classList.add('hidden'));
   $('modal-restaurar-ok').addEventListener('click', confirmarRestaurar);

@@ -311,6 +311,10 @@
       meta: {
         nombre: meta.nombre,
         notas: meta.notas || null,
+        // La que se presentó. Se marca casi siempre al guardarla —es cuando se
+        // sabe— y se puede corregir después desde la lista. El campo se llama
+        // `enviada` porque así nació; en pantalla dice "Presentada".
+        enviada: meta.enviada ? true : null,
         fecha: new Date().toISOString(),
         // Repetido de `resultado` a propósito: la lista de cierres muestra el
         // total de cada uno y con esto le alcanza con leer `meta`, sin bajar
@@ -347,19 +351,27 @@
     };
   };
 
-  /* Marcar una versión como la que se presentó. No cambia nada del cálculo: es
-     para encontrarla entre las de trabajo, y para que no se la pueda borrar
-     —una oferta enviada sólo se anula, dejando el rastro. */
-  window.marcarVersionEnviada = async function (obraKey, cierreKey, enviada) {
-    await window.undoOmitir(() => _fbPatch(`/obras/${obraKey}/cierres/${cierreKey}/meta.json`,
-      { enviada: enviada ? true : null }));
+  /* Los datos con los que se guardó una versión: nombre, notas y si es la que se
+     presentó. Se ponen al guardarla —es cuando se saben— y esto es para
+     corregirlos después. Nada de esto toca el cálculo: `datos` y `resultado`
+     quedan intactos, que es todo el punto de una foto.
+
+     `enviada` marca la que se presentó (el campo se llama así porque nació
+     antes que el nombre "Presentada"). Además de destacarla en la lista, impide
+     borrarla: una oferta presentada sólo se anula, dejando el rastro. */
+  window.editarMetaVersion = async function (obraKey, cierreKey, datos) {
+    await window.undoOmitir(() => _fbPatch(`/obras/${obraKey}/cierres/${cierreKey}/meta.json`, {
+      nombre: datos.nombre,
+      notas: datos.notas || null,
+      enviada: datos.enviada ? true : null,
+    }));
   };
 
-  /* Borrar una versión de trabajo. Una marcada como enviada no se borra: para
+  /* Borrar una versión de trabajo. Una marcada como presentada no se borra: para
      eso está anular, que conserva los números. */
   window.borrarVersion = async function (obraKey, cierreKey) {
     const meta = await _fbGet(`/obras/${obraKey}/cierres/${cierreKey}/meta.json`);
-    if (meta && meta.enviada) throw new Error('Una versión marcada como enviada no se borra: anulala.');
+    if (meta && meta.enviada) throw new Error('Una versión marcada como presentada no se borra: anulala.');
     // Fuera de la pila de deshacer, igual que al guardarla: la foto pesa lo que
     // pesa la obra entera y la pila vive en memoria.
     await window.undoOmitir(() => _fbDel(`/obras/${obraKey}/cierres/${cierreKey}.json`));

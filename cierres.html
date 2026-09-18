@@ -21,6 +21,17 @@
     .cierre-verificando { display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 1.5rem 0; color: var(--gray-600); font-size: .9rem; }
     .cierre-spinner { width: 20px; height: 20px; border: 2.5px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: cierre-spin .8s linear infinite; flex-shrink: 0; }
     @keyframes cierre-spin { to { transform: rotate(360deg); } }
+    /* Menú de acciones secundarias de cada versión — mismo patrón que el chip
+       de usuario del header (.auth-menu en css/styles.css). */
+    .cierre-menu-wrap { position: relative; }
+    .cierre-menu { position: absolute; top: calc(100% + .35rem); right: 0; z-index: 200; min-width: 175px; padding: .35rem; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+    .cierre-menu button { display: block; width: 100%; padding: .45rem .5rem; border: none; border-radius: 4px; background: none; font-size: .85rem; font-weight: 600; color: var(--gray-700); text-align: left; cursor: pointer; }
+    .cierre-menu button:hover { background: var(--gray-100); }
+    .cierre-menu button.peligro { color: var(--danger); }
+    .cierre-presentada-check { display: flex; align-items: flex-start; gap: .5rem; margin-top: -.4rem; }
+    .cierre-presentada-check input { margin-top: .2rem; flex-shrink: 0; }
+    .cierre-presentada-check label { text-transform: none; letter-spacing: normal; font-size: .88rem; color: var(--gray-700); margin: 0; cursor: pointer; }
+    .cierre-presentada-check .form-hint { display: block; margin-top: .15rem; }
     @media (max-width: 700px) {
       .cierre-vivo { flex-direction: column; gap: .3rem; }
     }
@@ -79,6 +90,12 @@
             <label class="form-label" for="cierre-notas">Notas (opcional)</label>
             <textarea class="form-control" id="cierre-notas" rows="3" placeholder="Presentado el 17/09 por expediente…"></textarea>
           </div>
+          <div class="form-group cierre-presentada-check">
+            <input type="checkbox" id="cierre-presentada">
+            <label for="cierre-presentada">Es la que se presentó
+              <span class="form-hint">Queda destacada en la lista y no se va a poder borrar, sólo anular.</span>
+            </label>
+          </div>
         </div>
         <div id="modal-cerrar-verificando" class="cierre-verificando hidden">
           <span class="cierre-spinner"></span>
@@ -93,6 +110,37 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" id="modal-cerrar-cancelar">Cancelar</button>
         <button class="btn btn-primary" id="modal-cerrar-ok">Guardar versión</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Editar los datos de una versión -->
+  <div class="modal-overlay hidden" id="modal-editar">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">Datos de la versión</span>
+        <button class="modal-close" id="modal-editar-x">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="form-hint">Sólo cambia cómo se la nombra y se la encuentra. Los números guardados no se tocan.</p>
+        <div class="form-group">
+          <label class="form-label" for="editar-nombre">Nombre de la versión</label>
+          <input type="text" class="form-control" id="editar-nombre" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editar-notas">Notas (opcional)</label>
+          <textarea class="form-control" id="editar-notas" rows="3"></textarea>
+        </div>
+        <div class="form-group cierre-presentada-check">
+          <input type="checkbox" id="editar-presentada">
+          <label for="editar-presentada">Es la que se presentó
+            <span class="form-hint">Queda destacada en la lista y no se va a poder borrar, sólo anular.</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-editar-cancelar">Cancelar</button>
+        <button class="btn btn-primary" id="modal-editar-ok">Guardar</button>
       </div>
     </div>
   </div>
