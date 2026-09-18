@@ -365,6 +365,111 @@
     await window.undoOmitir(() => _fbDel(`/obras/${obraKey}/cierres/${cierreKey}.json`));
   };
 
+  /* ===== Restaurar =====
+
+     Devolver la obra a una versión guardada. Es el otro lado del uso real: los
+     A.P. se arman con los costos reales, se guarda una versión, se los retoca
+     para llegar al precio final — y después se puede volver a los reales.
+
+     Se restaura **sólo lo de la obra**. El catálogo global (la ficha de cada
+     equipo, el nombre y la unidad de materiales e ítems) no se toca: es
+     compartido, y reponerle una foto le movería el costo a todas las otras
+     obras que use esas máquinas. Lo que sí se hace es decir qué quedó distinto,
+     para decidirlo a mano — ver difsCatalogoGlobal. */
+
+  // Sub-nodos de la obra que forman su presupuesto. Se restauran enteros (PUT):
+  // volver a una versión es reemplazar la lista, no mezclarla. Quedan afuera a
+  // propósito la identidad (nombre, ubicación, año), el estado, el candado de
+  // modo lectura, las cotizaciones (archivos de proveedor) y los cierres.
+  const NODOS_OBRA = ['computo', 'rubrosComputo', 'computoRubros', 'auxiliares', 'roles',
+                      'cargaFija', 'planAvance', 'encabezado', 'export', 'datosExtra',
+                      'paramsMO', 'paramsEquipos', 'dolar'];
+  const CAMPOS_OBRA = ['presupuestoOficial', 'sinRubros', 'numeracionPersonalizada',
+                       'estiloNumeracion', 'encabezadoSembrado'];
+
+  // Campos de la ficha de un equipo que entran al costo diario
+  // (calcDesgloseCostoEquipo). Son los que importa avisar si cambiaron.
+  const CAMPOS_EQUIPO = ['costoUSD', 'vidaUtil', 'usoAnual', 'potencia', 'consumoCombustibleLtsPorHp'];
+
+  /* Qué difiere hoy, en el catálogo global, respecto de la foto. Lo que esta
+     lista muestra es justamente lo que restaurar NO va a arreglar. */
+  window.difsCatalogoGlobal = async function (datos) {
+    const [equiposHoy, materialesHoy, itemsHoy] = await Promise.all([
+      _fbGet('/equipos.json'), _fbGet('/materiales.json'), _fbGet('/items.json'),
+    ]);
+    const difs = [];
+
+    Object.entries(datos.equipos || {}).forEach(([key, foto]) => {
+      const hoy = (equiposHoy || {})[key];
+      const nombre = `${foto.tipo || ''} ${foto.codigo || ''}`.trim() || key;
+      if (!hoy) { difs.push({ tipo: 'Equipo', nombre, campo: '—', enVersion: 'existía', hoy: 'ya no está' }); return; }
+      CAMPOS_EQUIPO.forEach(c => {
+        if ((foto[c] ?? null) !== (hoy[c] ?? null)) {
+          difs.push({ tipo: 'Equipo', nombre, campo: c, enVersion: foto[c] ?? '—', hoy: hoy[c] ?? '—' });
+        }
+      });
+    });
+
+    [['Material', datos.materiales, materialesHoy], ['Ítem', datos.items, itemsHoy]].forEach(([tipo, fotoMapa, hoyMapa]) => {
+      Object.entries(fotoMapa || {}).forEach(([key, foto]) => {
+        const hoy = (hoyMapa || {})[key];
+        const nombre = foto.nombre || key;
+        if (!hoy) { difs.push({ tipo, nombre, campo: '—', enVersion: 'existía', hoy: 'ya no está' }); return; }
+        ['nombre', 'unidad'].forEach(c => {
+          if ((foto[c] ?? null) !== (hoy[c] ?? null)) {
+            difs.push({ tipo, nombre, campo: c, enVersion: foto[c] ?? '—', hoy: hoy[c] ?? '—' });
+          }
+        });
+      });
+    });
+
+    return difs;
+  };
+
+  /* Escribe la foto sobre la obra. El llamador ya guardó una versión del estado
+     actual antes de llamar acá, así que restaurar nunca pierde nada.
+
+     Las raíces del agrupado van en null a propósito: /items y /materiales son
+     compartidos, y sacarles una foto entera para poder reponerla borraría lo
+     que otro haya agregado ahí mientras tanto (ver CLAUDE.md). Cada escritura
+     se anota por separado. */
+  window.restaurarVersion = async function (obraKey, datos) {
+    const obraFoto = datos.obra || {};
+
+    await window.undoAgrupar('Restaurar versión', null, async () => {
+      for (const nodo of NODOS_OBRA) {
+        const valor = obraFoto[nodo];
+        if (valor === undefined || valor === null) await _fbDel(`/obras/${obraKey}/${nodo}.json`);
+        else await _fbPut(`/obras/${obraKey}/${nodo}.json`, valor);
+      }
+
+      const campos = {};
+      CAMPOS_OBRA.forEach(c => { campos[c] = obraFoto[c] === undefined ? null : obraFoto[c]; });
+      await _fbPatch(`/obras/${obraKey}.json`, campos);
+
+      // Los A.P. de esta obra. `versionesObra/{obraKey}` no toca la receta que
+      // esa misma ficha tenga en otra obra — que es todo el punto de que las
+      // recetas vivan ahí y no en la raíz del ítem.
+      // Un ítem que la obra empezó a usar después de esta versión conserva su
+      // receta: no está en la foto y no hay con qué reponerlo. No molesta,
+      // porque el Cómputo restaurado tampoco lo referencia.
+      for (const [itemKey, item] of Object.entries(datos.items || {})) {
+        const version = item.versionesObra && item.versionesObra[obraKey];
+        if (version) await _fbPut(`/items/${itemKey}/versionesObra/${obraKey}.json`, version);
+        else await _fbDel(`/items/${itemKey}/versionesObra/${obraKey}.json`);
+      }
+
+      // Precio de cada material para esta obra. Ojo: si en la versión el precio
+      // venía del respaldo (el más reciente de otra obra, ver precioDefaultDe),
+      // restaurarlo le deja a esta obra un precio propio que antes no tenía.
+      // Es lo que hace falta para reproducir el número.
+      for (const [matKey, mat] of Object.entries(datos.materiales || {})) {
+        const precio = mat.precios && mat.precios[obraKey];
+        if (precio) await _fbPut(`/materiales/${matKey}/precios/${obraKey}.json`, precio);
+      }
+    });
+  };
+
   window.anularCierre = async function (obraKey, cierreKey, motivo) {
     const usuario = (window._authUsuario && window._authUsuario()) || {};
     await window.undoOmitir(() => _fbPatch(`/obras/${obraKey}/cierres/${cierreKey}/meta.json`, {

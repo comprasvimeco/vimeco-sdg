@@ -28,6 +28,11 @@ let planVivo = null;
 let insumosVivos = null;
 let cierres = [];        // [{ key, meta }] — sólo la ficha, nunca las fotos
 let anulandoKey = null;
+let restaurandoKey = null;
+let restaurandoCierre = null;
+// La obra en modo lectura no se restaura sin desbloquearla antes: restaurar sí
+// la modifica, y bastante (ver js/ui.js, modo lectura/edición por obra).
+let obraBloqueada = false;
 
 const fmtFechaHora = iso => {
   if (!iso) return '';
@@ -69,6 +74,7 @@ function renderCierres() {
         </div>
         <div class="item-card-actions">
           <a class="btn btn-sm btn-outline" href="${href}">Ver</a>
+          ${anulado ? '' : `<button class="btn btn-sm btn-outline btn-restaurar"${obraBloqueada ? ' disabled title="La obra está en modo lectura"' : ''}>Restaurar</button>`}
           ${anulado ? '' : `<button class="btn btn-sm btn-outline btn-enviada">${enviada ? 'Quitar marca' : 'Marcar enviada'}</button>`}
           ${anulado ? ''
             : enviada
@@ -87,6 +93,96 @@ function renderCierres() {
   cont.querySelectorAll('.btn-borrar').forEach(btn => {
     btn.addEventListener('click', () => borrar(btn.closest('.cierre-card').dataset.key));
   });
+  cont.querySelectorAll('.btn-restaurar').forEach(btn => {
+    btn.addEventListener('click', () => abrirModalRestaurar(btn.closest('.cierre-card').dataset.key));
+  });
+}
+
+/* ===== Restaurar =====
+
+   Devolver la obra a una versión. Lo primero que hace es guardar el estado
+   actual como una versión más: así restaurar nunca puede perder nada, y volver
+   atrás es restaurar esa. */
+
+async function abrirModalRestaurar(key) {
+  const c = cierres.find(x => x.key === key);
+  if (!c) return;
+  restaurandoKey = key;
+  $('restaurar-nombre').textContent = `"${c.meta.nombre || 'sin nombre'}"`;
+  $('modal-restaurar-form').classList.remove('hidden');
+  $('modal-restaurar-trabajando').classList.add('hidden');
+  $('modal-restaurar-listo').classList.add('hidden');
+  $('modal-restaurar-ok').classList.remove('hidden');
+  $('modal-restaurar-ok').disabled = true;
+  $('modal-restaurar-cancelar').textContent = 'Cancelar';
+  $('restaurar-global').classList.add('hidden');
+  $('modal-restaurar').classList.remove('hidden');
+
+  // La foto completa se pide recién acá: pesa lo que pesa la obra, y la lista
+  // no la necesita.
+  try {
+    restaurandoCierre = await _fbGet(`/obras/${obraKey}/cierres/${key}.json`);
+  } catch (_) {
+    toast('No se pudo leer la versión.', 'error');
+    $('modal-restaurar').classList.add('hidden');
+    return;
+  }
+  const difs = await window.difsCatalogoGlobal(restaurandoCierre.datos);
+  if (difs.length) {
+    $('restaurar-difs').innerHTML = difs.slice(0, 25).map(d =>
+      `<li>${escHtml(d.tipo)} ${escHtml(d.nombre)} · ${escHtml(d.campo)}: ${escHtml(String(d.enVersion))} en la versión, ${escHtml(String(d.hoy))} hoy</li>`
+    ).join('') + (difs.length > 25 ? `<li>…y ${difs.length - 25} más.</li>` : '');
+    $('restaurar-global').classList.remove('hidden');
+  }
+  $('modal-restaurar-ok').disabled = false;
+}
+
+async function confirmarRestaurar() {
+  if (!restaurandoCierre) return;
+  const nombreVersion = restaurandoCierre.meta.nombre || 'sin nombre';
+  $('modal-restaurar-form').classList.add('hidden');
+  $('modal-restaurar-trabajando').classList.remove('hidden');
+  $('modal-restaurar-ok').disabled = true;
+
+  try {
+    $('restaurar-paso').textContent = 'Guardando el estado actual como una versión…';
+    const previa = await window.cerrarPresupuesto(modeloVivo, planVivo, insumosVivos, {
+      nombre: `Antes de restaurar ${nombreVersion}`,
+      notas: 'Guardada automáticamente al restaurar otra versión.',
+    });
+    // Si el estado actual no se puede fotografiar, no se restaura: sin red de
+    // seguridad, restaurar sería una pérdida sin vuelta atrás.
+    if (!previa.ok) throw new Error('No se pudo guardar el estado actual, así que no se restauró nada.');
+
+    $('restaurar-paso').textContent = 'Restaurando la obra…';
+    await window.restaurarVersion(obraKey, restaurandoCierre.datos);
+
+    $('restaurar-paso').textContent = 'Recalculando el presupuesto…';
+    const m = await window.cargarPresupuestoObra(obraKey);
+    const totalVersion = (restaurandoCierre.resultado || {}).total;
+    const coincide = m && totalVersion != null && window.round2(m.total) === window.round2(totalVersion);
+
+    $('modal-restaurar-trabajando').classList.add('hidden');
+    $('restaurar-resultado').innerHTML = [
+      `<li>Total de la versión: ${fmtARS(totalVersion)}</li>`,
+      `<li>Total de la obra ahora: ${fmtARS(m ? m.total : null)}</li>`,
+      coincide
+        ? '<li>Coinciden: la obra quedó exactamente como en esa versión.</li>'
+        : '<li style="color:#b26a00;font-weight:600;">No coinciden. Es por el catálogo compartido, que no se toca al restaurar — revisá la lista de diferencias que se mostró antes.</li>',
+      `<li>El estado anterior quedó guardado como "Antes de restaurar ${escHtml(nombreVersion)}".</li>`,
+    ].join('');
+    $('modal-restaurar-listo').classList.remove('hidden');
+    $('modal-restaurar-ok').classList.add('hidden');
+    $('modal-restaurar-cancelar').textContent = 'Listo';
+  } catch (e) {
+    $('modal-restaurar-trabajando').classList.add('hidden');
+    $('modal-restaurar-form').classList.remove('hidden');
+    $('modal-restaurar-ok').disabled = false;
+    toast(e && e.message ? e.message : 'Error al restaurar.', 'error');
+    return;
+  }
+
+  await loadAll();
 }
 
 /* Marcar cuál se presentó. Sólo una por obra tiene sentido como "la enviada",
@@ -237,6 +333,8 @@ async function loadAll() {
     window.gruposRubroDesdePresupuesto(m), planDatos.config, planDatos.distItems, planDatos.distRubros);
   insumosVivos = window.calcularInsumosObra(m);
 
+  obraBloqueada = window.obraEsSoloLectura(m.obra);
+
   $('header-obra-nombre').textContent = 'Versiones — ' + m.obra.nombre;
   renderHeaderTabs(obraKey, 'cierres');
   $('total-vivo').textContent = fmtARS(m.total);
@@ -253,6 +351,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-cerrar-x').addEventListener('click', cerrarModalCerrar);
   $('modal-cerrar-cancelar').addEventListener('click', cerrarModalCerrar);
   $('modal-cerrar-ok').addEventListener('click', confirmarCierre);
+  $('modal-restaurar-x').addEventListener('click', () => $('modal-restaurar').classList.add('hidden'));
+  $('modal-restaurar-cancelar').addEventListener('click', () => $('modal-restaurar').classList.add('hidden'));
+  $('modal-restaurar-ok').addEventListener('click', confirmarRestaurar);
   $('modal-anular-x').addEventListener('click', () => $('modal-anular').classList.add('hidden'));
   $('modal-anular-cancelar').addEventListener('click', () => $('modal-anular').classList.add('hidden'));
   $('modal-anular-ok').addEventListener('click', confirmarAnular);

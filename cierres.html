@@ -97,6 +97,39 @@
     </div>
   </div>
 
+  <!-- Restaurar -->
+  <div class="modal-overlay hidden" id="modal-restaurar">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">Restaurar esta versión</span>
+        <button class="modal-close" id="modal-restaurar-x">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div id="modal-restaurar-form">
+          <p style="font-weight:600;">La obra vuelve a como estaba en <span id="restaurar-nombre"></span>.</p>
+          <p class="form-hint">Se reemplazan el Cómputo, los análisis de precio de esta obra, los precios de sus materiales, las categorías de mano de obra, los parámetros, la Carga Fija, el Plan y los datos del encabezado. Lo que se haya cargado después se pierde.</p>
+          <p class="form-hint" style="font-weight:600;color:var(--gray-700);">Antes de tocar nada se guarda una versión con el estado actual, así siempre se puede volver.</p>
+          <div id="restaurar-global" class="hidden">
+            <p class="form-hint" style="margin-top:.75rem;color:#b26a00;font-weight:600;">Esto queda como está hoy, porque es catálogo compartido con las otras obras:</p>
+            <ul class="cierre-difs" id="restaurar-difs"></ul>
+          </div>
+        </div>
+        <div id="modal-restaurar-trabajando" class="cierre-verificando hidden">
+          <span class="cierre-spinner"></span>
+          <span id="restaurar-paso">Guardando el estado actual…</span>
+        </div>
+        <div id="modal-restaurar-listo" class="hidden">
+          <p style="font-weight:600;">Listo.</p>
+          <ul class="cierre-difs" id="restaurar-resultado"></ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-restaurar-cancelar">Cancelar</button>
+        <button class="btn btn-primary" id="modal-restaurar-ok">Restaurar</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Anular -->
   <div class="modal-overlay hidden" id="modal-anular">
     <div class="modal modal--sm">
