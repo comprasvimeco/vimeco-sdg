@@ -34,9 +34,16 @@
 
 (function () {
 
-  function versionDe(item, obraKey) {
+  // Las líneas de Mano de Obra de la familia que el A.P. no está usando quedan
+  // afuera acá, de entrada: la pantalla del A.P. no las muestra, así que
+  // consolidarlas o listarlas sería inventar un insumo que nadie puede ver ni
+  // corregir (ver lineasSinMOAjena, calcCostos.js).
+  function versionDe(item, obraKey, roles) {
     const propia = item.versionesObra && item.versionesObra[obraKey];
-    return propia || item;
+    const version = propia || item;
+    const lineas = window.lineasSinMOAjena(version, version.lineas, roles);
+    if (lineas === version.lineas || Object.keys(lineas).length === Object.keys(version.lineas || {}).length) return version;
+    return { ...version, lineas };
   }
 
   function precioUnitarioMaterial(mat, preciosObra) {
@@ -61,7 +68,7 @@
   function versionDeAuxiliar(modelo, auxKey) {
     const aux = (modelo.catalogos.auxiliares || []).find(a => a.key === auxKey);
     const it = aux && modelo.catalogos.items.find(i => i.key === aux.itemKey);
-    return it ? versionDe(it, modelo.obraKey) : null;
+    return it ? versionDe(it, modelo.obraKey, modelo.catalogos.roles) : null;
   }
 
   // Cantidad de `tipo` que aporta UNA línea de receta, en la unidad que se
@@ -107,7 +114,7 @@
       if (!linea.itemKey || linea.cantidad == null || isNaN(linea.cantidad)) return;
       const item = modelo.catalogos.items.find(i => i.key === linea.itemKey);
       if (!item) return;
-      const version = versionDe(item, modelo.obraKey);
+      const version = versionDe(item, modelo.obraKey, modelo.catalogos.roles);
       if (!version.lineas) return;
       expandirNivel(modelo, version, linea.cantidad, tipo, catalogo, mapa,
         linea.nombre || '(sin nombre)', new Set());
@@ -195,7 +202,7 @@
       if (!linea.itemKey || linea.cantidad == null || isNaN(linea.cantidad)) return;
       const item = modelo.catalogos.items.find(i => i.key === linea.itemKey);
       if (!item) return;
-      const version = versionDe(item, modelo.obraKey);
+      const version = versionDe(item, modelo.obraKey, modelo.catalogos.roles);
       if (!version.lineas) return;
       capatazDeNivel(modelo, version, linea.cantidad, linea.nombre || '(sin nombre)', new Set(), acc);
     });

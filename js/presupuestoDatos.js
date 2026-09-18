@@ -24,9 +24,16 @@
   // Un ítem de Biblioteca puede tener una versión propia de esta obra
   // (/items/{key}/versionesObra/{obraKey}); si no la tiene, vale el ítem tal
   // como está en la Biblioteca.
-  function versionDe(item, obraKey) {
+  // Las líneas de Mano de Obra de la familia que el A.P. no está usando quedan
+  // afuera acá, de entrada: la pantalla del A.P. no las muestra, así que
+  // consolidarlas o listarlas sería inventar un insumo que nadie puede ver ni
+  // corregir (ver lineasSinMOAjena, calcCostos.js).
+  function versionDe(item, obraKey, roles) {
     const propia = item.versionesObra && item.versionesObra[obraKey];
-    return propia || item;
+    const version = propia || item;
+    const lineas = window.lineasSinMOAjena(version, version.lineas, roles);
+    if (lineas === version.lineas || Object.keys(lineas).length === Object.keys(version.lineas || {}).length) return version;
+    return { ...version, lineas };
   }
 
   /* Todo lo que el presupuesto necesita de la base, en un objeto con nombre.
@@ -109,7 +116,7 @@
       if (costoPorItemCongelado[itemKey] != null) return costoPorItemCongelado[itemKey];
       const it = catalogos.items.find(i => i.key === itemKey);
       if (!it) return (costoPorItemCongelado[itemKey] = 0);
-      const version = versionDe(it, obraKey);
+      const version = versionDe(it, obraKey, catalogos.roles);
       if (!version.lineas || !Object.keys(version.lineas).length) return (costoPorItemCongelado[itemKey] = 0);
       const r = window.calcCostoUnitarioItem(
         version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra, { preciosCongelados: true });
@@ -122,7 +129,7 @@
       if (costoPorItem[itemKey] != null) return costoPorItem[itemKey];
       const it = catalogos.items.find(i => i.key === itemKey);
       if (!it) return (costoPorItem[itemKey] = 0);
-      const version = versionDe(it, obraKey);
+      const version = versionDe(it, obraKey, catalogos.roles);
       if (!version.lineas || !Object.keys(version.lineas).length) return (costoPorItem[itemKey] = 0);
       const r = window.calcCostoUnitarioItem(
         version, version.lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObra);
@@ -253,7 +260,7 @@
     if (!itemKey) return null;
     const item = modelo.catalogos.items.find(i => i.key === itemKey);
     if (!item) return null;
-    const version = versionDe(item, modelo.obraKey);
+    const version = versionDe(item, modelo.obraKey, modelo.catalogos.roles);
     const lineasItem = version.lineas || {};
     const r = window.calcCostoUnitarioItem(
       version, lineasItem, modelo.catalogos, modelo.paramsEquipos, modelo.paramsMO,

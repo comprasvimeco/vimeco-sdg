@@ -155,6 +155,10 @@ window.versionDeItem = function (item, obraKey) {
 window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO, preciosObra, dolarValor, opts) {
   preciosObra = preciosObra || {};
   opts = opts || {};
+  // Ninguna línea de Mano de Obra de la familia que el A.P. no está usando
+  // entra en el costo: la pantalla no las muestra, así que sumarlas sería
+  // inflar el precio con algo que nadie puede ver ni corregir.
+  lineasItem = window.lineasSinMOAjena(item, lineasItem, catalogos.roles);
   const auxVisitados = opts.auxVisitados || new Set();
   function catalogoFor(tipo) {
     if (tipo === 'material') return catalogos.materiales;
@@ -351,6 +355,51 @@ window.ROLES_FIJOS_MO = [
   { key: 'vial_oficial',               nombre: 'Oficial Vial',               familia: 'vial' },
   { key: 'vial_ayudante',              nombre: 'Ayudante Vial',              familia: 'vial' },
 ];
+
+// Un A.P. usa UNA sola familia de Mano de Obra a la vez. La familia vigente de
+// una versión de obra es la guardada en `familiaMO`, y si no hay ninguna
+// guardada (A.P. cargado sin tocar el switch, o anterior a v166) la de su
+// primera línea de Mano de Obra. Devuelve null si el A.P. no tiene Mano de
+// Obra: ahí no hay nada que decidir.
+//
+// Una línea cuyo rol ya no existe en el catálogo de la obra (keys viejas, de
+// antes de las categorías fijas) NO define familia: el motor no la cuesta,
+// así que hacerla votar sólo serviría para arrastrar a toda la Mano de Obra
+// del A.P. a una familia que nadie eligió. `roles` es el array del catálogo
+// de la obra, no un mapa.
+window.familiaMOVigente = function (version, roles, lineasItem) {
+  const guardada = version && version.familiaMO;
+  if (guardada === 'vial' || guardada === 'arquitectura') return guardada;
+  const lineas = lineasItem || (version && version.lineas) || {};
+  const primera = Object.keys(lineas).sort()
+    .map(k => lineas[k])
+    .find(l => l && l.tipo === 'manoDeObra' && l.refKey &&
+               (roles || []).some(r => r.key === l.refKey));
+  if (!primera) return null;
+  const rol = (roles || []).find(r => r.key === primera.refKey);
+  return rol.familia || 'arquitectura';
+};
+
+// Las líneas de una versión sin las de Mano de Obra que quedaron de la otra
+// familia. La pantalla del A.P. sólo muestra las categorías de la familia
+// activa, así que una línea de la otra es invisible: si igual se costeara,
+// estaría inflando el precio sin que nadie pueda verlo. Por eso el filtro vive
+// acá abajo, en el motor, y no en cada pantalla que cuestea — ver
+// calcCostoUnitarioItem, presupuestoDatos.js e insumosDatos.js.
+window.lineasSinMOAjena = function (version, lineas, roles) {
+  const familia = window.familiaMOVigente(version, roles, lineas);
+  if (!familia) return lineas || {};
+  const ajena = l => {
+    if (!l || l.tipo !== 'manoDeObra' || !l.refKey) return false;
+    const rol = (roles || []).find(r => r.key === l.refKey);
+    // Rol inexistente: no se cuesta igual, no hace falta esconderlo.
+    if (!rol) return false;
+    return (rol.familia || 'arquitectura') !== familia;
+  };
+  const limpias = {};
+  Object.entries(lineas || {}).forEach(([k, l]) => { if (!ajena(l)) limpias[k] = l; });
+  return limpias;
+};
 
 // Para cruzar roles entre obras cuando no hay key en común: las keys propias
 // de cada obra no sirven, el nombre sí — "Oficial" es el mismo rol en dos

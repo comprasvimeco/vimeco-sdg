@@ -445,17 +445,20 @@ function renderUsarBase() {
   if (del) del.addEventListener('click', quitarNotaBase);
 }
 
+// El catálogo de Mano de Obra de una obra cualquiera como array — es el
+// formato que esperan las helpers de calcCostos.js, pero en obrasFull los
+// roles vienen como mapa.
+function rolesDeObra(obraK) {
+  return Object.entries((obrasFull[obraK] || {}).roles || {})
+    .map(([key, r]) => ({ key, ...r }));
+}
+
 // Familia de Mano de Obra que tiene decidida una versión de obra del A.P., o
-// null si no la tiene decidida por ningún lado. Manda lo guardado en la
-// versión; si no hay nada guardado (A.P. viejo, o cargado sin tocar el switch)
-// se deduce de sus propias líneas de Mano de Obra — sin esto, una versión sin
-// `familiaMO` escondería líneas que sí tiene cargadas.
+// null si no la tiene decidida por ningún lado (A.P. sin Mano de Obra). El
+// criterio es el del motor —guardada, o la de sus propias líneas— para que la
+// pantalla muestre exactamente las líneas que el cálculo cuestea.
 function familiaMOExplicita(v, obraK) {
-  if (v && (v.familiaMO === 'vial' || v.familiaMO === 'arquitectura')) return v.familiaMO;
-  const rolesObra = (obrasFull[obraK] || {}).roles || {};
-  const conMO = Object.values((v && v.lineas) || {}).find(l => l.tipo === 'manoDeObra' && l.refKey);
-  if (!conMO) return null;
-  return (rolesObra[conMO.refKey] && rolesObra[conMO.refKey].familia) || 'arquitectura';
+  return window.familiaMOVigente(v, rolesDeObra(obraK));
 }
 
 // La familia con la que se muestra la sección de Mano de Obra. Un A.P. todavía
@@ -487,33 +490,54 @@ function renderFamiliaMOSwitch() {
 // otro AP como base").
 async function cambiarFamiliaMO(nueva) {
   if (guardBloqueoObra()) return;
-  if (nueva === familiaMOActiva) return;
   const rolesObra = (obrasFull[activeVersion] && obrasFull[activeVersion].roles) || {};
-  const familiaDeRol = refKey => (rolesObra[refKey] && rolesObra[refKey].familia) || 'arquitectura';
+  // Las líneas de la otra familia, estén a la vista o no. No se mira
+  // familiaMOActiva para juntarlas: un A.P. que quedó con las dos familias
+  // cargadas tiene que poder limpiarse volviendo a elegir la que ya muestra.
+  // Las de un rol que ya no existe en la obra se dejan como están — el motor
+  // no las cuestea (ver lineasSinMOAjena), así que no inflan nada.
   const keysAPerder = Object.entries(lineas)
-    .filter(([, l]) => l.tipo === 'manoDeObra' && familiaDeRol(l.refKey) !== nueva)
+    .filter(([, l]) => l.tipo === 'manoDeObra' && l.refKey && rolesObra[l.refKey] &&
+                       (rolesObra[l.refKey].familia || 'arquitectura') !== nueva)
     .map(([k]) => k);
+  if (nueva === familiaMOActiva && !keysAPerder.length) return;
 
   if (keysAPerder.length) {
-    const nombreActual = familiaMOActiva === 'vial' ? 'Vial' : 'Arquitectura';
+    const nombreOtra = nueva === 'vial' ? 'Arquitectura' : 'Vial';
     const nombreNueva = nueva === 'vial' ? 'Vial' : 'Arquitectura';
     const ok = await showConfirm('Cambiar de familia',
-      `Este Análisis de Precio tiene ${keysAPerder.length} línea(s) de Mano de Obra de ${nombreActual}. Un A.P. usa una sola familia a la vez: cambiar a ${nombreNueva} las borra. ¿Continuar?`);
+      `Este Análisis de Precio tiene ${keysAPerder.length} línea(s) de Mano de Obra de ${nombreOtra}. Un A.P. usa una sola familia a la vez: dejarlo en ${nombreNueva} las borra. ¿Continuar?`);
     if (!ok) return;
-    keysAPerder.forEach(k => delete lineas[k]);
   }
 
-  familiaMOActiva = nueva;
-  versionesObra[activeVersion] = { ...(versionesObra[activeVersion] || {}), familiaMO: nueva };
+  // Primero se borran las líneas de la otra familia y RECIÉN DESPUÉS se guarda
+  // la familia nueva. Al revés —como estaba— un corte entre los dos pasos
+  // dejaba el A.P. con la familia nueva guardada y las líneas viejas vivas:
+  // invisibles en pantalla, porque sólo se listan las categorías de la familia
+  // activa, y sumando igual en el costo. Si falla el borrado no se guarda
+  // nada: el A.P. queda en su familia vieja, con todo a la vista, y volver a
+  // intentar lo arregla.
+  const lineasPrevias = lineas;
+  const lineasLimpias = { ...lineas };
+  keysAPerder.forEach(k => delete lineasLimpias[k]);
+  lineas = lineasLimpias;
+  try {
+    await window.undoAgrupar('Cambiar familia de Mano de Obra', null, async () => {
+      const recienCreada = await ensureVersionExists();
+      if (!recienCreada) {
+        if (!versionExisteEnServidor) throw new Error('no se pudo crear la versión de esta obra');
+        if (keysAPerder.length) await _fbPut(`${basePath()}/lineas.json`, lineas);
+      }
+      await _fbPatch(`${basePath()}.json`, { familiaMO: nueva });
+    });
+    familiaMOActiva = nueva;
+    versionesObra[activeVersion] = { ...(versionesObra[activeVersion] || {}), familiaMO: nueva, lineas };
+  } catch (_) {
+    lineas = lineasPrevias;
+    showToast('No se pudo cambiar de familia. Volvé a intentar.', 'error');
+  }
   renderFamiliaMOSwitch();
   renderTodasLasLineas();
-  try {
-    await ensureVersionExists();
-    await _fbPatch(`${basePath()}.json`, { familiaMO: nueva });
-    if (keysAPerder.length) await persistLineas();
-  } catch (_) {
-    showToast('Error al cambiar de familia.', 'error');
-  }
 }
 
 function fmtFechaCorta(ts) {
@@ -970,7 +994,7 @@ function calcularDetalleActivo() {
     obraKey: activeVersion,
   };
   const preciosObra = window.resolverPreciosObra(materiales, activeVersion);
-  const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo, sinSeguridadCapataz: sinSeguridadCapatazActivo }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObraActivo);
+  const r = window.calcCostoUnitarioItem({ rendimiento: rendimientoActivo, sinSeguridadCapataz: sinSeguridadCapatazActivo, familiaMO: familiaMOActiva }, lineas, catalogos, paramsEquipos, paramsMO, preciosObra, dolarObraActivo);
   detallePorLineaActivo = r.detallePorLinea;
   return r;
 }
