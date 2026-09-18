@@ -23,7 +23,9 @@
     @keyframes cierre-spin { to { transform: rotate(360deg); } }
     /* Menú de acciones secundarias de cada versión — mismo patrón que el chip
        de usuario del header (.auth-menu en css/styles.css). */
-    .cierre-menu-wrap { position: relative; }
+    /* inline-flex y no inline: .item-card-actions estira a sus hijos directos,
+       y sin esto el botón de adentro se quedaba 6px más bajo que los demás. */
+    .cierre-menu-wrap { position: relative; display: inline-flex; }
     .cierre-menu { position: absolute; top: calc(100% + .35rem); right: 0; z-index: 200; min-width: 175px; padding: .35rem; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
     .cierre-menu button { display: block; width: 100%; padding: .45rem .5rem; border: none; border-radius: 4px; background: none; font-size: .85rem; font-weight: 600; color: var(--gray-700); text-align: left; cursor: pointer; }
     .cierre-menu button:hover { background: var(--gray-100); }

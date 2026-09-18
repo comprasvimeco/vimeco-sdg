@@ -367,11 +367,11 @@
     }));
   };
 
-  /* Borrar una versión de trabajo. Una marcada como presentada no se borra: para
+  /* Eliminar una versión de trabajo. Una marcada como presentada no se elimina: para
      eso está anular, que conserva los números. */
   window.borrarVersion = async function (obraKey, cierreKey) {
     const meta = await _fbGet(`/obras/${obraKey}/cierres/${cierreKey}/meta.json`);
-    if (meta && meta.enviada) throw new Error('Una versión marcada como presentada no se borra: anulala.');
+    if (meta && meta.enviada) throw new Error('Una versión marcada como presentada no se elimina: anulala.');
     // Fuera de la pila de deshacer, igual que al guardarla: la foto pesa lo que
     // pesa la obra entera y la pila vive en memoria.
     await window.undoOmitir(() => _fbDel(`/obras/${obraKey}/cierres/${cierreKey}.json`));

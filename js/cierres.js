@@ -77,13 +77,13 @@ function renderCierres() {
           <a class="btn btn-sm btn-outline" href="${href}">Ver</a>
           ${anulado ? '' : `<button class="btn btn-sm btn-outline btn-restaurar"${obraBloqueada ? ' disabled title="La obra está en modo lectura"' : ''}>Restaurar</button>`}
           ${anulado ? '' : `
-          <button class="btn btn-sm btn-outline btn-icon btn-editar" aria-label="Editar los datos de la versión" title="Editar los datos de la versión">${icSvg('edit')}</button>
           <span class="cierre-menu-wrap">
             <button class="btn btn-sm btn-outline btn-icon btn-menu" aria-label="Más acciones" title="Más acciones">${icSvg('dots')}</button>
             <div class="cierre-menu hidden">
+              <button class="mi-editar">Editar</button>
               ${enviada
                 ? '<button class="mi-anular peligro">Anular</button>'
-                : '<button class="mi-borrar peligro">Borrar</button>'}
+                : '<button class="mi-eliminar peligro">Eliminar</button>'}
             </div>
           </span>`}
         </div>
@@ -92,8 +92,8 @@ function renderCierres() {
 
   const keyDe = el => el.closest('.cierre-card').dataset.key;
   cont.querySelectorAll('.mi-anular').forEach(b => b.addEventListener('click', () => abrirModalAnular(keyDe(b))));
-  cont.querySelectorAll('.mi-borrar').forEach(b => b.addEventListener('click', () => borrar(keyDe(b))));
-  cont.querySelectorAll('.btn-editar').forEach(b => b.addEventListener('click', () => abrirModalEditar(keyDe(b))));
+  cont.querySelectorAll('.mi-eliminar').forEach(b => b.addEventListener('click', () => eliminar(keyDe(b))));
+  cont.querySelectorAll('.mi-editar').forEach(b => b.addEventListener('click', () => abrirModalEditar(keyDe(b))));
   cont.querySelectorAll('.btn-restaurar').forEach(b => b.addEventListener('click', () => abrirModalRestaurar(keyDe(b))));
   cont.querySelectorAll('.btn-menu').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
@@ -235,19 +235,23 @@ async function confirmarEditar() {
   renderCierres();
 }
 
-async function borrar(key) {
+/* Eliminar es sólo para las versiones de trabajo. Una marcada como presentada
+   se anula en su lugar: queda tachada y sus números se siguen consultando. Son
+   dos acciones distintas a propósito, y por eso el menú muestra una o la otra
+   según el caso, nunca las dos. */
+async function eliminar(key) {
   const c = cierres.find(x => x.key === key);
   if (!c) return;
-  const ok = await showConfirm('Borrar versión',
-    `Se borra "${c.meta.nombre || 'sin nombre'}" y todos sus datos guardados. No se puede deshacer.`);
+  const ok = await showConfirm('Eliminar versión',
+    `Se elimina "${c.meta.nombre || 'sin nombre'}" y todos sus datos guardados. No se puede deshacer.`);
   if (!ok) return;
   try {
     await window.borrarVersion(obraKey, key);
   } catch (e) {
-    toast(e && e.message ? e.message : 'Error al borrar la versión.', 'error');
+    toast(e && e.message ? e.message : 'Error al eliminar la versión.', 'error');
     return;
   }
-  showToast('Versión borrada.', 'success');
+  showToast('Versión eliminada.', 'success');
   await cargarLista();
   renderCierres();
 }
