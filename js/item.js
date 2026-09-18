@@ -1107,7 +1107,10 @@ function renderLineasSeccion(tipo, r) {
       badge.textContent = mat ? mat.unidad : '';
       const costoUnit = row.querySelector('.ap-linea-costo-unit');
       if (costoUnit) {
-        if (mat) {
+        // Mirando una versión guardada el botón no lleva a ningún lado: su
+        // modal es de edición, y el precio de esa versión ya está en la celda.
+        // Los de equipo y auxiliar sí quedan, porque son de consulta.
+        if (mat && !window.versionEnURL()) {
           costoUnit.title = 'Clic para ver/editar el precio de este material';
           costoUnit.addEventListener('click', () => openEditarPrecioModal(mat));
         } else {

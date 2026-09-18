@@ -150,11 +150,7 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .subtab { color: var(--gray-600); font-size: .82rem; font-weight: 600; text-decoration: none; padding: .35rem .8rem; border-radius: 999px; white-space: nowrap; flex-shrink: 0; transition: background .15s, color .15s; }
 .subtab:hover { color: var(--primary); background: rgba(26,58,92,.07); }
 .subtab.active { color: var(--white); background: var(--primary); }
-/* Pantalla sin versión congelada: apagada mientras se mira un cierre (js/ui.js). */
-.subtab--off { color: var(--gray-300); cursor: default; }
-.subtab--off:hover { color: var(--gray-300); background: none; }
-
-/* ===== Banda de un presupuesto cerrado (window.renderBandaCierre, js/ui.js) ===== */
+/* ===== Banda de una versión guardada (window.renderBandaCierre, js/ui.js) ===== */
 .banda-cierre { max-width: 1320px; margin: 1.25rem auto -0.5rem; padding: .6rem .9rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; border-radius: var(--radius); background: var(--gray-100); border-left: 4px solid var(--primary); }
 .banda-cierre-info { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
 .banda-cierre-titulo { font-weight: 700; font-size: .9rem; color: var(--primary); display: flex; align-items: center; gap: .4rem; }

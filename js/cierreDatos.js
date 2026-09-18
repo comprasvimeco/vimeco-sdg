@@ -286,6 +286,12 @@
   window.cerrarPresupuesto = async function (modelo, plan, insumos, meta) {
     const obraKey = modelo.obraKey;
     const datos = window.armarSnapshotCierre(modelo);
+    // El catálogo de rubros de Biblioteca no entra al cálculo, pero sí a lo que
+    // muestran el Cómputo y el A.P (js/computo.js, js/item.js) cuando se los
+    // abre parados en esta versión. Es chico y se lee acá, que es lo único
+    // asincrónico de armar la foto.
+    const rubros = await _fbGet('/rubros.json');
+    if (rubros) datos.rubros = rubros;
     const huellaViva = window.huellaDeCierre(modelo, plan, insumos);
 
     // JSON ida y vuelta: la foto tiene que sobrevivir al viaje a la base, y

@@ -57,46 +57,66 @@ const HEADER_GROUPS = [
   },
 ];
 
-/* Pantallas que saben mostrar un presupuesto cerrado (js/cierreDatos.js).
-   Mientras hay un cierre abierto, el resto queda sin enlace: son datos vivos
-   y llevarían a creer que se está mirando la foto. */
-const TABS_CON_CIERRE = ['presupuesto', 'cierres'];
+/* La versión guardada que se está mirando, o null. Sale de la URL y no de una
+   variable de js/versionModo.js a propósito: así no depende del orden en que
+   se carguen los scripts. `cierre` es como se llamó el parámetro en v188. */
+window.versionEnURL = function () {
+  const p = new URLSearchParams(window.location.search);
+  return p.get('version') || p.get('cierre') || null;
+};
 
-// opts.cierreKey: hay un cierre abierto; se propaga a las pantallas que lo
-// entienden y se apagan las demás.
-window.renderHeaderTabs = function (obraKey, active, opts) {
-  const cierreKey = opts && opts.cierreKey;
-  const q = '?obra=' + encodeURIComponent(obraKey);
-  const qc = cierreKey ? q + '&cierre=' + encodeURIComponent(cierreKey) : q;
-  const hrefDe = t => TABS_CON_CIERRE.includes(t.id) ? t.href + qc : t.href + q;
+window.renderHeaderTabs = function (obraKey, active) {
+  const versionKey = window.versionEnURL();
+  const q = '?obra=' + encodeURIComponent(obraKey) +
+    (versionKey ? '&version=' + encodeURIComponent(versionKey) : '');
   const grupo = HEADER_GROUPS.find(g => g.tabs.some(t => t.id === active)) || HEADER_GROUPS[0];
 
   const el = document.getElementById('header-tabs');
   if (el) {
     el.innerHTML = HEADER_GROUPS.map(g =>
-      `<a class="header-tab${g.id === grupo.id ? ' active' : ''}" href="${hrefDe(g.tabs[0])}">${g.label}</a>`
+      `<a class="header-tab${g.id === grupo.id ? ' active' : ''}" href="${g.tabs[0].href}${q}">${g.label}</a>`
     ).join('');
     el.classList.remove('hidden');
   }
 
   const sub = document.getElementById('header-subtabs');
   if (sub) {
-    sub.innerHTML = `<div class="subtabs">${grupo.tabs.map(t => {
-      const off = cierreKey && !TABS_CON_CIERRE.includes(t.id);
-      const clase = `subtab${t.id === active ? ' active' : ''}${off ? ' subtab--off' : ''}`;
-      return off
-        ? `<span class="${clase}" title="No disponible mientras se mira un presupuesto cerrado">${t.label}</span>`
-        : `<a class="${clase}" href="${hrefDe(t)}">${t.label}</a>`;
-    }).join('')}</div>`;
+    sub.innerHTML = `<div class="subtabs">${grupo.tabs.map(t =>
+      `<a class="subtab${t.id === active ? ' active' : ''}" href="${t.href}${q}">${t.label}</a>`
+    ).join('')}</div>`;
     sub.classList.remove('hidden');
   }
 };
 
-/* Banda de un presupuesto cerrado. Se inserta arriba del contenido y avisa de
-   qué cierre se trata; en rojo cuando la foto ya no reproduce lo que se
-   guardó, que sólo puede pasar si cambiaron las fórmulas (js/calcCostos.js) —
-   los datos están congelados. En ese caso el número que vale sigue siendo el
-   de `resultado`, no el de la pantalla. */
+/* Enlaces internos mientras se mira una versión: se les agrega el parámetro al
+   vuelo, para que navegar dentro de la obra (Cómputo → A.P., Presupuesto →
+   A.P.) no caiga en los datos vivos sin que se note. Se hace acá y no en cada
+   pantalla porque son decenas de enlaces armados en plantillas distintas.
+   "Volver a Obras" se deja salir: ahí termina la versión. */
+document.addEventListener('click', e => {
+  const versionKey = window.versionEnURL();
+  if (!versionKey || !e.target.closest) return;
+  const a = e.target.closest('a[href]');
+  if (!a || a.target === '_blank' || a.hasAttribute('data-sin-version')) return;
+  const href = a.getAttribute('href');
+  if (!href || !/\.html(\?|$)/.test(href) || /^(https?:|mailto:)/.test(href)) return;
+  const url = new URL(href, window.location.href);
+  // Volver a Obras termina la versión; la pantalla de Versiones siempre trabaja
+  // contra los datos vivos (es desde donde se guarda y se restaura).
+  if (/(obras|cierres)\.html$/.test(url.pathname)) return;
+  if (url.searchParams.has('version') || url.searchParams.has('cierre')) return;
+  url.searchParams.set('version', versionKey);
+  a.setAttribute('href', url.pathname.split('/').pop() + url.search);
+}, true);
+
+/* Banda de una versión guardada. Se inserta arriba del contenido y avisa de
+   qué versión se trata; en rojo cuando la foto ya no reproduce los números que
+   se guardaron, que sólo puede pasar si cambiaron las fórmulas
+   (js/calcCostos.js) — los datos están congelados. En ese caso el número que
+   vale sigue siendo el de `resultado`, no el de la pantalla.
+
+   El veredicto de la huella sólo lo pasa el Presupuesto, que es donde se ve el
+   número; en el resto de las pantallas la banda va sin él. */
 window.renderBandaCierre = function (obraKey, cierreKey, meta, difs, detalle) {
   const main = document.getElementById('main-content');
   if (!main) return;
@@ -109,18 +129,25 @@ window.renderBandaCierre = function (obraKey, cierreKey, meta, difs, detalle) {
   const roto = difs && difs.length;
   const anulado = !!(meta && meta.anulado);
   banda.className = 'banda-cierre' + (roto ? ' banda-cierre--roto' : '') + (anulado ? ' banda-cierre--anulado' : '');
+  // Salir de la versión es quedarse en esta misma pantalla sin el parámetro:
+  // así se compara lo guardado contra lo de hoy sin perder de vista dónde se
+  // estaba mirando.
+  const urlViva = new URL(window.location.href);
+  urlViva.searchParams.delete('version');
+  urlViva.searchParams.delete('cierre');
   banda.innerHTML = `
     <div class="banda-cierre-info">
-      <span class="banda-cierre-titulo">${icSvg(roto ? 'alert' : 'eye')} Presupuesto cerrado — ${escHtml((meta && meta.nombre) || '')}</span>
+      <span class="banda-cierre-titulo">${icSvg(roto ? 'alert' : 'eye')} Versión guardada — ${escHtml((meta && meta.nombre) || '')}</span>
       <span class="banda-cierre-meta">${escHtml([
         meta && meta.fecha ? new Date(meta.fecha).toLocaleDateString('es-AR') : '',
         meta && (meta.autorNombre || meta.autorMail) || '',
         meta && meta.appVersion || '',
-        anulado ? 'ANULADO' : '',
+        meta && meta.enviada ? 'ENVIADA' : '',
+        anulado ? 'ANULADA' : '',
       ].filter(Boolean).join(' · '))}</span>
-      ${roto ? `<span class="banda-cierre-alerta">Las fórmulas cambiaron desde este cierre: ${difs.length} ${difs.length === 1 ? 'valor no coincide' : 'valores no coinciden'} con lo guardado. El número válido es el que quedó registrado al cerrar${detalle ? ' — ' + escHtml(detalle) : ''}.</span>` : ''}
+      ${roto ? `<span class="banda-cierre-alerta">Las fórmulas cambiaron desde que se guardó: ${difs.length} ${difs.length === 1 ? 'valor no coincide' : 'valores no coinciden'} con lo registrado. El número válido es el que quedó guardado${detalle ? ' — ' + escHtml(detalle) : ''}.</span>` : ''}
     </div>
-    <a class="btn btn-sm btn-outline" href="presupuesto.html?obra=${encodeURIComponent(obraKey)}">Ver el presupuesto actual</a>`;
+    <a class="btn btn-sm btn-outline" data-sin-version href="${escHtml(urlViva.pathname.split('/').pop() + urlViva.search)}">Ver cómo está hoy</a>`;
 };
 
 // -- Offsets de las barras fijas (header, sub-pestañas, y en item.html la
@@ -188,6 +215,20 @@ window.aplicarModoLecturaEstatico = function () {
 };
 
 window.setModoObra = function (obraKey, obra, onChange) {
+  /* Mirando una versión guardada no hay modo que elegir: es una foto. Candado
+     fijo, sin botón de desbloqueo, y la banda que dice de qué versión se trata.
+     Como las once pantallas de la obra ya llaman a esta función, con esto todas
+     quedan cubiertas sin tocar ninguna. */
+  const versionKey = window.versionEnURL();
+  if (versionKey) {
+    window._soloLectura = true;
+    window.aplicarModoLecturaEstatico();
+    const btnModo = document.getElementById('header-modo');
+    if (btnModo) btnModo.classList.add('hidden');
+    window.renderBandaCierre(obraKey, versionKey, (window.versionMeta && window.versionMeta()) || {}, null);
+    return;
+  }
+
   const forzadaLectura = obra.estado === 'ejecucion' || obra.estado === 'terminada';
   window._soloLectura = forzadaLectura || !!obra.soloLectura;
 

@@ -19,11 +19,12 @@ const $ = id => document.getElementById(id);
 
 const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
-// Con ?cierre= la pantalla no muestra el presupuesto vivo sino la foto de uno
-// enviado: los mismos cálculos, pero sobre los datos congelados de ese cierre
-// (ver js/cierreDatos.js). Todo queda en sólo lectura y sin enlaces a las
-// pantallas vivas, que ya no se corresponden con lo que se está mirando.
-const cierreKey = params.get('cierre');
+// Con ?version= la pantalla no muestra el presupuesto vivo sino la foto de una
+// versión guardada: los mismos cálculos sobre los datos congelados (ver
+// js/cierreDatos.js). Acá además se verifica la huella, que es lo único propio
+// de esta pantalla — el resto del modo versión lo resuelven js/versionModo.js
+// y js/ui.js para las once pantallas de la obra a la vez.
+const cierreKey = window.versionEnURL();
 
 let modelo = null;
 let mostrarOficial = false;   // de sesión: nunca se guarda, arranca apagado
@@ -43,14 +44,12 @@ function renderLineaRow(linea) {
   const hrefAP = linea.itemKey
     ? `item.html?key=${encodeURIComponent(linea.itemKey)}&obra=${encodeURIComponent(obraKey)}`
     : `item.html?linea=${encodeURIComponent(linea.key)}&obra=${encodeURIComponent(obraKey)}`;
-  // Mirando un cierre, el A.P vivo puede no ser el que dio este precio: sin enlace.
-  const celdaNombre = cierreKey
-    ? `<span class="presupuesto-linea-nombre">${escHtml(linea.nombre)}</span>`
-    : `<a class="presupuesto-linea-nombre" href="${hrefAP}" title="Ver Análisis de Precio">${escHtml(linea.nombre)}</a>`;
+  // Mirando una versión guardada el enlace sigue valiendo: js/ui.js le agrega
+  // el parámetro al vuelo y el A.P se abre con la receta de esa versión.
   return `
     <div class="presupuesto-linea">
       <span class="presupuesto-linea-numero">${linea.numero}</span>
-      ${celdaNombre}
+      <a class="presupuesto-linea-nombre" href="${hrefAP}" title="Ver Análisis de Precio">${escHtml(linea.nombre)}</a>
       <span class="presupuesto-linea-unidad">${escHtml(linea.unidad)}</span>
       <span class="presupuesto-linea-cantidad"${calcAttrs(linea.cantidad, `${id}:cantidad`, `${et} · Cantidad`)}>${linea.cantidad != null ? fmtNum(linea.cantidad) : '—'}</span>
       <span class="presupuesto-linea-precio"${calcAttrs(linea.precioUnitario, `${id}:precioUnit`, `${et} · Precio unit.`)}>${fmtARS(linea.precioUnitario)}</span>
@@ -194,25 +193,25 @@ function renderTodo() {
 async function loadCierre() {
   const cierre = await _fbGet(`/obras/${obraKey}/cierres/${cierreKey}.json`);
   if (!cierre || !cierre.datos) {
-    document.body.innerHTML = '<p style="padding:2rem;">No se encontró el cierre.</p>';
+    document.body.innerHTML = '<p style="padding:2rem;">No se encontró esta versión de la obra.</p>';
     return false;
   }
   const res = await window.abrirCierre(obraKey, cierre);
   if (!res) {
-    document.body.innerHTML = '<p style="padding:2rem;">No se pudo reconstruir el presupuesto de este cierre.</p>';
+    document.body.innerHTML = '<p style="padding:2rem;">No se pudo reconstruir el presupuesto de esta versión.</p>';
     return false;
   }
   modelo = res.modelo;
-  // Sólo lectura sin botón de desbloqueo: un cierre no se edita, ni temporalmente.
-  window._soloLectura = true;
-  const btnModo = document.getElementById('header-modo');
-  if (btnModo) btnModo.classList.add('hidden');
 
   $('header-obra-nombre').textContent = 'Presupuesto — ' + modelo.obra.nombre;
-  renderHeaderTabs(obraKey, 'presupuesto', { cierreKey });
+  renderHeaderTabs(obraKey, 'presupuesto');
+  // El candado y la banda salen de acá (js/ui.js) igual que en el resto de las
+  // pantallas; lo único propio de ésta es el veredicto de la huella, que se
+  // repinta abajo porque es el único lugar donde hay números para verificar.
+  setModoObra(obraKey, modelo.obra, renderTodo);
   const guardado = (cierre.resultado || {}).total;
   renderBandaCierre(obraKey, cierreKey, cierre.meta || {}, res.difs,
-    guardado != null ? `total cerrado ${fmtARS(guardado)}` : null);
+    guardado != null ? `total guardado ${fmtARS(guardado)}` : null);
   return true;
 }
 
