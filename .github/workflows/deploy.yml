@@ -40,25 +40,38 @@ jobs:
       # silencio. Por eso, si el pull/push falla, se emite un `::warning::`
       # explícito — sí se ve en el resumen del run sin entrar a este paso.
       #
-      # Causa real encontrada el 2026-09-08 (leyendo el log del paso, no solo
-      # el `::warning::` genérico): el propio Build dejaba `js/config.js`
-      # modificado sin comitear (inyección de GEMINI_API_KEY, ver más abajo),
-      # y `git pull --rebase` se negaba con "cannot pull with rebase: You have
-      # unstaged changes" — nada que ver con el checkout ni con permisos.
-      # Fix: la inyección de la key se corre como paso aparte, DESPUÉS de este
-      # commit, así el working tree queda limpio (igual al commit) cuando
-      # corren git pull/push. Si el warning reaparece habiendo confirmado que
-      # el working tree está limpio acá, recién ahí revisar Settings →
-      # Actions → General → "Workflow permissions" (Read and write) y la
-      # protección de la rama main (tiene que permitir el push directo de
-      # github-actions[bot]).
+      # Causa real, encontrada dos veces (leyendo el log del paso, no sólo el
+      # `::warning::` genérico): el Build dejaba un archivo modificado sin
+      # comitear y `git pull --rebase` se negaba con "cannot pull with rebase:
+      # You have unstaged changes" — nada que ver con el checkout ni con
+      # permisos. En 2026-09-08 fue `js/config.js` (inyección de
+      # GEMINI_API_KEY), y se resolvió corriendo esa inyección como paso
+      # aparte, DESPUÉS de este commit. En 2026-09-18 fue `js/version.js`, que
+      # el Build empezó a escribir mientras este `git add` seguía nombrando
+      # sólo app.html y sw.js: el número del sitio avanzaba y el del repo no,
+      # así que el hook de commit venía repitiendo el mismo vNNN.
+      #
+      # Por eso ahora se comitea TODO lo que el Build modificó, en vez de una
+      # lista fija que hay que acordarse de actualizar. La key de Gemini no
+      # corre riesgo: se inyecta en el paso siguiente, después de este commit.
+      #
+      # Si el warning reaparece habiendo confirmado que el working tree queda
+      # limpio acá, recién ahí revisar Settings → Actions → General →
+      # "Workflow permissions" (Read and write) y la protección de la rama main
+      # (tiene que permitir el push directo de github-actions[bot]).
       - name: Commit version bump
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add app.html sw.js
+          git add -A
           git diff --cached --quiet && exit 0
+          # Red de seguridad: que se vea acá, y no dentro de meses con el
+          # número de versión repitiéndose, si el Build empieza a tocar algo más.
+          tocados=$(git diff --cached --name-only | sort | paste -sd" " -)
+          if [ "$tocados" != "app.html js/version.js sw.js" ]; then
+            echo "::warning::El bump de versión está comiteando archivos que no son los que deja el Build: $tocados"
+          fi
           git commit -m "ci: bump version [skip ci]"
           # main puede haber avanzado mientras corría el build, o este puede ser
           # el re-run de un run cuyo bump ya se pusheó.
