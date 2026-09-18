@@ -52,7 +52,7 @@ const HEADER_GROUPS = [
       { id: 'plan-avance',      label: 'Plan de Avance',    href: 'plan-avance.html' },
       { id: 'insumos',          label: 'Insumos',           href: 'insumos-obra.html' },
       { id: 'exportar',         label: 'Exportar',          href: 'exportar.html' },
-      { id: 'cierres',          label: 'Cierres',           href: 'cierres.html' },
+      { id: 'cierres',          label: 'Versiones',         href: 'cierres.html' },
     ],
   },
 ];

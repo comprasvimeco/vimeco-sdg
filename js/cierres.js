@@ -1,16 +1,22 @@
-/* VIMECO S.A. — Sistema de Gestión — Cierres del presupuesto de una obra
+/* VIMECO S.A. — Sistema de Gestión — Versiones de una obra
 
-   Un cierre es la foto de un presupuesto tal como se envió: congela todo lo
-   que entra al cálculo —incluido el catálogo global de equipos y materiales,
-   que es compartido entre obras y por eso puede moverle el número a una oferta
-   ya presentada— y guarda además el resultado, para poder avisar si algún día
-   deja de reproducirse. El motor está en js/cierreDatos.js; acá sólo vive la
-   pantalla.
+   Una versión es la foto de la obra entera en un momento: los A.P. con su
+   receta, la ficha de cada máquina, los precios, los roles, el Cómputo, la
+   Carga Fija y el Plan. Congela también el catálogo global que la obra usa
+   —compartido entre obras, y por eso capaz de moverle el número a una oferta
+   ya presentada— y guarda el resultado, para avisar si algún día deja de
+   reproducirse. El motor está en js/cierreDatos.js y el modo de consulta en
+   js/versionModo.js; acá sólo vive la pantalla.
 
-   Cerrar no modifica la obra, así que se puede cerrar aunque esté en modo
-   lectura — que es justamente el estado normal de una obra en ejecución o
-   terminada, donde más sentido tiene hacerlo. Por eso esta pantalla no tiene
-   el botón de ojo/lápiz del resto. */
+   El nodo se llama /obras/{obraKey}/cierres, y los archivos cierreDatos.js y
+   cierres.js igual: así nacieron en v188, cuando esto era sólo "cerrar un
+   presupuesto". "Versión" es cómo se lo nombra en pantalla desde que se lo
+   empezó a usar también para guardar los análisis reales antes de retocarlos.
+
+   Guardar una versión no modifica la obra, así que se puede hacer aunque esté
+   en modo lectura — que es el estado normal de una obra en ejecución o
+   terminada, donde más sentido tiene. Por eso esta pantalla no tiene el botón
+   de ojo/lápiz del resto. */
 
 const $ = id => document.getElementById(id);
 
@@ -35,7 +41,7 @@ const fmtFechaHora = iso => {
 function renderCierres() {
   const cont = $('lista-cierres');
   if (!cierres.length) {
-    cont.innerHTML = `<div class="empty-state"><p>Todavía no hay ningún presupuesto cerrado para esta obra.</p></div>`;
+    cont.innerHTML = `<div class="empty-state"><p>Todavía no se guardó ninguna versión de esta obra.</p></div>`;
     return;
   }
 
@@ -44,7 +50,10 @@ function renderCierres() {
     const anulado = !!m.anulado;
     const autor = m.autorNombre || m.autorMail || '';
     const meta = [fmtFechaHora(m.fecha), autor, m.appVersion].filter(Boolean).join(' · ');
-    const href = `presupuesto.html?obra=${encodeURIComponent(obraKey)}&cierre=${encodeURIComponent(c.key)}`;
+    const enviada = !!m.enviada;
+    // Se abre en el Cómputo: es el principio de la obra, y desde ahí se llega a
+    // todo lo demás con las sub-pestañas, ya paradas en esta versión.
+    const href = `computo.html?obra=${encodeURIComponent(obraKey)}&version=${encodeURIComponent(c.key)}`;
     return `
       <div class="item-card cierre-card${anulado ? ' anulado' : ''}" data-key="${escHtml(c.key)}">
         <div class="item-card-info">
@@ -52,14 +61,19 @@ function renderCierres() {
           ${meta ? `<span class="item-card-meta">${escHtml(meta)}</span>` : ''}
           <div class="item-card-badges">
             <span class="cierre-total">${m.total != null ? fmtARS(m.total) : '—'}</span>
-            ${anulado ? '<span class="u-badge u-badge-neutro">Anulado</span>' : '<span class="u-badge u-badge-activo">Vigente</span>'}
+            ${anulado ? '<span class="u-badge u-badge-neutro">Anulada</span>' : ''}
+            ${enviada && !anulado ? '<span class="u-badge u-badge-activo">Enviada</span>' : ''}
           </div>
           ${m.notas ? `<div class="cierre-notas">${escHtml(m.notas)}</div>` : ''}
-          ${anulado ? `<div class="cierre-notas">Anulado el ${escHtml(fmtFechaHora(m.anulado.fecha))}${m.anulado.motivo ? ' — ' + escHtml(m.anulado.motivo) : ''}</div>` : ''}
+          ${anulado ? `<div class="cierre-notas">Anulada el ${escHtml(fmtFechaHora(m.anulado.fecha))}${m.anulado.motivo ? ' — ' + escHtml(m.anulado.motivo) : ''}</div>` : ''}
         </div>
         <div class="item-card-actions">
           <a class="btn btn-sm btn-outline" href="${href}">Ver</a>
-          ${anulado ? '' : '<button class="btn btn-sm btn-outline btn-anular">Anular</button>'}
+          ${anulado ? '' : `<button class="btn btn-sm btn-outline btn-enviada">${enviada ? 'Quitar marca' : 'Marcar enviada'}</button>`}
+          ${anulado ? ''
+            : enviada
+              ? '<button class="btn btn-sm btn-outline btn-anular">Anular</button>'
+              : '<button class="btn btn-sm btn-outline btn-borrar">Borrar</button>'}
         </div>
       </div>`;
   }).join('');
@@ -67,9 +81,48 @@ function renderCierres() {
   cont.querySelectorAll('.btn-anular').forEach(btn => {
     btn.addEventListener('click', () => abrirModalAnular(btn.closest('.cierre-card').dataset.key));
   });
+  cont.querySelectorAll('.btn-enviada').forEach(btn => {
+    btn.addEventListener('click', () => alternarEnviada(btn.closest('.cierre-card').dataset.key));
+  });
+  cont.querySelectorAll('.btn-borrar').forEach(btn => {
+    btn.addEventListener('click', () => borrar(btn.closest('.cierre-card').dataset.key));
+  });
 }
 
-/* ===== Cerrar ===== */
+/* Marcar cuál se presentó. Sólo una por obra tiene sentido como "la enviada",
+   pero no se fuerza: una obra puede presentar una oferta y después una mejora,
+   y las dos se enviaron. */
+async function alternarEnviada(key) {
+  const c = cierres.find(x => x.key === key);
+  if (!c) return;
+  try {
+    await window.marcarVersionEnviada(obraKey, key, !c.meta.enviada);
+  } catch (_) {
+    toast('Error al marcar la versión.', 'error');
+    return;
+  }
+  await cargarLista();
+  renderCierres();
+}
+
+async function borrar(key) {
+  const c = cierres.find(x => x.key === key);
+  if (!c) return;
+  const ok = await showConfirm('Borrar versión',
+    `Se borra "${c.meta.nombre || 'sin nombre'}" y todos sus datos guardados. No se puede deshacer.`);
+  if (!ok) return;
+  try {
+    await window.borrarVersion(obraKey, key);
+  } catch (e) {
+    toast(e && e.message ? e.message : 'Error al borrar la versión.', 'error');
+    return;
+  }
+  showToast('Versión borrada.', 'success');
+  await cargarLista();
+  renderCierres();
+}
+
+/* ===== Guardar una versión ===== */
 
 function abrirModalCerrar() {
   $('cierre-nombre').value = '';
@@ -78,7 +131,7 @@ function abrirModalCerrar() {
   $('modal-cerrar-verificando').classList.add('hidden');
   $('modal-cerrar-error').classList.add('hidden');
   $('modal-cerrar-ok').disabled = false;
-  $('modal-cerrar-ok').textContent = 'Cerrar presupuesto';
+  $('modal-cerrar-ok').textContent = 'Guardar versión';
   $('modal-cerrar').classList.remove('hidden');
   $('cierre-nombre').focus();
 }
@@ -87,8 +140,8 @@ function cerrarModalCerrar() { $('modal-cerrar').classList.add('hidden'); }
 
 async function confirmarCierre() {
   const nombre = $('cierre-nombre').value.trim();
-  if (!nombre) { toast('Poné un nombre para el cierre.', 'warning'); $('cierre-nombre').focus(); return; }
-  if (modeloVivo.k == null) { toast('El presupuesto todavía no tiene Coeficiente K: revisá Carga Fija antes de cerrar.', 'warning'); return; }
+  if (!nombre) { toast('Poné un nombre para la versión.', 'warning'); $('cierre-nombre').focus(); return; }
+  if (modeloVivo.k == null) { toast('El presupuesto todavía no tiene Coeficiente K: revisá Carga Fija antes de guardar una versión.', 'warning'); return; }
 
   $('modal-cerrar-form').classList.add('hidden');
   $('modal-cerrar-error').classList.add('hidden');
@@ -104,7 +157,7 @@ async function confirmarCierre() {
     $('modal-cerrar-verificando').classList.add('hidden');
     $('modal-cerrar-form').classList.remove('hidden');
     $('modal-cerrar-ok').disabled = false;
-    toast('Error al guardar el cierre: ' + (e && e.message ? e.message : e), 'error');
+    toast('Error al guardar la versión: ' + (e && e.message ? e.message : e), 'error');
     return;
   }
 
@@ -123,7 +176,7 @@ async function confirmarCierre() {
   }
 
   cerrarModalCerrar();
-  showToast('Presupuesto cerrado.', 'success');
+  showToast('Versión guardada.', 'success');
   await cargarLista();
   renderCierres();
 }
@@ -142,12 +195,12 @@ async function confirmarAnular() {
   try {
     await window.anularCierre(obraKey, anulandoKey, $('anular-motivo').value.trim() || null);
   } catch (e) {
-    toast('Error al anular el cierre.', 'error');
+    toast('Error al anular la versión.', 'error');
     return;
   }
   $('modal-anular').classList.add('hidden');
   anulandoKey = null;
-  showToast('Cierre anulado.', 'success');
+  showToast('Versión anulada.', 'success');
   await cargarLista();
   renderCierres();
 }
@@ -184,7 +237,7 @@ async function loadAll() {
     window.gruposRubroDesdePresupuesto(m), planDatos.config, planDatos.distItems, planDatos.distRubros);
   insumosVivos = window.calcularInsumosObra(m);
 
-  $('header-obra-nombre').textContent = 'Cierres — ' + m.obra.nombre;
+  $('header-obra-nombre').textContent = 'Versiones — ' + m.obra.nombre;
   renderHeaderTabs(obraKey, 'cierres');
   $('total-vivo').textContent = fmtARS(m.total);
 

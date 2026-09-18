@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>VIMECO — Cierres</title>
+  <title>VIMECO — Versiones</title>
   <link rel="stylesheet" href="css/styles.css">
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -30,7 +30,7 @@
   <header class="app-header">
     <div class="header-brand u-pointer" onclick="window.location.href='obras.html'">
       <img src="assets/logo_claro.png" alt="VIMECO S.A." class="header-logo">
-      <span class="header-title" id="header-obra-nombre">Cierres</span>
+      <span class="header-title" id="header-obra-nombre">Versiones</span>
     </div>
     <nav class="header-tabs" id="header-tabs"></nav>
     <div class="flex items-center gap-3">
@@ -43,37 +43,37 @@
   <main class="app-main" id="main-content" style="display:none;">
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Presupuesto actual</span>
-        <button type="button" class="btn btn-sm btn-primary" id="btn-cerrar">Cerrar presupuesto</button>
+        <span class="card-title">Cómo está la obra ahora</span>
+        <button type="button" class="btn btn-sm btn-primary" id="btn-cerrar">Guardar versión</button>
       </div>
       <div class="card-body">
         <div class="cierre-vivo">
-          <span class="form-hint" style="margin:0;">Así está el presupuesto en este momento. Cerrarlo guarda una foto de todos los datos que lo forman — el catálogo de equipos y materiales incluido — para que siga dando exactamente este número por más que después cambie cualquier cosa.</span>
+          <span class="form-hint" style="margin:0;">Guardar una versión saca una foto de la obra entera: los análisis de precio con su receta, la ficha de cada máquina, los precios, las categorías de mano de obra, el cómputo, la carga fija y el plan. Esa foto se puede volver a mirar pantalla por pantalla, y sigue dando exactamente este número por más que después cambie cualquier cosa.</span>
           <span class="cierre-vivo-total" id="total-vivo">—</span>
         </div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-header"><span class="card-title">Presupuestos cerrados</span></div>
+      <div class="card-header"><span class="card-title">Versiones guardadas</span></div>
       <div class="card-body" id="lista-cierres"></div>
     </div>
   </main>
-  <div id="main-loading" class="app-main"><div class="list-loading">Cargando presupuesto…</div></div>
+  <div id="main-loading" class="app-main"><div class="list-loading">Cargando la obra…</div></div>
 
-  <!-- Cerrar -->
+  <!-- Guardar versión -->
   <div class="modal-overlay hidden" id="modal-cerrar">
     <div class="modal">
       <div class="modal-header">
-        <span class="modal-title">Cerrar presupuesto</span>
+        <span class="modal-title">Guardar versión</span>
         <button class="modal-close" id="modal-cerrar-x">&times;</button>
       </div>
       <div class="modal-body">
         <div id="modal-cerrar-form">
           <div class="form-group">
-            <label class="form-label" for="cierre-nombre">Nombre del cierre</label>
+            <label class="form-label" for="cierre-nombre">Nombre de la versión</label>
             <input type="text" class="form-control" id="cierre-nombre" placeholder="Oferta original" autocomplete="off">
-            <span class="form-hint">Cómo se lo va a reconocer después: "Oferta original", "Mejora de oferta", "Redeterminación 1".</span>
+            <span class="form-hint">Cómo se la va a reconocer después: "Análisis reales", "Oferta original", "Mejora de oferta", "Redeterminación 1".</span>
           </div>
           <div class="form-group">
             <label class="form-label" for="cierre-notas">Notas (opcional)</label>
@@ -85,14 +85,14 @@
           <span>Guardando la foto y verificando que dé el mismo número…</span>
         </div>
         <div id="modal-cerrar-error" class="hidden">
-          <p style="color:var(--danger);font-weight:600;">No se guardó el cierre.</p>
-          <p class="form-hint">La foto no reprodujo el presupuesto actual, así que guardarla habría dejado un cierre que miente. Esto es un problema del sistema, no de los datos de la obra — pasale este detalle a quien mantiene la app:</p>
+          <p style="color:var(--danger);font-weight:600;">No se guardó la versión.</p>
+          <p class="form-hint">La foto no reprodujo el presupuesto actual, así que guardarla habría dejado una versión que miente. Esto es un problema del sistema, no de los datos de la obra — pasale este detalle a quien mantiene la app:</p>
           <ul class="cierre-difs" id="modal-cerrar-difs"></ul>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" id="modal-cerrar-cancelar">Cancelar</button>
-        <button class="btn btn-primary" id="modal-cerrar-ok">Cerrar presupuesto</button>
+        <button class="btn btn-primary" id="modal-cerrar-ok">Guardar versión</button>
       </div>
     </div>
   </div>
@@ -101,14 +101,14 @@
   <div class="modal-overlay hidden" id="modal-anular">
     <div class="modal modal--sm">
       <div class="modal-header">
-        <span class="modal-title">Anular cierre</span>
+        <span class="modal-title">Anular versión</span>
         <button class="modal-close" id="modal-anular-x">&times;</button>
       </div>
       <div class="modal-body">
-        <p class="form-hint">El cierre queda marcado como anulado, con la fecha y el motivo. Los números no se borran: se siguen pudiendo consultar.</p>
+        <p class="form-hint">La versión queda marcada como anulada, con la fecha y el motivo. Los números no se borran: se siguen pudiendo consultar.</p>
         <div class="form-group">
           <label class="form-label" for="anular-motivo">Motivo</label>
-          <input type="text" class="form-control" id="anular-motivo" placeholder="Se cerró por error" autocomplete="off">
+          <input type="text" class="form-control" id="anular-motivo" placeholder="Se guardó por error" autocomplete="off">
         </div>
       </div>
       <div class="modal-footer">

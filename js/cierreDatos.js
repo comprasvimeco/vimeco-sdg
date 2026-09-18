@@ -347,6 +347,24 @@
     };
   };
 
+  /* Marcar una versión como la que se presentó. No cambia nada del cálculo: es
+     para encontrarla entre las de trabajo, y para que no se la pueda borrar
+     —una oferta enviada sólo se anula, dejando el rastro. */
+  window.marcarVersionEnviada = async function (obraKey, cierreKey, enviada) {
+    await window.undoOmitir(() => _fbPatch(`/obras/${obraKey}/cierres/${cierreKey}/meta.json`,
+      { enviada: enviada ? true : null }));
+  };
+
+  /* Borrar una versión de trabajo. Una marcada como enviada no se borra: para
+     eso está anular, que conserva los números. */
+  window.borrarVersion = async function (obraKey, cierreKey) {
+    const meta = await _fbGet(`/obras/${obraKey}/cierres/${cierreKey}/meta.json`);
+    if (meta && meta.enviada) throw new Error('Una versión marcada como enviada no se borra: anulala.');
+    // Fuera de la pila de deshacer, igual que al guardarla: la foto pesa lo que
+    // pesa la obra entera y la pila vive en memoria.
+    await window.undoOmitir(() => _fbDel(`/obras/${obraKey}/cierres/${cierreKey}.json`));
+  };
+
   window.anularCierre = async function (obraKey, cierreKey, motivo) {
     const usuario = (window._authUsuario && window._authUsuario()) || {};
     await window.undoOmitir(() => _fbPatch(`/obras/${obraKey}/cierres/${cierreKey}/meta.json`, {
