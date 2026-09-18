@@ -248,6 +248,15 @@ function etiquetaLinea(lineaKey) {
 // tenía vincularItem(), sin paso intermedio de búsqueda.
 
 async function autoCrearYVincular() {
+  // Si la línea ya tiene A.P., se va a ese y no se crea nada. Sin esto, un
+  // link viejo o armado sin mirar el itemKey le crea un A.P. vacío y lo
+  // repunta a él — la receta anterior queda huérfana en /items y la línea se
+  // ve en blanco (pasó con el costo de un auxiliar usado como insumo).
+  const lineaPrevia = await _fbGet(`/obras/${obraParam}/${nodoLinea}/${keyLinea}.json`);
+  if (lineaPrevia && lineaPrevia.itemKey) {
+    window.location.replace(`item.html?key=${encodeURIComponent(lineaPrevia.itemKey)}&obra=${encodeURIComponent(obraParam)}`);
+    return;
+  }
   const obraDataX = await _fbGet(`/obras/${obraParam}.json`);
   if (obraDataX && window.obraEsSoloLectura(obraDataX)) {
     document.body.innerHTML = `<p style="padding:2rem;">Esta obra está en modo lectura — no se puede crear un Análisis de Precio nuevo. Volvé al <a href="computo.html?obra=${encodeURIComponent(obraParam)}">Cómputo</a> y activá "Modo Edición" si necesitás editar.</p>`;
@@ -1125,8 +1134,11 @@ function renderLineasSeccion(tipo, r) {
       if (costoUnit) {
         if (aux) {
           costoUnit.title = 'Clic para ver el Análisis de Precio de este auxiliar';
-          costoUnit.addEventListener('click', () => window.open(
-            `item.html?aux=${encodeURIComponent(aux.key)}&obra=${encodeURIComponent(activeVersion)}`, '_blank'));
+          // Con A.P. ya creado va directo a él (?key=); ?aux= es sólo para
+          // crearlo la primera vez — ver autoCrearYVincular.
+          costoUnit.addEventListener('click', () => abrirVentanaChica(aux.itemKey
+            ? `item.html?key=${encodeURIComponent(aux.itemKey)}&obra=${encodeURIComponent(activeVersion)}`
+            : `item.html?aux=${encodeURIComponent(aux.key)}&obra=${encodeURIComponent(activeVersion)}`));
         } else {
           costoUnit.disabled = true;
         }
@@ -1546,6 +1558,17 @@ function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
   return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${escHtml(cuenta)}</span></span><span>${fmtARS(valor)}${unidad}</span></div>`;
 }
 
+// Consultas que se abren desde este A.P. (el A.P. de un auxiliar-insumo, el
+// catálogo de Equipos): en una ventana chica y centrada, no en pestaña, para
+// mirarlas sin perder de vista el A.P. que se está armando.
+function abrirVentanaChica(url) {
+  const w = Math.min(1100, Math.round(screen.availWidth * 0.7));
+  const h = Math.round(screen.availHeight * 0.8);
+  const left = Math.round((screen.availLeft || 0) + (screen.availWidth - w) / 2);
+  const top = Math.round((screen.availTop || 0) + (screen.availHeight - h) / 2);
+  window.open(url, '_blank', `popup,width=${w},height=${h},left=${left},top=${top}`);
+}
+
 function openDetalleEquipoModal(equipo) {
   $('ed-equipo-nombre').textContent = `${equipo.tipo || ''}${equipo.potencia ? ` ${equipo.potencia} HP` : ''}`.trim();
   $('ed-link-params').href = `equipos-obra.html?obra=${encodeURIComponent(activeVersion)}`;
@@ -1769,6 +1792,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('modal-ed-close').addEventListener('click',  () => $('modal-equipo-detalle').classList.add('hidden'));
   $('modal-ed-cerrar').addEventListener('click', () => $('modal-equipo-detalle').classList.add('hidden'));
+  $('ed-link-equipos').addEventListener('click', e => { e.preventDefault(); abrirVentanaChica('equipos.html'); });
 
   $('modal-mor-close').addEventListener('click',  () => $('modal-mano-de-obra-detalle').classList.add('hidden'));
   $('modal-mor-cerrar').addEventListener('click', () => $('modal-mano-de-obra-detalle').classList.add('hidden'));
