@@ -71,14 +71,19 @@
     .cia-rubro-add-item:hover { color: var(--primary); }
     .cia-rubro-del:hover { color: var(--danger); }
     .cia-rubro-add-item .icon, .cia-rubro-del .icon, .cia-item-del .icon { width: 16px; height: 16px; }
-    .cia-item { display: grid; grid-template-columns: 1fr 90px 100px 28px; gap: .5rem; align-items: center; margin-top: .4rem; }
+    .cia-item { display: grid; grid-template-columns: 1fr 80px 100px 120px 28px; gap: .5rem; align-items: center; margin-top: .4rem; }
+    .cia-total-oficial { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: .65rem .75rem; margin-bottom: .6rem; }
+    .cia-total-oficial label { display: block; font-size: .8rem; font-weight: 600; color: var(--gray-700); margin-bottom: .3rem; }
+    .cia-total-oficial .form-control { max-width: 220px; }
+    .cia-total-oficial-link { background: none; border: none; padding: 0; color: var(--primary); font: inherit; text-decoration: underline; cursor: pointer; }
     .cia-item-del { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .25rem; }
     .cia-item-del:hover { color: var(--danger); }
     @media (max-width: 700px) {
-      .cia-item { grid-template-columns: 1fr 1fr; grid-template-areas: "nombre nombre" "unidad cantidad" "del del"; row-gap: .3rem; }
+      .cia-item { grid-template-columns: 1fr 1fr; grid-template-areas: "nombre nombre" "unidad cantidad" "precio precio" "del del"; row-gap: .3rem; }
       .cia-item input:nth-child(1) { grid-area: nombre; }
       .cia-item input:nth-child(2) { grid-area: unidad; }
       .cia-item input:nth-child(3) { grid-area: cantidad; }
+      .cia-item input:nth-child(4) { grid-area: precio; }
       .cia-item-del { grid-area: del; justify-self: end; }
     }
 
@@ -183,7 +188,7 @@
               <span class="form-hint" style="display:block;margin-top:.5rem;">o arrastrá el archivo acá</span>
             </div>
             <input type="file" id="cia-archivo-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png">
-            <span class="form-hint">Se lee el rubrado, los ítems, unidades y cantidades con IA — los precios del documento no se usan, el costo se define después con el Análisis de Precio de cada ítem. Sólo disponible con el cómputo vacío.</span>
+            <span class="form-hint">Se lee el rubrado, los ítems, unidades y cantidades con IA, más el precio unitario de cada ítem y el total, que se guardan como <strong>precio oficial</strong> para comparar en el Presupuesto. El costo propio no sale de acá: se define después con el Análisis de Precio de cada ítem. Sólo disponible con el cómputo vacío.</span>
           </div>
           <div id="cia-archivo-error" class="alert alert-error hidden"></div>
         </div>
@@ -194,6 +199,11 @@
             <span>Leyendo el presupuesto con IA…</span>
           </div>
           <div id="cia-extraccion-hint" class="form-hint hidden" style="display:block;margin-bottom:.75rem;"></div>
+          <div class="cia-total-oficial hidden" id="cia-total-oficial-row">
+            <label for="cia-total-oficial">Presupuesto oficial (total del documento)</label>
+            <input type="text" class="form-control" id="cia-total-oficial" placeholder="0">
+            <div class="form-hint" id="cia-total-oficial-hint" style="display:block;margin-top:.3rem;"></div>
+          </div>
           <div id="cia-rubros-lista"></div>
           <button class="btn btn-sm btn-outline" id="btn-cia-add-rubro" type="button">+ Agregar rubro manual</button>
           <div id="cia-revision-error" class="alert alert-error hidden" style="margin-top:.75rem;"></div>

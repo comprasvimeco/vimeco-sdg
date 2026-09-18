@@ -1,11 +1,19 @@
 /* VIMECO S.A. — Sistema de Gestión — Armar Cómputo con IA
    Sólo disponible con el cómputo de la obra completamente vacío (ver
    actualizarBotonComputoIA en computo.js): se sube un presupuesto (PDF o
-   foto), Gemini extrae rubros e ítems (nombre, unidad, cantidad — sin
-   precios, eso no se usa acá), el usuario revisa/corrige, y al confirmar se
-   crean los rubros (/obras/{obra}/rubrosComputo) y líneas
-   (/obras/{obra}/computo) de una sola vez, en el mismo orden del documento.
+   foto), Gemini extrae rubros e ítems (nombre, unidad, cantidad), el usuario
+   revisa/corrige, y al confirmar se crean los rubros
+   (/obras/{obra}/rubrosComputo) y líneas (/obras/{obra}/computo) de una sola
+   vez, en el mismo orden del documento.
    El archivo no se sube a ningún lado, sólo se lee para extraer.
+
+   De los montos del documento se extrae el PRECIO OFICIAL: el unitario de
+   cada ítem (`precioOficial` en su línea, lo que compara el toggle "Comparar
+   con oficial" del Presupuesto) y el total general (`presupuestoOficial` de
+   la obra, el que compara Datos de obra / Presupuesto). No son costos
+   propios: el costo de cada ítem sigue saliendo de su Análisis de Precio,
+   igual que antes. Los números se copian tal como figuran en el documento —
+   no se ajustan por IVA ni por nada.
 
    Comparte scope global con computo.js (mismo patrón que cotizaciones-ia.js
    con cotizaciones-obra.js) — usa `$`, `obraKey`, `rubros`, `loadAll` de ahí
@@ -22,13 +30,19 @@
     'obra de construcción argentino, a partir de un PDF o foto del documento. Los presupuestos ' +
     'suelen estar organizados en rubros o capítulos numerados (ej. "1 - Movimiento de suelos") ' +
     'que agrupan ítems numerados dentro (ej. "1.1 Excavación", "1.2 Relleno y compactación"), ' +
-    'cada uno con su unidad de medida y cantidad. Extraé esa estructura completa: 1) cada rubro ' +
-    'con su nombre (sin el número de rubro, sólo el texto descriptivo), 2) dentro de cada rubro, ' +
-    'cada ítem con su nombre (sin el número de ítem), unidad de medida (ej. m2, m3, ml, kg, u, gl) ' +
-    'y cantidad numérica. Si el documento no tiene rubros explícitos y es una lista plana de ' +
-    'ítems, agrupalos todos en un único rubro llamado "General". No inventes ítems que no estén ' +
-    'en el documento, no extraigas precios ni importes (no interesan acá), y no te saltees ningún ' +
-    'ítem aunque la cantidad no figure (dejala vacía en ese caso). Si el documento no es un ' +
+    'cada uno con su unidad de medida, cantidad, precio unitario e importe. Extraé esa estructura ' +
+    'completa: 1) cada rubro con su nombre (sin el número de rubro, sólo el texto descriptivo), ' +
+    '2) dentro de cada rubro, cada ítem con su nombre (sin el número de ítem), unidad de medida ' +
+    '(ej. m2, m3, ml, kg, u, gl), cantidad numérica, precio unitario e importe (el monto total de ' +
+    'esa línea), y 3) el total general del presupuesto: el monto final del documento (si hay un ' +
+    'subtotal y después un total con IVA, tomá el total final). Si el documento no tiene rubros ' +
+    'explícitos y es una lista plana de ítems, agrupalos todos en un único rubro llamado ' +
+    '"General". Los montos están en pesos argentinos, con "." de miles y "," decimal: devolvelos ' +
+    'como número ("$ 1.234.567,89" es 1234567.89). Copiá los montos tal como figuran, sin ' +
+    'convertirlos ni sumarles ni restarles IVA. Si una línea muestra el importe pero no el precio ' +
+    'unitario, devolvé sólo el importe y dejá el precio unitario vacío (no lo calcules vos). No ' +
+    'inventes ítems ni montos que no estén en el documento, y no te saltees ningún ítem aunque la ' +
+    'cantidad o los montos no figuren (dejalos vacíos en ese caso). Si el documento no es un ' +
     'cómputo o presupuesto de obra o no se puede leer, devolvé "rubros" como un array vacío.';
 
   const GEMINI_SCHEMA = {
@@ -48,6 +62,8 @@
                   nombre: { type: 'STRING' },
                   unidad: { type: 'STRING' },
                   cantidad: { type: 'NUMBER' },
+                  precioUnitario: { type: 'NUMBER' },
+                  importe: { type: 'NUMBER' },
                 },
                 required: ['nombre'],
               },
@@ -56,14 +72,22 @@
           required: ['nombre', 'items'],
         },
       },
+      totalPresupuesto: { type: 'NUMBER' },
     },
     required: ['rubros'],
   };
 
-  let state = null; // { file, rubros: [{ rubroRowId, nombre, items: [{ itemRowId, nombre, unidad, cantidad }] }], nextRubroId, nextItemId }
+  let state = null; // { file, rubros: [{ rubroRowId, nombre, items: [{ itemRowId, nombre, unidad, cantidad, precioOficial }] }], totalDetectado, nextRubroId, nextItemId }
 
   function openComputoIAModal() {
-    state = { file: null, rubros: [], nextRubroId: 1, nextItemId: 1 };
+    state = { file: null, rubros: [], totalDetectado: null, nextRubroId: 1, nextItemId: 1 };
+
+    $('cia-total-oficial-row').classList.add('hidden');
+    $('cia-total-oficial').value = '';
+    // El campo sobrevive al cierre del modal: si la vez anterior quedó una
+    // fórmula tipeada ("=..."), se borra para no mostrarla en la próxima.
+    window.setCalcFormula($('cia-total-oficial'), null);
+    $('cia-total-oficial-hint').textContent = '';
 
     $('cia-archivo-input').value = '';
     $('cia-file-nombre').textContent = 'Ningún archivo elegido';
@@ -158,6 +182,22 @@
     return JSON.parse(text);
   }
 
+  function numeroONull(v) {
+    return typeof v === 'number' && isFinite(v) ? v : null;
+  }
+
+  /* Precio unitario oficial de un ítem. Si el documento lo imprime, se copia
+     tal cual. Si sólo trae el importe de la línea, se despeja dividiendo por
+     la cantidad (decisión del dueño del proyecto) — redondeado a 2 decimales
+     como todo precio unitario del Presupuesto (ver window.round2). */
+  function precioOficialDe(it, cantidad) {
+    const unitario = numeroONull(it.precioUnitario);
+    if (unitario != null) return unitario;
+    const importe = numeroONull(it.importe);
+    if (importe == null || !cantidad) return null;
+    return window.round2(importe / cantidad);
+  }
+
   function estadoDesdeExtraccion(extraido) {
     const rubrosDetectados = (extraido && extraido.rubros) || [];
     return rubrosDetectados
@@ -165,13 +205,46 @@
       .map(r => ({
         rubroRowId: state.nextRubroId++,
         nombre: r.nombre || '',
-        items: (r.items || []).filter(it => it && it.nombre).map(it => ({
-          itemRowId: state.nextItemId++,
-          nombre: it.nombre || '',
-          unidad: it.unidad || '',
-          cantidad: typeof it.cantidad === 'number' ? it.cantidad : null,
-        })),
+        items: (r.items || []).filter(it => it && it.nombre).map(it => {
+          const cantidad = numeroONull(it.cantidad);
+          return {
+            itemRowId: state.nextItemId++,
+            nombre: it.nombre || '',
+            unidad: it.unidad || '',
+            cantidad,
+            precioOficial: precioOficialDe(it, cantidad),
+          };
+        }),
       }));
+  }
+
+  /* Campo del total oficial. Si la obra ya tiene uno cargado en Datos de obra
+     no se pisa solo: el campo arranca con el que ya estaba y el detectado
+     queda a un click de distancia. */
+  function renderTotalOficial() {
+    const row = $('cia-total-oficial-row');
+    const input = $('cia-total-oficial');
+    const hint = $('cia-total-oficial-hint');
+    const yaCargado = obra && obra.presupuestoOficial != null && !isNaN(obra.presupuestoOficial)
+      ? Number(obra.presupuestoOficial) : null;
+    const detectado = state.totalDetectado;
+
+    row.classList.remove('hidden');
+    input.value = formatMoneyString(yaCargado != null ? yaCargado : detectado);
+
+    if (yaCargado != null && detectado != null && detectado !== yaCargado) {
+      hint.innerHTML = `Esta obra ya tiene cargado ${escHtml(fmtARS(yaCargado))} y el documento dice ` +
+        `${escHtml(fmtARS(detectado))}. <button type="button" class="cia-total-oficial-link" id="cia-usar-total-detectado">Usar el del documento</button>`;
+      $('cia-usar-total-detectado').addEventListener('click', () => {
+        input.value = formatMoneyString(detectado);
+      });
+    } else if (yaCargado != null) {
+      hint.textContent = 'Ya cargado en Datos de obra. Se guarda lo que diga este campo.';
+    } else if (detectado != null) {
+      hint.textContent = 'Detectado en el documento — se guarda en Datos de obra al confirmar.';
+    } else {
+      hint.textContent = 'No se detectó un total en el documento — se puede cargar acá o después en Datos de obra.';
+    }
   }
 
   async function extraerYMostrarRevision() {
@@ -180,6 +253,7 @@
     const hintEl = $('cia-extraccion-hint');
     const loadingEl = $('cia-ia-loading');
     hintEl.classList.add('hidden');
+    $('cia-total-oficial-row').classList.add('hidden');
     $('cia-rubros-lista').classList.add('hidden');
     $('btn-cia-add-rubro').classList.add('hidden');
     loadingEl.classList.remove('hidden');
@@ -193,21 +267,24 @@
 
     if (extraido) {
       state.rubros = estadoDesdeExtraccion(extraido);
+      state.totalDetectado = numeroONull(extraido.totalPresupuesto);
       const totalItems = state.rubros.reduce((acc, r) => acc + r.items.length, 0);
+      const conPrecio = state.rubros.reduce((acc, r) => acc + r.items.filter(it => it.precioOficial != null).length, 0);
       hintEl.textContent = state.rubros.length
-        ? `Se detectaron ${state.rubros.length} rubro(s) con ${totalItems} ítem(s) — revisá y corregí antes de confirmar.`
+        ? `Se detectaron ${state.rubros.length} rubro(s) con ${totalItems} ítem(s), ${conPrecio} con precio oficial — revisá y corregí antes de confirmar.`
         : 'No se detectó ningún rubro automáticamente — cargalos a mano.';
     } else {
       hintEl.textContent = 'No se pudo leer el presupuesto con IA — cargá el cómputo a mano.';
     }
 
     if (!state.rubros.length) agregarRubroManual();
+    renderTotalOficial();
     renderRubros();
     $('cia-modal-confirmar').classList.remove('hidden');
   }
 
   function nuevoItemVacio() {
-    return { itemRowId: state.nextItemId++, nombre: '', unidad: '', cantidad: null };
+    return { itemRowId: state.nextItemId++, nombre: '', unidad: '', cantidad: null, precioOficial: null };
   }
 
   function agregarRubroManual() {
@@ -230,6 +307,10 @@
         const cantidadRaw = itemEl.querySelector('.cia-item-cantidad').value;
         const cantidad = parseFloat(cantidadRaw.replace(',', '.'));
         it.cantidad = cantidadRaw.trim() === '' || isNaN(cantidad) ? null : cantidad;
+        // El precio oficial sí es un campo de plata (miles con "."), así que
+        // se lee con parseMoneyString y no con parseFloat.
+        const precio = parseMoneyString(itemEl.querySelector('.cia-item-oficial').value);
+        it.precioOficial = isNaN(precio) ? null : precio;
       });
     });
   }
@@ -273,6 +354,7 @@
             <input type="text" class="form-control cia-item-nombre" placeholder="Ítem" value="${escHtml(it.nombre)}">
             <input type="text" class="form-control cia-item-unidad" placeholder="Unidad" value="${escHtml(it.unidad || '')}">
             <input type="text" class="form-control cia-item-cantidad" placeholder="Cantidad" value="${it.cantidad != null ? it.cantidad : ''}">
+            <input type="text" class="form-control cia-item-oficial" placeholder="Precio oficial" value="${escHtml(formatMoneyString(it.precioOficial))}">
             <button type="button" class="cia-item-del" title="Eliminar ítem">${icSvg('x')}</button>
           </div>`).join('')}
       </div>`).join('');
@@ -284,6 +366,11 @@
       rubroEl.querySelectorAll('.cia-item').forEach(itemEl => {
         const itemRowId = parseInt(itemEl.dataset.itemRow, 10);
         itemEl.querySelector('.cia-item-del').addEventListener('click', () => eliminarItem(rubroRowId, itemRowId));
+        // Campo de plata: calculadora y máscara de miles, igual que el mismo
+        // precio oficial en Presupuesto (attachCalcInput siempre antes).
+        const oficialInput = itemEl.querySelector('.cia-item-oficial');
+        attachCalcInput(oficialInput);
+        attachMoneyInput(oficialInput);
       });
     });
   }
@@ -311,6 +398,14 @@
       return;
     }
 
+    // Total oficial de la obra: sólo se escribe si el campo tiene un número y
+    // es distinto del que ya estaba cargado (ver renderTotalOficial). Vacío =
+    // no se toca Datos de obra.
+    const totalTipeado = parseMoneyString($('cia-total-oficial').value);
+    const yaCargado = obra && obra.presupuestoOficial != null && !isNaN(obra.presupuestoOficial)
+      ? Number(obra.presupuestoOficial) : null;
+    const totalOficial = isNaN(totalTipeado) || totalTipeado === yaCargado ? null : totalTipeado;
+
     const btn = $('cia-modal-confirmar');
     btn.disabled = true;
     btn.textContent = 'Creando…';
@@ -330,8 +425,15 @@
        Ctrl+Z deshace el cómputo entero. */
     await window.undoAgrupar(
       'el cómputo armado con IA',
-      [`/obras/${obraKey}/computo.json`, `/obras/${obraKey}/rubrosComputo.json`],
+      [`/obras/${obraKey}/computo.json`, `/obras/${obraKey}/rubrosComputo.json`,
+       `/obras/${obraKey}/presupuestoOficial.json`],
       async () => {
+        if (totalOficial != null) {
+          writes.push(
+            _fbPatch(`/obras/${obraKey}.json`, { presupuestoOficial: totalOficial })
+              .catch(() => fallos.push('el presupuesto oficial'))
+          );
+        }
         if (plana) {
           writes.push(
             _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroUnico}.json`, { nombre: '', orden: 1 })
@@ -354,6 +456,9 @@
               _fbPut(`/obras/${obraKey}/computo/${lineaKey}.json`, {
                 rubroId, nombre: it.nombre.trim(), unidad: (it.unidad || '').trim(),
                 cantidad: it.cantidad, itemKey: null, orden: plana ? ++ordenPlano : j + 1,
+                // Sólo para comparar contra el precio propio en Presupuesto:
+                // no entra a ningún costo (ver js/presupuestoDatos.js).
+                precioOficial: it.precioOficial != null ? it.precioOficial : null,
                 creadoEn: Date.now(),
               }).catch(() => fallos.push(`"${it.nombre}" (${r.nombre})`))
             );
@@ -369,9 +474,12 @@
     if (fallos.length) {
       showToast(`Cómputo creado con errores en: ${fallos.join(', ')}.`, 'warning');
     } else {
-      showToast(plana
+      const detalle = plana
         ? `Cómputo creado: ${totalItems} ítem(s).`
-        : `Cómputo creado: ${rubrosValidos.length} rubro(s), ${totalItems} ítem(s).`, 'success');
+        : `Cómputo creado: ${rubrosValidos.length} rubro(s), ${totalItems} ítem(s).`;
+      showToast(totalOficial != null
+        ? `${detalle} Presupuesto oficial: ${fmtARS(totalOficial)}.`
+        : detalle, 'success');
     }
     closeComputoIAModal();
     await loadAll();
@@ -383,6 +491,9 @@
     $('cia-modal-cancel').addEventListener('click', closeComputoIAModal);
     $('btn-cia-elegir-archivo').addEventListener('click', () => $('cia-archivo-input').click());
     $('cia-archivo-input').addEventListener('change', e => handleArchivoSeleccionado(e.target.files[0]));
+    // El campo del total vive siempre en el DOM: se engancha una sola vez.
+    attachCalcInput($('cia-total-oficial'));
+    attachMoneyInput($('cia-total-oficial'));
 
     const dropzone = $('cia-dropzone');
     ['dragover', 'dragenter'].forEach(evt => dropzone.addEventListener(evt, e => {
