@@ -79,36 +79,72 @@ function renderCierres() {
           ${anulado ? '' : `
           <span class="cierre-menu-wrap">
             <button class="btn btn-sm btn-outline btn-icon btn-menu" aria-label="Más acciones" title="Más acciones">${icSvg('dots')}</button>
-            <div class="cierre-menu hidden">
-              <button class="mi-editar">Editar</button>
-              ${enviada
-                ? '<button class="mi-anular peligro">Anular</button>'
-                : '<button class="mi-eliminar peligro">Eliminar</button>'}
-            </div>
           </span>`}
         </div>
       </div>`;
   }).join('');
 
   const keyDe = el => el.closest('.cierre-card').dataset.key;
-  cont.querySelectorAll('.mi-anular').forEach(b => b.addEventListener('click', () => abrirModalAnular(keyDe(b))));
-  cont.querySelectorAll('.mi-eliminar').forEach(b => b.addEventListener('click', () => eliminar(keyDe(b))));
-  cont.querySelectorAll('.mi-editar').forEach(b => b.addEventListener('click', () => abrirModalEditar(keyDe(b))));
   cont.querySelectorAll('.btn-restaurar').forEach(b => b.addEventListener('click', () => abrirModalRestaurar(keyDe(b))));
   cont.querySelectorAll('.btn-menu').forEach(b => b.addEventListener('click', e => {
     e.stopPropagation();
-    const menu = b.nextElementSibling;
-    const abierto = !menu.classList.contains('hidden');
-    cerrarMenus();
-    if (!abierto) menu.classList.remove('hidden');
+    abrirMenu(b, keyDe(b));
   }));
 }
 
+/* Menú de acciones de una versión.
+
+   Vive en <body> y no dentro de la tarjeta: .card usa overflow:hidden para
+   recortar sus bordes redondeados y también recortaba este menú cuando la
+   versión era la última de la lista (se veía cortado al medio). Es el mismo
+   motivo y la misma solución que el dropdown del buscador — ver .ss-dropdown en
+   css/styles.css. */
+let menuEl = null;
+
 function cerrarMenus() {
-  document.querySelectorAll('.cierre-menu').forEach(m => m.classList.add('hidden'));
+  if (menuEl) { menuEl.remove(); menuEl = null; }
 }
-// Un click en cualquier otro lado lo cierra, igual que el chip de usuario.
+
+function abrirMenu(btn, key) {
+  const yaAbierto = menuEl && menuEl.dataset.key === key;
+  cerrarMenus();
+  if (yaAbierto) return;
+
+  const c = cierres.find(x => x.key === key);
+  if (!c) return;
+
+  menuEl = document.createElement('div');
+  menuEl.className = 'cierre-menu';
+  menuEl.dataset.key = key;
+  menuEl.innerHTML = `
+    <button class="mi-editar">Editar</button>
+    ${c.meta.enviada
+      ? '<button class="mi-anular peligro">Anular</button>'
+      : '<button class="mi-eliminar peligro">Eliminar</button>'}`;
+  document.body.appendChild(menuEl);
+
+  // Alineado al borde derecho del botón. Si no entra abajo, se abre hacia
+  // arriba — con dos opciones casi nunca pasa, pero la lista puede estar al pie
+  // de la pantalla.
+  const r = btn.getBoundingClientRect();
+  const alto = menuEl.offsetHeight;
+  const abajo = r.bottom + 6 + alto <= window.innerHeight;
+  menuEl.style.top = (abajo ? r.bottom + 6 : r.top - 6 - alto) + 'px';
+  menuEl.style.right = (window.innerWidth - r.right) + 'px';
+
+  menuEl.querySelector('.mi-editar').addEventListener('click', () => abrirModalEditar(key));
+  const anular = menuEl.querySelector('.mi-anular');
+  if (anular) anular.addEventListener('click', () => abrirModalAnular(key));
+  const elim = menuEl.querySelector('.mi-eliminar');
+  if (elim) elim.addEventListener('click', () => eliminar(key));
+}
+
+// Un click en cualquier otro lado lo cierra, igual que el chip de usuario. Con
+// position:fixed también hay que cerrarlo al scrollear o redimensionar: si no,
+// queda flotando lejos del botón que lo abrió.
 document.addEventListener('click', cerrarMenus);
+window.addEventListener('scroll', cerrarMenus, true);
+window.addEventListener('resize', cerrarMenus);
 
 /* ===== Restaurar =====
 
