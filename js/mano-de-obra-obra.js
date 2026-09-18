@@ -6,7 +6,9 @@
    familia — Arquitectura y Vial —, con la misma key en todas las obras. Cada
    obra puede además agregar categorías propias por encima de esas 6 (mismo
    esquema de siempre: key = nombre + timestamp). El switch de arriba del
-   listado sólo cambia qué familia se ve; no filtra nada en la base.
+   listado no filtra nada en la base: cambia qué familia se ve y, de paso,
+   queda guardada en la obra (obra.familiaMO) como la familia por defecto de
+   los A.P. de esta obra que todavía no tienen Mano de Obra cargada.
 
    Seed inicial: si a esta obra le faltan roles fijos (obra nueva, o vieja
    recién migrada), se crean acá con básico vacío — cada obra carga el suyo. */
@@ -42,6 +44,7 @@ const obraKey = params.get('obra');
 let obra = null;
 let allRoles = [];
 let editingKey = null;
+// Se pisa en loadAll con la última elegida en esta obra (obra.familiaMO).
 let familiaActiva = 'arquitectura';
 let paramsMO = {
   asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8,
@@ -193,8 +196,23 @@ function renderFamiliaSwitch() {
       familiaActiva = btn.dataset.familia;
       renderFamiliaSwitch();
       applyFilter();
+      guardarFamiliaObra(familiaActiva);
     });
   });
+}
+
+// La familia elegida queda guardada en la obra: los A.P. de esta obra que no
+// tienen Mano de Obra cargada arrancan en ella (familiaMODeVersion, item.js).
+// En modo lectura el switch sigue sirviendo de filtro, pero no se guarda.
+async function guardarFamiliaObra(f) {
+  if (window._soloLectura) return;
+  if (obra && obra.familiaMO === f) return;
+  obra = { ...(obra || {}), familiaMO: f };
+  try {
+    await _fbPatch(`/obras/${obraKey}.json`, { familiaMO: f });
+  } catch (_) {
+    showToast('Error al guardar la familia por defecto.', 'error');
+  }
 }
 
 function applyFilter() {
@@ -536,6 +554,7 @@ async function loadAll() {
     return;
   }
   obra = obraData;
+  familiaActiva = obra.familiaMO === 'vial' ? 'vial' : 'arquitectura';
   window.setCotizacionObra(obra.dolar ? obra.dolar.valor : null);
 
   await seedSiHaceFalta();

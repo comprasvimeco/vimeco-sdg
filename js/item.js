@@ -445,6 +445,28 @@ function renderUsarBase() {
   if (del) del.addEventListener('click', quitarNotaBase);
 }
 
+// Familia de Mano de Obra que tiene decidida una versión de obra del A.P., o
+// null si no la tiene decidida por ningún lado. Manda lo guardado en la
+// versión; si no hay nada guardado (A.P. viejo, o cargado sin tocar el switch)
+// se deduce de sus propias líneas de Mano de Obra — sin esto, una versión sin
+// `familiaMO` escondería líneas que sí tiene cargadas.
+function familiaMOExplicita(v, obraK) {
+  if (v && (v.familiaMO === 'vial' || v.familiaMO === 'arquitectura')) return v.familiaMO;
+  const rolesObra = (obrasFull[obraK] || {}).roles || {};
+  const conMO = Object.values((v && v.lineas) || {}).find(l => l.tipo === 'manoDeObra' && l.refKey);
+  if (!conMO) return null;
+  return (rolesObra[conMO.refKey] && rolesObra[conMO.refKey].familia) || 'arquitectura';
+}
+
+// La familia con la que se muestra la sección de Mano de Obra. Un A.P. todavía
+// vacío de Mano de Obra arranca en la familia elegida en la pantalla Mano de
+// Obra de la obra (obra.familiaMO, ver mano-de-obra-obra.js): si la obra es
+// vial, sus A.P. nuevos ya abren en Vial sin tener que tocar el switch.
+function familiaMODeVersion(v, obraK) {
+  return familiaMOExplicita(v, obraK)
+    || (((obrasFull[obraK] || {}).familiaMO === 'vial') ? 'vial' : 'arquitectura');
+}
+
 // Switch Arquitectura/Vial de la sección Mano de Obra de este A.P. Mismo
 // look que las pestañas de versión de obra (btn-primary = activa) para que
 // se note a simple vista cuál está elegida.
@@ -636,7 +658,7 @@ async function copiarAuxiliarDesdeObra(obraOrigenKey, auxKeyOrigen, cache, enCad
         rendimiento: versionOrigen.rendimiento || 1,
         rendimientoFormula: versionOrigen.rendimientoFormula || null,
         lineas: lineasCopiadas,
-        familiaMO: versionOrigen.familiaMO || 'arquitectura',
+        familiaMO: familiaMOExplicita(versionOrigen, obraOrigenKey),
       });
     }
   }
@@ -712,7 +734,7 @@ async function seleccionarUsarComoBase(value, opciones) {
     rendimiento: src.rendimiento || 1,
     rendimientoFormula: src.rendimientoFormula || null,
     lineas: lineasCopiadas,
-    familiaMO: src.familiaMO || 'arquitectura',
+    familiaMO: familiaMOExplicita(src, obraOrigenKey),
     // Queda registrado de dónde salió la receta: se muestra como nota en la
     // pantalla y sobrevive a la recarga. No condiciona ningún cálculo.
     baseUsada: { itemNombre: opt.label, obraNombre: opt.sublabel, unidad: opt.unidad || null, copiadoEn: Date.now() },
@@ -728,7 +750,7 @@ async function seleccionarUsarComoBase(value, opciones) {
     rendimientoActivo = data.rendimiento;
     rendimientoFormulaActiva = data.rendimientoFormula;
     baseUsadaActiva = data.baseUsada;
-    familiaMOActiva = data.familiaMO;
+    familiaMOActiva = familiaMODeVersion(versionesObra[activeVersion], activeVersion);
     renderVersionTabs();
     renderVersionRendimiento();
     renderUsarBase();
@@ -796,7 +818,7 @@ function aplicarSnapshotRemoto(dataCruda) {
   }
   sinSeguridadCapatazActivo = !!data.sinSeguridadCapataz;
   baseUsadaActiva = data.baseUsada || null;
-  familiaMOActiva = data.familiaMO || 'arquitectura';
+  familiaMOActiva = familiaMODeVersion(data, activeVersion);
 
   const lineasRemotas = data.lineas || {};
   if (seccionEnEdicion) {
@@ -858,7 +880,7 @@ function activarVersion(key) {
     rendimientoFormulaActiva = v.rendimientoFormula;
     sinSeguridadCapatazActivo = !!v.sinSeguridadCapataz;
     baseUsadaActiva = v.baseUsada || null;
-    familiaMOActiva = v.familiaMO || 'arquitectura';
+    familiaMOActiva = familiaMODeVersion(v, key);
     versionExisteEnServidor = true;
   } else {
     // No existe todavía para esta obra: arranca vacía, con 1 como punto de
@@ -868,7 +890,7 @@ function activarVersion(key) {
     rendimientoFormulaActiva = null;
     sinSeguridadCapatazActivo = false;
     baseUsadaActiva = null;
-    familiaMOActiva = 'arquitectura';
+    familiaMOActiva = familiaMODeVersion(null, key);
     versionExisteEnServidor = false;
   }
   renderVersionTabs();
