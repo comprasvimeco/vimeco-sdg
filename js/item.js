@@ -1559,7 +1559,7 @@ function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
 }
 
 // Consultas que se abren desde este A.P. (el A.P. de un auxiliar-insumo, el
-// catálogo de Equipos): en una ventana chica y centrada, no en pestaña, para
+// catálogo de Equipos, Equipos de la obra): en una ventana chica y centrada, no en pestaña, para
 // mirarlas sin perder de vista el A.P. que se está armando.
 function abrirVentanaChica(url) {
   const w = Math.min(1100, Math.round(screen.availWidth * 0.7));
@@ -1793,6 +1793,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-ed-close').addEventListener('click',  () => $('modal-equipo-detalle').classList.add('hidden'));
   $('modal-ed-cerrar').addEventListener('click', () => $('modal-equipo-detalle').classList.add('hidden'));
   $('ed-link-equipos').addEventListener('click', e => { e.preventDefault(); abrirVentanaChica('equipos.html'); });
+  $('ed-link-params').addEventListener('click', e => { e.preventDefault(); abrirVentanaChica(e.currentTarget.href); });
 
   $('modal-mor-close').addEventListener('click',  () => $('modal-mano-de-obra-detalle').classList.add('hidden'));
   $('modal-mor-cerrar').addEventListener('click', () => $('modal-mano-de-obra-detalle').classList.add('hidden'));
