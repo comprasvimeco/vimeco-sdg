@@ -21,6 +21,14 @@
     button.ap-linea-costo-unit:disabled { cursor: default; }
     .ap-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .3rem; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+    .ap-section-acciones { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
+    /* Separado del switch de familia de Mano de Obra, que va al lado: los dos
+       son pares de botones y juntos se leen como un solo grupo de cuatro. */
+    .ap-unidad-switch { padding-right: .55rem; border-right: 1px solid var(--gray-300); }
+    /* Cantidad con una fórmula escrita en la otra unidad: se sigue leyendo y
+       editando en la suya, así que se marca para que no se confunda con las
+       vecinas (ver unidadDeCelda en js/item.js). */
+    input.celda-otra-unidad { border-style: dashed; }
     .ap-toggle-title { display: inline-flex; align-items: center; gap: .35rem; user-select: none; }
     .ap-chevron { display: inline-block; font-size: .7rem; color: var(--gray-500); transition: transform .15s ease; }
     .ap-toggle-title.expandido .ap-chevron { transform: rotate(90deg); }
@@ -170,7 +178,10 @@
             <span class="card-title u-pointer ap-toggle-title" id="equipos-toggle">
               <span class="ap-chevron" id="equipos-chevron">&#9656;</span> Equipos
             </span>
-            <button class="btn btn-sm btn-primary" id="btn-add-linea-equipo" data-solo-edicion>+ Agregar</button>
+            <span class="ap-section-acciones">
+              <div id="ap-unidad-switch-equipo" class="version-tabs ap-unidad-switch" style="margin-top:0;"></div>
+              <button class="btn btn-sm btn-primary" id="btn-add-linea-equipo" data-solo-edicion>+ Agregar</button>
+            </span>
           </span>
         </div>
         <div class="card-body hidden" id="lineas-equipo"></div>
@@ -180,7 +191,10 @@
         <div class="card-header">
           <span class="ap-section-header" style="width:100%">
             <span class="card-title">Mano de Obra</span>
-            <div id="mo-familia-switch-ap" class="version-tabs" style="margin-top:0;"></div>
+            <span class="ap-section-acciones">
+              <div id="ap-unidad-switch-mo" class="version-tabs ap-unidad-switch" style="margin-top:0;"></div>
+              <div id="mo-familia-switch-ap" class="version-tabs" style="margin-top:0;"></div>
+            </span>
           </span>
         </div>
         <div class="card-body" id="lineas-manoDeObra"></div>
