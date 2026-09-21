@@ -574,9 +574,11 @@ function renderUnidadSwitch() {
   const modo = unidadAP();
   const jh = fmtNum(jornadaHorasActiva());
   wrap.title = `Unidad con la que se cargan y se leen Equipos y Mano de Obra (jornada de ${jh} hs). No cambia ningún dato: todo se guarda en jornadas.`;
-  wrap.innerHTML = 'Equipos y M.O. en ' + [['hs', 'hs'], ['jornada', 'jornadas']]
-    .map(([u, label]) => `<button type="button" class="btn-unidad-ap${u === modo ? ' activa' : ''}" data-unidad="${u}">${label}</button>`)
-    .join('<span>/</span>');
+  wrap.innerHTML = `<span>Equipos y M.O. en</span><span class="ap-unidad-seg">`
+    + [['hs', 'Horas'], ['jornada', 'Jornadas']]
+      .map(([u, label]) => `<button type="button" class="btn-unidad-ap${u === modo ? ' activa' : ''}" data-unidad="${u}">${label}</button>`)
+      .join('')
+    + `</span>`;
   wrap.querySelectorAll('.btn-unidad-ap').forEach(btn => {
     btn.addEventListener('click', () => setUnidadAP(btn.dataset.unidad));
   });

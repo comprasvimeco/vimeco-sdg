@@ -46,13 +46,16 @@
 
     .version-rendimiento { margin-top: .6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .85rem; color: var(--gray-600); }
     .version-rendimiento input { max-width: 140px; }
-    /* Único switch horas/jornadas del A.P., al lado del rendimiento. En texto
-       y no en botones: es una forma de leer la pantalla, no una acción, y en
-       los encabezados de sección competía con los "+ Agregar". */
-    .ap-unidad-mini { margin-left: auto; display: inline-flex; align-items: center; gap: .2rem; font-size: .8rem; color: var(--gray-500); }
-    .ap-unidad-mini button { background: none; border: none; padding: 0 .15rem; font: inherit; color: var(--gray-500); cursor: pointer; }
-    .ap-unidad-mini button:hover { color: var(--primary); text-decoration: underline; }
-    .ap-unidad-mini button.activa { color: var(--primary); font-weight: 600; }
+    /* Único switch horas/jornadas del A.P., al lado del rendimiento. Pastilla
+       de dos segmentos, el mismo lenguaje que el tamaño de hoja de Exportar y
+       la moneda del header: más chica que un par de botones, que en los
+       encabezados de sección competía con los "+ Agregar". */
+    .ap-unidad-mini { margin-left: auto; display: inline-flex; align-items: center; gap: .45rem; font-size: .78rem; color: var(--gray-500); }
+    .ap-unidad-seg { display: inline-flex; border: 1.5px solid var(--gray-300); border-radius: 999px; overflow: hidden; background: var(--white); }
+    .ap-unidad-seg button { border: none; background: none; padding: .2rem .6rem; font-size: .72rem; font-weight: 600; color: var(--gray-500); cursor: pointer; line-height: 1.45; transition: background .12s ease, color .12s ease; }
+    .ap-unidad-seg button + button { border-left: 1.5px solid var(--gray-300); }
+    .ap-unidad-seg button:hover:not(.activa) { background: var(--gray-100); color: var(--primary); }
+    .ap-unidad-seg button.activa { background: var(--primary); color: var(--white); }
 
     .postits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .9rem; }
     .postit { border-radius: var(--radius); box-shadow: 0 2px 8px -3px rgba(26,58,92,.18); padding: .6rem .7rem .7rem; display: flex; flex-direction: column; gap: .5rem; cursor: grab; }
