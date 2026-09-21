@@ -22,9 +22,6 @@
     .ap-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .3rem; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
     .ap-section-acciones { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
-    /* Separado del switch de familia de Mano de Obra, que va al lado: los dos
-       son pares de botones y juntos se leen como un solo grupo de cuatro. */
-    .ap-unidad-switch { padding-right: .55rem; border-right: 1px solid var(--gray-300); }
     /* Cantidad con una fórmula escrita en la otra unidad: se sigue leyendo y
        editando en la suya, así que se marca para que no se confunda con las
        vecinas (ver unidadDeCelda en js/item.js). */
@@ -47,8 +44,15 @@
     .ap-linea-mo:last-child { border-bottom: none; }
     .ap-linea-mo-nombre { font-size: .9rem; color: var(--gray-700); }
 
-    .version-rendimiento { margin-top: .6rem; display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--gray-600); }
+    .version-rendimiento { margin-top: .6rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; font-size: .85rem; color: var(--gray-600); }
     .version-rendimiento input { max-width: 140px; }
+    /* Único switch horas/jornadas del A.P., al lado del rendimiento. En texto
+       y no en botones: es una forma de leer la pantalla, no una acción, y en
+       los encabezados de sección competía con los "+ Agregar". */
+    .ap-unidad-mini { margin-left: auto; display: inline-flex; align-items: center; gap: .2rem; font-size: .8rem; color: var(--gray-500); }
+    .ap-unidad-mini button { background: none; border: none; padding: 0 .15rem; font: inherit; color: var(--gray-500); cursor: pointer; }
+    .ap-unidad-mini button:hover { color: var(--primary); text-decoration: underline; }
+    .ap-unidad-mini button.activa { color: var(--primary); font-weight: 600; }
 
     .postits-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: .9rem; }
     .postit { border-radius: var(--radius); box-shadow: 0 2px 8px -3px rgba(26,58,92,.18); padding: .6rem .7rem .7rem; display: flex; flex-direction: column; gap: .5rem; cursor: grab; }
@@ -179,7 +183,6 @@
               <span class="ap-chevron" id="equipos-chevron">&#9656;</span> Equipos
             </span>
             <span class="ap-section-acciones">
-              <div id="ap-unidad-switch-equipo" class="version-tabs ap-unidad-switch" style="margin-top:0;"></div>
               <button class="btn btn-sm btn-primary" id="btn-add-linea-equipo" data-solo-edicion>+ Agregar</button>
             </span>
           </span>
@@ -192,7 +195,6 @@
           <span class="ap-section-header" style="width:100%">
             <span class="card-title">Mano de Obra</span>
             <span class="ap-section-acciones">
-              <div id="ap-unidad-switch-mo" class="version-tabs ap-unidad-switch" style="margin-top:0;"></div>
               <div id="mo-familia-switch-ap" class="version-tabs" style="margin-top:0;"></div>
             </span>
           </span>

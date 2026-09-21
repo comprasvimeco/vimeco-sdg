@@ -564,22 +564,21 @@ function familiaMODeVersion(v, obraK) {
 // Switch Arquitectura/Vial de la sección Mano de Obra de este A.P. Mismo
 // look que las pestañas de versión de obra (btn-primary = activa) para que
 // se note a simple vista cuál está elegida.
-// Dos botones (hs / jornadas) repetidos en el encabezado de Equipos y en el
-// de Mano de Obra, los dos sobre el mismo estado. No se deshabilita en modo
-// lectura: es una forma de leer, no una edición.
+// El switch hs / jornadas, uno solo para todo el A.P., al lado del
+// rendimiento: Equipos y Mano de Obra se leen siempre en la misma unidad, así
+// que tenerlo repetido en los dos encabezados era decir dos veces lo mismo.
+// No se deshabilita en modo lectura: es una forma de leer, no una edición.
 function renderUnidadSwitch() {
+  const wrap = $('ap-unidad-switch');
+  if (!wrap) return;
   const modo = unidadAP();
   const jh = fmtNum(jornadaHorasActiva());
-  const titulo = `Unidad con la que se cargan y se leen Equipos y Mano de Obra (jornada de ${jh} hs). No cambia ningún dato: todo se guarda en jornadas.`;
-  ['ap-unidad-switch-equipo', 'ap-unidad-switch-mo'].forEach(id => {
-    const wrap = $(id);
-    if (!wrap) return;
-    wrap.title = titulo;
-    wrap.innerHTML = [['hs', 'Horas'], ['jornada', 'Jornadas']].map(([u, label]) => `
-      <button class="btn btn-sm ${u === modo ? 'btn-primary' : 'btn-outline'} btn-unidad-ap" data-unidad="${u}">${label}</button>`).join('');
-    wrap.querySelectorAll('.btn-unidad-ap').forEach(btn => {
-      btn.addEventListener('click', () => setUnidadAP(btn.dataset.unidad));
-    });
+  wrap.title = `Unidad con la que se cargan y se leen Equipos y Mano de Obra (jornada de ${jh} hs). No cambia ningún dato: todo se guarda en jornadas.`;
+  wrap.innerHTML = 'Equipos y M.O. en ' + [['hs', 'hs'], ['jornada', 'jornadas']]
+    .map(([u, label]) => `<button type="button" class="btn-unidad-ap${u === modo ? ' activa' : ''}" data-unidad="${u}">${label}</button>`)
+    .join('<span>/</span>');
+  wrap.querySelectorAll('.btn-unidad-ap').forEach(btn => {
+    btn.addEventListener('click', () => setUnidadAP(btn.dataset.unidad));
   });
 }
 
@@ -1129,7 +1128,9 @@ function renderVersionRendimiento() {
   wrap.classList.remove('hidden');
   wrap.innerHTML = `<span>Rendimiento en esta obra:</span>
     <input type="text" class="form-control" id="rend-obra-input" style="max-width:140px;"${calcAttrs(rendimientoActivo, 'ap:rendimiento', 'Rendimiento')} ${window._soloLectura ? 'disabled' : ''}>
-    <span>${escHtml(unidadItem())}/jornada</span>`;
+    <span>${escHtml(unidadItem())}/jornada</span>
+    <span class="ap-unidad-mini" id="ap-unidad-switch"></span>`;
+  renderUnidadSwitch();
   const input = $('rend-obra-input');
   attachCalcInput(input, rendimientoFormulaActiva);
   attachValorInput(input, rendimientoActivo);
