@@ -724,6 +724,11 @@ async function remapearManoDeObra(lineasCopiadas, obraOrigenKey) {
       extraPctFormula: rolOrigen.extraPctFormula ?? null,
       noRemunerativoMensualFormula: rolOrigen.noRemunerativoMensualFormula ?? null,
       creadoEn: Date.now(),
+      // Último de la lista de esta obra. Sin `orden` cae al final igual, pero
+      // ordenado alfabéticamente entre los otros que tampoco lo tengan (ver
+      // window.rolesOrdenados): con el orden puesto queda donde se lo espera,
+      // abajo de todo, y las flechas de la pantalla Mano de Obra lo mueven.
+      orden: Object.values(rolesDestino).reduce((max, r) => (r.orden != null && r.orden > max ? r.orden : max), 0) + 1,
     };
     await _fbPut(`/obras/${activeVersion}/roles/${nuevaKey}.json`, nuevoRol);
     rolesDestino[nuevaKey] = nuevoRol;
@@ -783,17 +788,24 @@ async function copiarAuxiliarDesdeObra(obraOrigenKey, auxKeyOrigen, cache, enCad
       const base = (itemOrigen.nombre || auxOrigen.nombre || 'aux').toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40);
       nuevoItemKey = base + '_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
-      await _fbPut(`/items/${nuevoItemKey}.json`, {
+      const itemNuevo = {
         nombre: itemOrigen.nombre || auxOrigen.nombre || '',
         unidad: itemOrigen.unidad || auxOrigen.unidad || '',
         creadoEn: Date.now(),
-      });
-      await _fbPut(`/items/${nuevoItemKey}/versionesObra/${activeVersion}.json`, {
+      };
+      const versionNueva = {
         rendimiento: versionOrigen.rendimiento || 1,
         rendimientoFormula: versionOrigen.rendimientoFormula || null,
         lineas: lineasCopiadas,
         familiaMO: familiaMOExplicita(versionOrigen, obraOrigenKey),
-      });
+      };
+      await _fbPut(`/items/${nuevoItemKey}.json`, itemNuevo);
+      await _fbPut(`/items/${nuevoItemKey}/versionesObra/${activeVersion}.json`, versionNueva);
+      // También al caché en memoria: el costo de una línea de auxiliar sale de
+      // recalcular la receta de SU ítem (costoUnitarioAuxiliar, calcCostos.js),
+      // que se busca en `allItemsFull`. Sin esto el auxiliar recién copiado se
+      // ve con nombre y unidad pero sin costo, y recién aparece al recargar.
+      allItemsFull[nuevoItemKey] = { ...itemNuevo, versionesObra: { [activeVersion]: versionNueva } };
     }
   }
   // Sin itemKey en origen (nunca se le cargó AP) o sin receta: se copia igual
@@ -819,6 +831,27 @@ async function copiarAuxiliarDesdeObra(obraOrigenKey, auxKeyOrigen, cache, enCad
   auxiliaresDeObra = auxiliaresDeObra.concat([{ key: nuevaKey, ...nuevoAuxiliar }]);
   auxiliaresPorObra[activeVersion] = auxiliaresDeObra;
   return nuevaKey;
+}
+
+// Las líneas de tipo auxiliar de una receta que se copió de OTRA obra apuntan
+// a una key de /obras/{origen}/auxiliares, que acá no existe: sin esto la
+// línea queda señalando al vacío —sin nombre y sin costo— y el A.P. copiado
+// sale más barato que el original sin avisar. Como un auxiliar es una entidad
+// propia de cada obra, traer la receta es traerse también sus auxiliares, con
+// su propia receta y sus anidados, igual que cuando se elige uno de otra obra
+// a mano (traerAuxiliarDeOtraObra). Devuelve cuántos se crearon acá, contando
+// los anidados, y muta `lineasCopiadas` repuntando cada refKey al nuevo.
+async function copiarAuxiliaresDeLineas(lineasCopiadas, obraOrigenKey) {
+  // Un solo cache/pila para todas las líneas: si dos líneas usan el mismo
+  // auxiliar de origen —o dos auxiliares distintos comparten uno anidado— se
+  // copia una sola vez y las dos apuntan a esa copia.
+  const cache = {};
+  const enCadena = new Set();
+  for (const linea of Object.values(lineasCopiadas)) {
+    if (linea.tipo !== 'auxiliar' || !linea.refKey) continue;
+    linea.refKey = await copiarAuxiliarDesdeObra(obraOrigenKey, linea.refKey, cache, enCadena);
+  }
+  return Object.keys(cache).length;
 }
 
 // Dispara la copia desde el onChange de una línea de auxiliar que eligió una
@@ -861,37 +894,48 @@ async function seleccionarUsarComoBase(value, opciones) {
   // vivo el objeto cacheado de la versión de origen.
   const lineasCopiadas = JSON.parse(JSON.stringify(src.lineas || {}));
   let rolesCreados = 0;
-  if (obraOrigenKey !== activeVersion) {
-    rolesCreados = await remapearManoDeObra(lineasCopiadas, obraOrigenKey);
-  }
-  const data = {
-    rendimiento: src.rendimiento || 1,
-    rendimientoFormula: src.rendimientoFormula || null,
-    lineas: lineasCopiadas,
-    familiaMO: familiaMOExplicita(src, obraOrigenKey),
-    // Queda registrado de dónde salió la receta: se muestra como nota en la
-    // pantalla y sobrevive a la recarga. No condiciona ningún cálculo.
-    baseUsada: { itemNombre: opt.label, obraNombre: opt.sublabel, unidad: opt.unidad || null, copiadoEn: Date.now() },
-  };
+  let auxCopiados = 0;
   try {
-    // PATCH y no PUT: `lineas` se reemplaza entero igual (es un hijo nombrado)
-    // pero no se pierden los campos de la versión que no se están copiando,
-    // como sinSeguridadCapataz.
-    await _fbPatch(`${basePath()}.json`, data);
-    versionesObra[activeVersion] = { ...(versionesObra[activeVersion] || {}), ...data };
-    versionExisteEnServidor = true;
-    lineas = data.lineas;
-    rendimientoActivo = data.rendimiento;
-    rendimientoFormulaActiva = data.rendimientoFormula;
-    baseUsadaActiva = data.baseUsada;
-    familiaMOActiva = familiaMODeVersion(versionesObra[activeVersion], activeVersion);
+    // Traer la receta de otra obra puede escribir bastante más que la receta:
+    // las categorías de Mano de Obra que falten y los auxiliares que use, con
+    // sus propios A.P. Un acto del usuario es un Ctrl+Z, así que todo eso va
+    // agrupado. Raíces null: se toca /items, que es compartido entre obras
+    // (ver CLAUDE.md), y reponer su foto pisaría lo que otro haya agregado.
+    await window.undoAgrupar('Usar otro AP como base', null, async () => {
+      if (obraOrigenKey !== activeVersion) {
+        showToast(`Copiando la receta desde ${opt.sublabel}…`);
+        rolesCreados = await remapearManoDeObra(lineasCopiadas, obraOrigenKey);
+        auxCopiados = await copiarAuxiliaresDeLineas(lineasCopiadas, obraOrigenKey);
+      }
+      const data = {
+        rendimiento: src.rendimiento || 1,
+        rendimientoFormula: src.rendimientoFormula || null,
+        lineas: lineasCopiadas,
+        familiaMO: familiaMOExplicita(src, obraOrigenKey),
+        // Queda registrado de dónde salió la receta: se muestra como nota en la
+        // pantalla y sobrevive a la recarga. No condiciona ningún cálculo.
+        baseUsada: { itemNombre: opt.label, obraNombre: opt.sublabel, unidad: opt.unidad || null, copiadoEn: Date.now() },
+      };
+      // PATCH y no PUT: `lineas` se reemplaza entero igual (es un hijo nombrado)
+      // pero no se pierden los campos de la versión que no se están copiando,
+      // como sinSeguridadCapataz.
+      await _fbPatch(`${basePath()}.json`, data);
+      versionesObra[activeVersion] = { ...(versionesObra[activeVersion] || {}), ...data };
+      versionExisteEnServidor = true;
+      lineas = data.lineas;
+      rendimientoActivo = data.rendimiento;
+      rendimientoFormulaActiva = data.rendimientoFormula;
+      baseUsadaActiva = data.baseUsada;
+      familiaMOActiva = familiaMODeVersion(versionesObra[activeVersion], activeVersion);
+    });
     renderVersionTabs();
     renderVersionRendimiento();
     renderUsarBase();
     renderFamiliaMOSwitch();
     renderTodasLasLineas();
     showToast(`Receta copiada desde "${opt.label}" (${opt.sublabel}).`
-      + (rolesCreados ? ` Se crearon ${rolesCreados} categoría${rolesCreados === 1 ? '' : 's'} de Mano de Obra en esta obra.` : ''));
+      + (rolesCreados ? ` Se crearon ${rolesCreados} categoría${rolesCreados === 1 ? '' : 's'} de Mano de Obra en esta obra.` : '')
+      + (auxCopiados ? ` Se copiaron ${auxCopiados} análisis auxiliar${auxCopiados === 1 ? '' : 'es'} a esta obra.` : ''));
   } catch (_) {
     showToast('Error al copiar la receta. Intentá de nuevo.', 'error');
   }

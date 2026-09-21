@@ -380,12 +380,19 @@ async function deleteRol(rol) {
    Dos cosas independientes, cada una con su casilla: los parámetros generales
    (reemplazan a los de esta obra) y los roles con sus básicos. Un rol que ya
    existe acá con el mismo nombre se actualiza con los valores de la obra
-   origen — no se duplica la categoría. */
+   origen — no se duplica la categoría.
+
+   Con los roles viaja también cómo se ven: el orden de las categorías queda
+   igual al de la obra origen (no sólo el de las que se agregan) y la familia
+   que estaba activa allá queda activa acá. Importar es copiar la Mano de Obra
+   de esa obra, y media copia —los mismos roles pero en otro orden y en la
+   otra familia— obliga a rehacer a mano lo que se quiso evitar. */
 
 let obrasParaImportar = null;   // cache: [{key, nombre}] — todas menos la actual
 let importarMoSelect = null;
 let paramsOrigen = null;        // paramsMO de la obra elegida, o null
 let rolesOrigen = null;         // { key: rol } de la obra elegida, o null
+let familiaOrigen = null;       // obra.familiaMO de la obra elegida, o null
 
 function resumenParams(p) {
   const partes = [
@@ -403,6 +410,7 @@ async function abrirModalImportarMo() {
   $('importar-mo-confirmar').disabled = true;
   paramsOrigen = null;
   rolesOrigen = null;
+  familiaOrigen = null;
   ['importar-mo-params', 'importar-mo-roles'].forEach(id => {
     $(id).checked = true;
     $(id).disabled = true;
@@ -436,10 +444,15 @@ async function onElegirObraOrigenMo(obraOrigenKey) {
   $('importar-mo-params-info').textContent = 'Buscando…';
   $('importar-mo-roles-info').textContent = '';
 
-  const [pData, rData] = await Promise.all([
+  const [pData, rData, fData] = await Promise.all([
     _fbGet(`/obras/${obraOrigenKey}/paramsMO.json`),
     _fbGet(`/obras/${obraOrigenKey}/roles.json`),
+    _fbGet(`/obras/${obraOrigenKey}/familiaMO.json`),
   ]);
+  // Sólo si la obra origen la tiene elegida de verdad: una obra que nunca tocó
+  // el switch no tiene nada guardado, y ahí no hay familia que importar — se
+  // deja la de esta obra en lugar de mandarla a Arquitectura por descarte.
+  familiaOrigen = (fData === 'vial' || fData === 'arquitectura') ? fData : null;
 
   paramsOrigen = pData || null;
   $('importar-mo-params').disabled = !paramsOrigen;
@@ -459,7 +472,12 @@ async function onElegirObraOrigenMo(obraOrigenKey) {
     const partes = [];
     if (nuevos) partes.push(`${nuevos} se agrega${nuevos === 1 ? '' : 'n'}`);
     if (pisan)  partes.push(`${pisan} pisa${pisan === 1 ? '' : 'n'} al rol que ya tiene esta obra`);
-    $('importar-mo-roles-info').textContent = `${listaOrigen.length} rol${listaOrigen.length === 1 ? '' : 'es'}: ${partes.join(', ')}.`;
+    const extra = [
+      'quedan en el orden de esa obra',
+      familiaOrigen ? `se activa ${familiaOrigen === 'vial' ? 'Vial' : 'Arquitectura'}` : '',
+    ].filter(Boolean).join(' y ');
+    $('importar-mo-roles-info').textContent =
+      `${listaOrigen.length} rol${listaOrigen.length === 1 ? '' : 'es'}: ${partes.join(', ')}. Además ${extra}.`;
   } else {
     $('importar-mo-roles-info').textContent = 'Esa obra no tiene roles cargados.';
   }
@@ -490,17 +508,28 @@ async function confirmarImportarMo() {
 
   try {
     if (traerRoles) {
-      // Los que se agregan van al final, en el orden que tienen en la obra
-      // origen. A los que ya están acá no se les toca el orden: el de esta
-      // obra manda.
       await asegurarOrden();
-      let orden = ultimoOrden();
       const porNombre = {};
       allRoles.forEach(r => { porNombre[normNombre(r.nombre)] = r.key; });
       const listaOrigen = window.rolesOrdenados(
         Object.entries(rolesOrigen).map(([key, r]) => ({ key, ...r })));
 
-      listaOrigen.forEach(r => {
+      // Primero a qué key de esta obra va cada rol de origen, y recién después
+      // se escribe: para numerar el orden de corrido hay que conocer también
+      // la key de los que todavía no existen acá.
+      const destinos = listaOrigen.map(r => {
+        const existente = porNombre[normNombre(r.nombre)];
+        return { r, existente, key: existente || (esRolFijo(r.key) ? r.key : keyDeRol(r.nombre)) };
+      });
+
+      // El orden de la obra origen, tal cual. Las categorías que sólo tiene
+      // esta obra no se pierden: van después, en el orden que ya tenían.
+      const ordenNuevo = {};
+      let orden = 0;
+      destinos.forEach(d => { if (ordenNuevo[d.key] == null) ordenNuevo[d.key] = ++orden; });
+      allRoles.forEach(r => { if (ordenNuevo[r.key] == null) ordenNuevo[r.key] = ++orden; });
+
+      destinos.forEach(({ r, existente, key }) => {
         const data = {
           nombre: r.nombre,
           basico: r.basico ?? null,
@@ -510,23 +539,45 @@ async function confirmarImportarMo() {
           basicoFormula: r.basicoFormula ?? null,
           extraPctFormula: r.extraPctFormula ?? null,
           noRemunerativoMensualFormula: r.noRemunerativoMensualFormula ?? null,
+          orden: ordenNuevo[key],
         };
-        const existente = porNombre[normNombre(r.nombre)];
         cuantosRoles++;
         // PATCH por rol (no PUT del árbol de roles): el nodo de un rol que ya
-        // está acá tiene campos propios — creadoEn, orden, y ya tiene su
-        // familia bien puesta — no hay que perder ninguno.
+        // está acá tiene campos propios — creadoEn, y ya tiene su familia bien
+        // puesta — no hay que perder ninguno.
         if (existente) tareas.push(_fbPatch(`/obras/${obraKey}/roles/${existente}.json`, data));
-        else {
-          const key = esRolFijo(r.key) ? r.key : keyDeRol(r.nombre);
-          tareas.push(_fbPut(`/obras/${obraKey}/roles/${key}.json`, { ...data, familia: r.familia || 'arquitectura', creadoEn: Date.now(), orden: ++orden }));
+        else tareas.push(_fbPut(`/obras/${obraKey}/roles/${key}.json`, { ...data, familia: r.familia || 'arquitectura', creadoEn: Date.now() }));
+      });
+
+      // Los que sólo tiene esta obra quedaron corridos hacia abajo: se les
+      // reacomoda el orden en un solo PATCH multi-path, que no toca nada más
+      // del nodo de cada rol (básico, fórmulas, creadoEn).
+      const corridos = {};
+      allRoles.forEach(r => {
+        if (ordenNuevo[r.key] !== r.orden && !destinos.some(d => d.key === r.key)) {
+          corridos[`${r.key}/orden`] = ordenNuevo[r.key];
         }
       });
+      if (Object.keys(corridos).length) tareas.push(_fbPatch(`/obras/${obraKey}/roles.json`, corridos));
+
+      // La familia activa es parte de cómo quedó armada la Mano de Obra de esa
+      // obra, y además es la que arrancan usando los A.P. de esta obra que no
+      // tienen Mano de Obra cargada (ver guardarFamiliaObra).
+      if (familiaOrigen && familiaOrigen !== (obra && obra.familiaMO)) {
+        tareas.push(_fbPatch(`/obras/${obraKey}.json`, { familiaMO: familiaOrigen }));
+      }
     }
     await Promise.all(tareas);
     if (nuevosParams) {
       paramsMO = nuevosParams;
       fillParamsForm();
+    }
+    let familiaCambiada = false;
+    if (traerRoles && familiaOrigen && familiaOrigen !== familiaActiva) {
+      familiaActiva = familiaOrigen;
+      obra = { ...(obra || {}), familiaMO: familiaOrigen };
+      renderFamiliaSwitch();
+      familiaCambiada = true;
     }
     if (traerRoles) await loadRoles(); else applyFilter();
     cerrarModalImportarMo();
@@ -534,7 +585,8 @@ async function confirmarImportarMo() {
       traerParams ? 'Parámetros' : '',
       cuantosRoles ? `${cuantosRoles} rol${cuantosRoles === 1 ? '' : 'es'}` : '',
     ].filter(Boolean).join(' y ');
-    showToast(`${que} importado${traerParams && cuantosRoles ? 's' : ''}.`);
+    showToast(`${que} importado${traerParams && cuantosRoles ? 's' : ''}.`
+      + (familiaCambiada ? ` Se activó ${familiaOrigen === 'vial' ? 'Vial' : 'Arquitectura'}.` : ''));
   } catch (_) {
     showToast('Error al importar.', 'error');
   } finally {
