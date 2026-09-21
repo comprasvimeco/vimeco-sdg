@@ -42,9 +42,16 @@
     'convertirlos ni sumarles ni restarles IVA. Si una línea muestra el importe pero no el precio ' +
     'unitario, devolvé sólo el importe y dejá el precio unitario vacío (no lo calcules vos). No ' +
     'inventes ítems ni montos que no estén en el documento, y no te saltees ningún ítem aunque la ' +
-    'cantidad o los montos no figuren (dejalos vacíos en ese caso). Si el documento no es un ' +
-    'cómputo o presupuesto de obra o no se puede leer, devolvé "rubros" como un array vacío.';
+    'cantidad o los montos no figuren (devolvé null en ese campo, nunca 0). Si el documento no es ' +
+    'un cómputo o presupuesto de obra o no se puede leer, devolvé "rubros" como un array vacío.';
 
+  /* Los campos numéricos van `required` + `nullable`, no opcionales: con
+     `required: ['nombre']` el modelo devolvía sólo nombre y unidad de cada
+     ítem y se comía cantidad y precios de la tabla (verificado 2026-09-21
+     contra un pliego de 24 ítems: 0 de 24 con precio; con este schema, 24 de
+     24 exactos). `nullable` es lo que evita el efecto de costado: obligado a
+     escribir el campo pero sin nullable, una celda vacía del documento vuelve
+     como 0 y entraría al cómputo como cantidad o precio oficial cero. */
   const GEMINI_SCHEMA = {
     type: 'OBJECT',
     properties: {
@@ -60,21 +67,21 @@
                 type: 'OBJECT',
                 properties: {
                   nombre: { type: 'STRING' },
-                  unidad: { type: 'STRING' },
-                  cantidad: { type: 'NUMBER' },
-                  precioUnitario: { type: 'NUMBER' },
-                  importe: { type: 'NUMBER' },
+                  unidad: { type: 'STRING', nullable: true },
+                  cantidad: { type: 'NUMBER', nullable: true },
+                  precioUnitario: { type: 'NUMBER', nullable: true },
+                  importe: { type: 'NUMBER', nullable: true },
                 },
-                required: ['nombre'],
+                required: ['nombre', 'unidad', 'cantidad', 'precioUnitario', 'importe'],
               },
             },
           },
           required: ['nombre', 'items'],
         },
       },
-      totalPresupuesto: { type: 'NUMBER' },
+      totalPresupuesto: { type: 'NUMBER', nullable: true },
     },
-    required: ['rubros'],
+    required: ['rubros', 'totalPresupuesto'],
   };
 
   let state = null; // { file, rubros: [{ rubroRowId, nombre, items: [{ itemRowId, nombre, unidad, cantidad, precioOficial }] }], totalDetectado, nextRubroId, nextItemId }
@@ -189,13 +196,25 @@
   /* Precio unitario oficial de un ítem. Si el documento lo imprime, se copia
      tal cual. Si sólo trae el importe de la línea, se despeja dividiendo por
      la cantidad (decisión del dueño del proyecto) — redondeado a 2 decimales
-     como todo precio unitario del Presupuesto (ver window.round2). */
+     como todo precio unitario del Presupuesto (ver window.round2).
+
+     La línea del documento trae los tres números, así que se controlan entre
+     ellos: si el unitario leído no multiplica al importe, el que se cree es
+     el importe (leer mal un dígito del unitario es el error típico de OCR, y
+     el importe lo desmiente). Devuelve { precio, corregido } para poder
+     avisarlo en la revisión. */
   function precioOficialDe(it, cantidad) {
     const unitario = numeroONull(it.precioUnitario);
-    if (unitario != null) return unitario;
     const importe = numeroONull(it.importe);
-    if (importe == null || !cantidad) return null;
-    return window.round2(importe / cantidad);
+    const despejado = importe != null && cantidad ? window.round2(importe / cantidad) : null;
+    if (unitario == null) return { precio: despejado, corregido: false };
+    // Tolerancia: el unitario impreso viene redondeado a 2 decimales, así que
+    // el producto puede diferir del importe hasta medio centavo por unidad.
+    const tolerancia = Math.abs(cantidad) * 0.005 + 0.5;
+    if (despejado != null && Math.abs(unitario * cantidad - importe) > tolerancia) {
+      return { precio: despejado, corregido: true };
+    }
+    return { precio: unitario, corregido: false };
   }
 
   function estadoDesdeExtraccion(extraido) {
@@ -207,15 +226,47 @@
         nombre: r.nombre || '',
         items: (r.items || []).filter(it => it && it.nombre).map(it => {
           const cantidad = numeroONull(it.cantidad);
+          const oficial = precioOficialDe(it, cantidad);
           return {
             itemRowId: state.nextItemId++,
             nombre: it.nombre || '',
             unidad: it.unidad || '',
             cantidad,
-            precioOficial: precioOficialDe(it, cantidad),
+            precioOficial: oficial.precio,
+            precioCorregido: oficial.corregido, // sólo para el aviso de la revisión
           };
         }),
       }));
+  }
+
+  /* Qué se sacó del documento, para que el usuario sepa dónde mirar antes de
+     confirmar. Además de contar ítems y precios, cruza la suma de las líneas
+     contra el total detectado: si no cierran, o se perdió un ítem en la
+     lectura, o el total del documento no es la suma (típico: lleva IVA). */
+  function resumenExtraccion() {
+    const items = state.rubros.flatMap(r => r.items);
+    const conPrecio = items.filter(it => it.precioOficial != null).length;
+    const corregidos = items.filter(it => it.precioCorregido).length;
+
+    let txt = `Se detectaron ${state.rubros.length} rubro(s) con ${items.length} ítem(s), ` +
+      `${conPrecio} con precio oficial`;
+    if (corregidos) {
+      txt += ` (${corregidos} recalculado(s) desde el importe de la línea porque el unitario ` +
+        `impreso no cerraba)`;
+    }
+    txt += ' — revisá y corregí antes de confirmar.';
+    let html = escHtml(txt);
+
+    const completos = items.length && items.every(it => it.cantidad != null && it.precioOficial != null);
+    if (completos && state.totalDetectado) {
+      const suma = items.reduce((acc, it) => acc + it.cantidad * it.precioOficial, 0);
+      if (Math.abs(suma - state.totalDetectado) > Math.abs(state.totalDetectado) * 0.01) {
+        html += `<br><strong>La suma de los ítems da ${escHtml(fmtARS(suma))} y el total del ` +
+          `documento dice ${escHtml(fmtARS(state.totalDetectado))}</strong> — fijate si falta ` +
+          `algún ítem o si ese total incluye IVA.`;
+      }
+    }
+    return html;
   }
 
   /* Campo del total oficial. Si la obra ya tiene uno cargado en Datos de obra
@@ -268,11 +319,8 @@
     if (extraido) {
       state.rubros = estadoDesdeExtraccion(extraido);
       state.totalDetectado = numeroONull(extraido.totalPresupuesto);
-      const totalItems = state.rubros.reduce((acc, r) => acc + r.items.length, 0);
-      const conPrecio = state.rubros.reduce((acc, r) => acc + r.items.filter(it => it.precioOficial != null).length, 0);
-      hintEl.textContent = state.rubros.length
-        ? `Se detectaron ${state.rubros.length} rubro(s) con ${totalItems} ítem(s), ${conPrecio} con precio oficial — revisá y corregí antes de confirmar.`
-        : 'No se detectó ningún rubro automáticamente — cargalos a mano.';
+      if (state.rubros.length) hintEl.innerHTML = resumenExtraccion();
+      else hintEl.textContent = 'No se detectó ningún rubro automáticamente — cargalos a mano.';
     } else {
       hintEl.textContent = 'No se pudo leer el presupuesto con IA — cargá el cómputo a mano.';
     }
