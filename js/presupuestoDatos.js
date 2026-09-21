@@ -271,10 +271,13 @@
       ? `${e.tipo || ''}${e.potencia ? ` ${e.potencia} HP` : ''}`.trim()
       : (e.nombre || '');
 
-    function filas(tipo) {
-      return Object.entries(lineasItem)
-        .filter(([, l]) => l.tipo === tipo)
+    // Las líneas salen en el orden que el usuario les dio en el A.P (flechas
+    // ↑/↓ y arrastre, campo `orden`) — window.lineasApOrdenadas es la misma
+    // función que usa la pantalla, así el documento sale igual a lo que se ve.
+    function filas(...tipos) {
+      return window.lineasApOrdenadas(lineasItem, tipos)
         .map(([lineaKey, l]) => {
+          const tipo = l.tipo;
           const cat = tipo === 'material' ? modelo.catalogos.materiales
             : tipo === 'equipo' ? modelo.catalogos.equipos
             : tipo === 'auxiliar' ? modelo.catalogos.auxiliares
@@ -322,9 +325,9 @@
       equipos: filas('equipo'),
       manoDeObra,
       // Un auxiliar usado como insumo aparece dentro de "Materiales" (mismo
-      // bolsón de costo C, ver calcCostos.js) — se agrega al final, después de
-      // los materiales propios de la receta.
-      materiales: filas('material').concat(filas('auxiliar')),
+      // bolsón de costo C, ver calcCostos.js), intercalado entre ellos en la
+      // posición que el usuario le dio — es una fila más de esa sección.
+      materiales: filas('material', 'auxiliar'),
       costoDiarioEquipos: r.costoDiarioEquipos,
       costoUnitarioEquipos: r.costoUnitarioEquipos,
       costoDiarioSeguridadCapataz: r.costoDiarioSeguridadCapataz,

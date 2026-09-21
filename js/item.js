@@ -1240,6 +1240,87 @@ async function toggleSinSeguridadCapataz(excluir) {
   }
 }
 
+/* ===== Orden de las líneas dentro de una sección =====
+   Materiales y Equipos se ordenan a mano, con las flechas ↑/↓ o arrastrando
+   la fila — mismo gesto que el Cómputo o los conceptos de Carga Fija. Cada
+   sección lleva su propia secuencia en el campo `orden` de la línea (la de
+   Materiales incluye a los auxiliares usados como insumo, que se ven ahí
+   mismo). Mano de Obra no entra: sus filas son las categorías del catálogo de
+   la obra, y su orden se define en esa pantalla (window.rolesOrdenados).
+
+   Las recetas viejas no tienen `orden`: se siguen viendo como antes (ver
+   window.lineasApOrdenadas) y se numeran enteras la primera vez que se mueve
+   algo, así no queda media lista con orden y media sin. */
+const TIPOS_DE_SECCION = { material: ['material', 'auxiliar'], equipo: ['equipo'] };
+
+function entradasSeccion(tipo) {
+  return window.lineasApOrdenadas(lineas, TIPOS_DE_SECCION[tipo] || [tipo]);
+}
+
+// Renumera de 1 a n las líneas de la sección y guarda. Un solo PUT de la
+// receta (persistLineas), así mover una línea es un solo paso de Ctrl+Z.
+function persistirOrdenSeccion(keysEnOrden) {
+  let huboCambio = false;
+  keysEnOrden.forEach((key, i) => {
+    if (!lineas[key]) return;
+    if (lineas[key].orden !== i + 1) huboCambio = true;
+    lineas[key] = { ...lineas[key], orden: i + 1 };
+  });
+  if (!huboCambio) return;
+  renderTodasLasLineas();
+  persistLineas();
+}
+
+function moverLineaAp(tipo, lineaKey, dir) {
+  if (guardBloqueoObra()) return;
+  const keys = entradasSeccion(tipo).map(([k]) => k);
+  const idx = keys.indexOf(lineaKey);
+  const otro = idx + dir;
+  if (idx < 0 || otro < 0 || otro >= keys.length) return;
+  [keys[idx], keys[otro]] = [keys[otro], keys[idx]];
+  persistirOrdenSeccion(keys);
+}
+
+function persistirOrdenDesdeDom(container) {
+  if (guardBloqueoObra()) return;
+  persistirOrdenSeccion([...container.querySelectorAll('.ap-linea[data-key]')].map(row => row.dataset.key));
+}
+
+/* Arrastrar para reordenar, igual que en Carga Fija y Datos de obra: el
+   contenedor escucha `dragover` una sola vez (el nodo no se recrea entre
+   renders, sólo su innerHTML) y va moviendo la fila arrastrada en el DOM para
+   el feedback visual; recién en `dragend` se lee el orden final del DOM y se
+   persiste. */
+let draggedApKey = null;
+
+function filaApDespuesDe(container, y) {
+  const filas = [...container.querySelectorAll('.ap-linea[data-key]:not(.dragging)')];
+  return filas.reduce((masCercana, fila) => {
+    const box = fila.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > masCercana.offset) return { offset, elemento: fila };
+    return masCercana;
+  }, { offset: -Infinity, elemento: null }).elemento;
+}
+
+function engancharDragSeccion(tipo, container) {
+  if (container.dataset.dragEnganchado) return;
+  container.dataset.dragEnganchado = '1';
+  container.addEventListener('dragover', e => {
+    if (!draggedApKey || !lineas[draggedApKey]) return;
+    // Una fila sólo se puede soltar en su propia sección: un material no es
+    // un equipo, y cada sección numera su `orden` por separado.
+    if ((TIPOS_DE_SECCION[tipo] || []).indexOf(lineas[draggedApKey].tipo) < 0) return;
+    e.preventDefault();
+    const dragging = container.querySelector('.ap-linea.dragging');
+    if (!dragging) return;
+    const despuesDe = filaApDespuesDe(container, e.clientY);
+    // Soltar al final es antes de los subtotales de la sección, que están en
+    // el mismo contenedor y tienen que quedar siempre abajo de todo.
+    container.insertBefore(dragging, despuesDe || container.querySelector('.ap-subtotal-linea'));
+  });
+}
+
 function renderLineasSeccion(tipo, r) {
   const container = $(`lineas-${tipo}`);
   const cat = catalogoFor(tipo);
@@ -1247,8 +1328,7 @@ function renderLineasSeccion(tipo, r) {
   // tipo 'auxiliar' — un auxiliar usado como insumo se comporta como un
   // material (cantidad fija por unidad de ítem, mismo bolsón de costo C) pero
   // tiene su propio catálogo/selector, ver renderTodasLasLineas.
-  const entradas = Object.entries(lineas)
-    .filter(([, l]) => l.tipo === tipo || (tipo === 'material' && l.tipo === 'auxiliar'));
+  const entradas = entradasSeccion(tipo);
 
   // Equipos: desplegable, colapsado por defecto (la mayoría de los ítems no
   // llevan). Se abre solo mientras haya al menos una línea cargada, o si el
@@ -1267,18 +1347,23 @@ function renderLineasSeccion(tipo, r) {
     html += '<p class="text-muted" style="font-size:.85rem;">No hay catálogo cargado para este tipo.</p>';
   } else {
     html += `<div class="ap-linea ap-linea-header con-costo"><span></span><span>${tituloCantidad}</span><span>Costo unitario</span><span>Costo total</span><span></span></div>`;
-    html += entradas.map(([lineaKey, l]) => {
+    html += entradas.map(([lineaKey, l], idx) => {
       const d = detallePorLineaActivo[lineaKey];
       const conBadge = tipo === 'material' || l.tipo === 'auxiliar';
+      const ro = !!window._soloLectura;
       return `
-        <div class="ap-linea con-costo" data-key="${escHtml(lineaKey)}">
+        <div class="ap-linea con-costo" data-key="${escHtml(lineaKey)}" draggable="${ro ? 'false' : 'true'}">
           <div class="linea-select-wrap">
             <div class="linea-select-container"></div>
             ${conBadge ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
-          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}" ${window._soloLectura ? 'disabled' : ''}>
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}" ${ro ? 'disabled' : ''}>
           <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(porJornada ? costoVista(d.costoUnitario, unidadDeCelda(l)) : d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d && d.costoTotal != null ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d && d.costoTotal != null ? fmtARS(d.costoTotal) : '—'}</span>
-          <button class="ap-linea-del" title="Eliminar línea" ${window._soloLectura ? 'disabled' : ''}>${icSvg('x')}</button>
+          <span class="ap-linea-acciones">
+            <button class="ap-linea-mover" data-dir="-1" title="Subir" ${idx === 0 || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+            <button class="ap-linea-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+            <button class="ap-linea-del" title="Eliminar línea" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
+          </span>
         </div>`;
     }).join('');
   }
@@ -1289,10 +1374,18 @@ function renderLineasSeccion(tipo, r) {
          <div class="ap-subtotal-linea total"><span>Costo unitario de Equipos (A)</span><span${calcAttrs(r.costoUnitarioEquipos, 'ap:costoUnitarioEquipos', 'Costo unitario de Equipos (A)')}>${fmtARS(r.costoUnitarioEquipos)}</span></div>`;
   }
   container.innerHTML = html;
+  engancharDragSeccion(tipo, container);
 
   container.querySelectorAll('.ap-linea[data-key]').forEach(row => {
     const lineaKey = row.dataset.key;
     const linea = lineas[lineaKey];
+
+    row.addEventListener('dragstart', () => { draggedApKey = lineaKey; row.classList.add('dragging'); });
+    row.addEventListener('dragend', () => {
+      row.classList.remove('dragging');
+      draggedApKey = null;
+      persistirOrdenDesdeDom(container);
+    });
     // Cada línea de la sección Materiales resuelve su PROPIO catálogo/tipo —
     // una fila puede ser 'material' o 'auxiliar' aunque las dos vivan en la
     // misma sección visual (ver el filtro de `entradas` más arriba).
@@ -1395,6 +1488,9 @@ function renderLineasSeccion(tipo, r) {
       updateLinea(lineaKey, { cantidad: n, cantidadFormula: formula, cantidadUnidad: unidadFormulaAGuardar(formula, unidadCelda) });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
+    row.querySelectorAll('.ap-linea-mover').forEach(btn => {
+      btn.addEventListener('click', () => moverLineaAp(tipo, lineaKey, parseInt(btn.dataset.dir, 10)));
+    });
     row.querySelector('.ap-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
   });
 }
@@ -1567,7 +1663,14 @@ function addLinea(tipo) {
     return;
   }
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const seccion = tipo === 'equipo' ? 'equipo' : 'material';
+  const yaEnOrden = entradasSeccion(seccion).map(([k]) => k);
   lineas[lineaKey] = { tipo, refKey: null, cantidad: null };
+  // Va última de su sección (la de Materiales incluye a los auxiliares, ver
+  // entradasSeccion). Se numera la sección entera y no sólo la nueva: en una
+  // receta vieja sin `orden`, darle un 1 a la nueva la mandaría al principio,
+  // porque las que no lo tienen van después (window.lineasApOrdenadas).
+  [...yaEnOrden, lineaKey].forEach((k, i) => { lineas[k] = { ...lineas[k], orden: i + 1 }; });
   renderTodasLasLineas();
   persistLineas();
 }

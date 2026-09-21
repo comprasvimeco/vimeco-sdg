@@ -325,6 +325,26 @@ window.lineasCargaFijaOrdenadas = function (lineas) {
   });
 };
 
+// Líneas de la receta de un A.P. (Materiales o Equipos) como [[key, linea], …]
+// en el orden en que se ven en pantalla: por el campo `orden` (flechas ↑/↓ y
+// arrastre, ver js/item.js). `tipos` es la sección — la de Materiales lleva
+// las líneas de tipo 'material' y las de 'auxiliar' juntas, compartiendo una
+// misma secuencia, igual que en pantalla. Las recetas cargadas antes de que
+// existiera `orden` van al final por su key, que empieza con el timestamp de
+// creación: el mismo orden que RTDB venía devolviendo. Lo usan el A.P y la
+// exportación, para que el documento salga como el usuario armó la receta.
+window.lineasApOrdenadas = function (lineas, tipos) {
+  return Object.entries(lineas || {})
+    .filter(([, l]) => tipos.indexOf(l.tipo) >= 0)
+    .sort(([ka, a], [kb, b]) => {
+      const oa = a.orden, ob = b.orden;
+      if (oa != null && ob != null && oa !== ob) return oa - ob;
+      if (oa != null && ob == null) return -1;
+      if (oa == null && ob != null) return 1;
+      return ka < kb ? -1 : ka > kb ? 1 : 0;
+    });
+};
+
 // Roles de mano de obra en el orden que les dio el usuario en la pantalla de
 // Mano de Obra de la obra (flechas ↑/↓). Los que todavía no tienen `orden`
 // —obras cargadas antes de que existiera— van al final por nombre, que es
