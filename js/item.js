@@ -218,13 +218,10 @@ function costoVista(costoDiario, unidad) {
 // que "Cantidad" y entra en el ancho de la columna.
 const UNIDAD_LABEL = () => (unidadAP() === 'hs' ? 'Horas' : 'Jornadas');
 
-// Con qué unidad se lee y se escribe UNA celda. Normalmente la del switch,
-// pero una cantidad cargada con una fórmula queda anclada a la unidad en la
-// que se escribió esa fórmula (cantidadUnidad, mismo criterio que
-// precioFormulaMoneda en materiales): reinterpretar "=2*4" en la otra unidad
-// porque alguien movió el switch multiplicaría la cantidad por la jornada
-// sola, y encima en silencio.
-function unidadDeCelda(linea) {
+// La unidad en la que se escribió la fórmula de una cantidad (cantidadUnidad,
+// mismo criterio que precioFormulaMoneda en materiales). Sin fórmula no hay
+// nada que anclar: el número se lee en la unidad del switch.
+function unidadFormulaDe(linea) {
   if (linea && linea.cantidadFormula) return linea.cantidadUnidad === 'hs' ? 'hs' : 'jornada';
   return unidadAP();
 }
@@ -236,11 +233,50 @@ function unidadFormulaAGuardar(formula, unidadCelda) {
   return formula && unidadCelda === 'hs' ? 'hs' : null;
 }
 
+/* ===== Qué mide cada celda referenciable, para convertir una fórmula =====
+
+   Una fórmula no se lee igual en las dos unidades, pero tampoco alcanza con
+   multiplicarla entera por la jornada: hay términos que ya se convierten
+   solos. js/unidadFormula.js hace la conversión término a término y necesita
+   saber qué mide cada celda referenciada — acá está esa tabla, que es lo único
+   de todo esto que sabe de A.P.
+
+   +1 = una cantidad de tiempo (se lee 2 en jornadas y 16 en horas).
+   -1 = algo POR unidad de tiempo (un costo diario pasa a costo por hora).
+    0 = no depende del switch: el rendimiento (que siempre es por jornada), un
+        costo total, los subtotales, y cualquier celda de otra pantalla. */
+function gradoDeTiempoRef(id) {
+  if (/^ap:(linea|mo):.+:cantidad$/.test(id)) return 1;
+  if (/^ap:(linea|mo):.+:costoUnit$/.test(id)) return -1;
+  if (id === 'ap:costoDiarioEquipos' || id === 'ap:costoDiarioMO') return -1;
+  return 0;
+}
+
+// Cómo se muestra y se edita la cantidad de UNA línea con el switch donde
+// está hoy: la fórmula reescrita en la unidad de la vista, y la unidad en la
+// que finalmente quedó esa celda.
+//
+// Si la fórmula no se puede convertir (ver unidadFormula.js: no parsea, o no
+// es una cantidad de tiempo, como "=[A · Cantidad]*[B · Cantidad]") la celda
+// queda anclada a su unidad original y se avisa, que es preferible a
+// convertirla mal en silencio.
+function vistaDeCantidad(linea) {
+  const uFormula = unidadFormulaDe(linea);
+  const destino = unidadAP();
+  const formula = linea && linea.cantidadFormula;
+  if (!formula || uFormula === destino) return { formula: formula || null, unidad: destino, anclada: false };
+  const convertida = window.convertirFormulaUnidad
+    ? window.convertirFormulaUnidad(formula, jornadaHorasActiva(), destino === 'hs', gradoDeTiempoRef)
+    : null;
+  if (convertida == null) return { formula, unidad: uFormula, anclada: true };
+  return { formula: convertida, unidad: destino, anclada: false };
+}
+
 function avisoOtraUnidad(unidadCelda) {
   if (unidadCelda === unidadAP()) return '';
   return unidadCelda === 'hs'
-    ? `Esta cantidad está cargada con una fórmula escrita en horas, así que se sigue leyendo y editando en horas.`
-    : `Esta cantidad está cargada con una fórmula escrita en jornadas, así que se sigue leyendo y editando en jornadas.`;
+    ? `Esta fórmula no se puede reescribir en jornadas, así que se sigue leyendo y editando en horas.`
+    : `Esta fórmula no se puede reescribir en horas, así que se sigue leyendo y editando en jornadas.`;
 }
 
 
@@ -573,7 +609,7 @@ function renderUnidadSwitch() {
   if (!wrap) return;
   const modo = unidadAP();
   const jh = fmtNum(jornadaHorasActiva());
-  wrap.title = `Unidad con la que se cargan y se leen Equipos y Mano de Obra (jornada de ${jh} hs). No cambia ningún dato: todo se guarda en jornadas.`;
+  wrap.title = `Unidad con la que se cargan y se leen Equipos y Mano de Obra (jornada de ${jh} hs). No cambia ningún dato: todo se guarda en jornadas, y las fórmulas se reescriben para la unidad elegida.`;
   wrap.innerHTML = `<span>Equipos y M.O. en</span><span class="ap-unidad-seg">`
     + [['hs', 'Horas'], ['jornada', 'Jornadas']]
       .map(([u, label]) => `<button type="button" class="btn-unidad-ap${u === modo ? ' activa' : ''}" data-unidad="${u}">${label}</button>`)
@@ -1351,6 +1387,11 @@ function renderLineasSeccion(tipo, r) {
       const d = detallePorLineaActivo[lineaKey];
       const conBadge = tipo === 'material' || l.tipo === 'auxiliar';
       const ro = !!window._soloLectura;
+      // El costo unitario se muestra Y se referencia en la unidad de la celda
+      // de cantidad de su propia línea, así "cantidad × costo unitario = costo
+      // total" se sigue leyendo derecho aunque esa celda quedara anclada.
+      const uCelda = porJornada ? vistaDeCantidad(l).unidad : 'jornada';
+      const costoUnitVista = d ? (porJornada ? costoVista(d.costoUnitario, uCelda) : d.costoUnitario) : null;
       return `
         <div class="ap-linea con-costo" data-key="${escHtml(lineaKey)}" draggable="${ro ? 'false' : 'true'}">
           <div class="linea-select-wrap">
@@ -1358,7 +1399,7 @@ function renderLineasSeccion(tipo, r) {
             ${conBadge ? '<span class="linea-unidad-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}" ${ro ? 'disabled' : ''}>
-          <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(d.costoUnitario, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(porJornada ? costoVista(d.costoUnitario, unidadDeCelda(l)) : d.costoUnitario) : '—'}</button><span class="ap-linea-costo-total"${d && d.costoTotal != null ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d && d.costoTotal != null ? fmtARS(d.costoTotal) : '—'}</span>
+          <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(costoUnitVista, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(costoUnitVista) : '—'}</button><span class="ap-linea-costo-total"${d && d.costoTotal != null ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d && d.costoTotal != null ? fmtARS(d.costoTotal) : '—'}</span>
           <span class="ap-linea-acciones">
             <button class="ap-linea-mover" data-dir="-1" title="Subir" ${idx === 0 || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
             <button class="ap-linea-mover" data-dir="1" title="Bajar" ${idx === entradas.length - 1 || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
@@ -1370,7 +1411,7 @@ function renderLineasSeccion(tipo, r) {
   if (r) {
     html += tipo === 'material'
       ? `<div class="ap-subtotal-linea total"><span>Costo unitario de Materiales (C)</span><span${calcAttrs(r.costoMateriales, 'ap:costoMateriales', 'Costo unitario de Materiales (C)')}>${fmtARS(r.costoMateriales)}</span></div>`
-      : `<div class="ap-subtotal-linea"><span>Costo ${unidadAP() === 'hs' ? 'por hora' : 'diario'} Equipos</span><span${calcAttrs(r.costoDiarioEquipos, 'ap:costoDiarioEquipos', 'Costo diario Equipos')}>${fmtARS(costoVista(r.costoDiarioEquipos))}</span></div>
+      : `<div class="ap-subtotal-linea"><span>Costo ${unidadAP() === 'hs' ? 'por hora' : 'diario'} Equipos</span><span${calcAttrs(costoVista(r.costoDiarioEquipos), 'ap:costoDiarioEquipos', 'Costo diario Equipos')}>${fmtARS(costoVista(r.costoDiarioEquipos))}</span></div>
          <div class="ap-subtotal-linea total"><span>Costo unitario de Equipos (A)</span><span${calcAttrs(r.costoUnitarioEquipos, 'ap:costoUnitarioEquipos', 'Costo unitario de Equipos (A)')}>${fmtARS(r.costoUnitarioEquipos)}</span></div>`;
   }
   container.innerHTML = html;
@@ -1393,7 +1434,16 @@ function renderLineasSeccion(tipo, r) {
     const catLinea = catalogoFor(tipoLinea);
     const cantidadInput = row.querySelector('.linea-cantidad');
 
-    cantidadInput.dataset.calcValor = linea.cantidad ?? 0;
+    // Cómo queda esta celda con el switch donde está hoy: la fórmula reescrita
+    // en la unidad de la vista, y en qué unidad quedó (ver vistaDeCantidad).
+    const vista = porJornada ? vistaDeCantidad(linea) : { formula: linea.cantidadFormula || null, unidad: 'jornada' };
+    const unidadCelda = vista.unidad;
+
+    // Una referencia a esta celda vale lo que la celda MUESTRA, no el dato en
+    // jornadas: en modo Horas, "=[Retro · Cantidad]" son horas.
+    cantidadInput.dataset.calcValor = porJornada
+      ? aVista(linea.cantidad ?? 0, unidadCelda)
+      : (linea.cantidad ?? 0);
 
     // Auxiliar: opciones ya resueltas (local + de otras obras), ver
     // opcionesAuxiliar — no sale de catalogoFor/labelFor como los demás tipos.
@@ -1467,10 +1517,9 @@ function renderLineasSeccion(tipo, r) {
     }
 
     // La cantidad de un equipo se muestra y se escribe en la unidad de la
-    // celda (ver unidadDeCelda); lo que se guarda son siempre jornadas. La
+    // celda (ver vistaDeCantidad); lo que se guarda son siempre jornadas. La
     // comparación del blur va sobre el valor ya convertido: si no, pasar por
     // una celda sin tocarla la re-guardaría con la conversión de ida y vuelta.
-    const unidadCelda = porJornada ? unidadDeCelda(linea) : 'jornada';
     if (porJornada) {
       const aviso = avisoOtraUnidad(unidadCelda);
       if (aviso) {
@@ -1478,14 +1527,22 @@ function renderLineasSeccion(tipo, r) {
         cantidadInput.classList.add('celda-otra-unidad');
       }
     }
-    attachCalcInput(cantidadInput, linea.cantidadFormula);
+    attachCalcInput(cantidadInput, vista.formula);
     attachValorInput(cantidadInput, porJornada ? aVista(linea.cantidad ?? null, unidadCelda) : (linea.cantidad ?? null));
     cantidadInput.addEventListener('blur', () => {
       const leido = valorCampo(cantidadInput);
       const n = porJornada ? aDato(leido, unidadCelda) : leido;
+      // La fórmula que ve el usuario puede ser la reescrita en la unidad de la
+      // vista: si volvió igual, no la tocó, y se conserva la original tal como
+      // se guardó — pasar por la celda no puede reescribirle la fórmula.
       const formula = getCalcFormula(cantidadInput);
-      if (n === (linea.cantidad ?? null) && formula === (linea.cantidadFormula || null)) return;
-      updateLinea(lineaKey, { cantidad: n, cantidadFormula: formula, cantidadUnidad: unidadFormulaAGuardar(formula, unidadCelda) });
+      const intacta = formula === (vista.formula || null);
+      const aGuardar = intacta ? (linea.cantidadFormula || null) : formula;
+      const unidadAGuardar = intacta
+        ? (linea.cantidadFormula ? (linea.cantidadUnidad || null) : null)
+        : unidadFormulaAGuardar(formula, unidadCelda);
+      if (n === (linea.cantidad ?? null) && aGuardar === (linea.cantidadFormula || null)) return;
+      updateLinea(lineaKey, { cantidad: n, cantidadFormula: aGuardar, cantidadUnidad: unidadAGuardar });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
     row.querySelectorAll('.ap-linea-mover').forEach(btn => {
@@ -1516,11 +1573,15 @@ function renderManoDeObraSeccion(r) {
       // requiere una línea con cantidad.
       const costoUnit = d ? d.costoUnitario : window.calcCostoManoDeObra(rol, paramsMO).costoJornal;
       const costoTotal = d ? d.costoTotal : null;
+      // Misma regla que en Equipos: la cantidad y el costo unitario se
+      // muestran —y se referencian— en la unidad en la que quedó esta celda.
+      const uCelda = vistaDeCantidad(entry && entry[1]).unidad;
+      const costoUnitVista = costoUnit != null ? costoVista(costoUnit, uCelda) : null;
       return `
         <div class="ap-linea-mo con-costo" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
-          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-valor="${cantidad ?? 0}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}" ${window._soloLectura ? 'disabled' : ''}>
-          <button type="button" class="ap-linea-costo-unit" title="Clic para ver el detalle del costo de esta categoría"${costoUnit != null ? calcAttrs(costoUnit, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${costoUnit != null ? fmtARS(costoVista(costoUnit, unidadDeCelda(entry && entry[1]))) : '—'}</button><span class="ap-linea-costo-total"${costoTotal != null ? calcAttrs(costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${costoTotal != null ? fmtARS(costoTotal) : '—'}</span>
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-valor="${aVista(cantidad ?? 0, uCelda)}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}" ${window._soloLectura ? 'disabled' : ''}>
+          <button type="button" class="ap-linea-costo-unit" title="Clic para ver el detalle del costo de esta categoría"${costoUnitVista != null ? calcAttrs(costoUnitVista, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${costoUnitVista != null ? fmtARS(costoUnitVista) : '—'}</button><span class="ap-linea-costo-total"${costoTotal != null ? calcAttrs(costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${costoTotal != null ? fmtARS(costoTotal) : '—'}</span>
         </div>`;
     }).join('');
   }
@@ -1539,14 +1600,14 @@ function renderManoDeObraSeccion(r) {
           <span class="ap-linea-costo-unit">${r.seguridadCapatazPctAplicado}%</span>
           <span class="ap-linea-costo-unit">—</span>
           <span class="ap-linea-costo-total">
-            <span data-calc-valor="${r.costoDiarioSeguridadCapataz}">${fmtARS(costoVista(r.costoDiarioSeguridadCapataz))}</span>
+            <span data-calc-valor="${costoVista(r.costoDiarioSeguridadCapataz)}">${fmtARS(costoVista(r.costoDiarioSeguridadCapataz))}</span>
             <button type="button" class="ap-linea-del" id="btn-excluir-seg-cap" title="Excluir de este AP" style="margin-left:.4rem;" ${window._soloLectura ? 'disabled' : ''}>${icSvg('x')}</button>
           </span>
         </div>`;
     }
   }
   if (r) {
-    html += `<div class="ap-subtotal-linea"><span>Costo ${unidadAP() === 'hs' ? 'por hora' : 'diario'} Mano de Obra</span><span${calcAttrs(r.costoDiarioMO, 'ap:costoDiarioMO', 'Costo diario Mano de Obra')}>${fmtARS(costoVista(r.costoDiarioMO))}</span></div>
+    html += `<div class="ap-subtotal-linea"><span>Costo ${unidadAP() === 'hs' ? 'por hora' : 'diario'} Mano de Obra</span><span${calcAttrs(costoVista(r.costoDiarioMO), 'ap:costoDiarioMO', 'Costo diario Mano de Obra')}>${fmtARS(costoVista(r.costoDiarioMO))}</span></div>
       <div class="ap-subtotal-linea total"><span>Costo unitario Mano de Obra (B)</span><span${calcAttrs(r.costoUnitarioMO, 'ap:costoUnitarioMO', 'Costo unitario Mano de Obra (B)')}>${fmtARS(r.costoUnitarioMO)}</span></div>`;
   }
   container.innerHTML = html;
@@ -1567,14 +1628,15 @@ function renderManoDeObraSeccion(r) {
     if (costoUnit && rol) costoUnit.addEventListener('click', () => openDetalleRolModal(rol));
 
     // Misma conversión que en Equipos: se muestra y se escribe en la unidad de
-    // la celda, se guarda en jornadas (ver unidadDeCelda).
-    const unidadCelda = unidadDeCelda(linea);
+    // la celda, se guarda en jornadas (ver vistaDeCantidad).
+    const vista = vistaDeCantidad(linea);
+    const unidadCelda = vista.unidad;
     const aviso = avisoOtraUnidad(unidadCelda);
     if (aviso) {
       cantidadInput.title = aviso;
       cantidadInput.classList.add('celda-otra-unidad');
     }
-    attachCalcInput(cantidadInput, linea ? linea.cantidadFormula : null);
+    attachCalcInput(cantidadInput, vista.formula);
     attachValorInput(cantidadInput, linea ? aVista(linea.cantidad ?? null, unidadCelda) : null);
     cantidadInput.addEventListener('blur', () => {
       if (cantidadInput.value.trim() === '') {
@@ -1584,10 +1646,17 @@ function renderManoDeObraSeccion(r) {
       const leido = valorCampo(cantidadInput);
       if (leido == null || isNaN(leido)) { setValorCampo(cantidadInput, linea ? aVista(linea.cantidad ?? null, unidadCelda) : null); return; }
       const n = aDato(leido, unidadCelda);
+      // Si la fórmula volvió igual a la que se le mostró, no la tocó: se
+      // conserva la original, que puede estar escrita en la otra unidad.
       const formula = getCalcFormula(cantidadInput);
-      if (linea && n === (linea.cantidad ?? null) && formula === (linea.cantidadFormula || null)) return;
+      const intacta = formula === (vista.formula || null);
+      const aGuardar = intacta ? (linea && linea.cantidadFormula) || null : formula;
+      const unidadAGuardar = intacta
+        ? ((linea && linea.cantidadFormula) ? (linea.cantidadUnidad || null) : null)
+        : unidadFormulaAGuardar(formula, unidadCelda);
+      if (linea && n === (linea.cantidad ?? null) && aGuardar === (linea.cantidadFormula || null)) return;
       const lineaKey = entry ? entry[0] : `mo_${rolKey}`;
-      updateLinea(lineaKey, { tipo: 'manoDeObra', refKey: rolKey, cantidad: n, cantidadFormula: formula, cantidadUnidad: unidadFormulaAGuardar(formula, unidadCelda) });
+      updateLinea(lineaKey, { tipo: 'manoDeObra', refKey: rolKey, cantidad: n, cantidadFormula: aGuardar, cantidadUnidad: unidadAGuardar });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
   });
@@ -1605,19 +1674,23 @@ let pasadasVivas = 0;
 
 function refrescarFormulasVivas() {
   if (!window.recalcularCeldasVivas) return;
-  // Una fórmula se recalcula en la unidad en la que se escribió (ver
-  // unidadDeCelda): la que se cargó en horas da horas, y recién ahí se
-  // convierte a jornadas para guardarla.
+  // Una fórmula se recalcula en la unidad en la que se está leyendo, con la
+  // fórmula ya reescrita para esa unidad (ver vistaDeCantidad): las celdas del
+  // DOM que referencia valen lo que muestran, así que evaluarla en la otra
+  // unidad daría otro número. Recién el resultado se convierte a jornadas.
   const campos = Object.entries(lineas)
     .filter(([, l]) => window.formulaTieneRefs(l.cantidadFormula))
-    .map(([lineaKey, l]) => {
-      const u = unidadDeCelda(l);
-      return {
-        formula: l.cantidadFormula,
-        valor: aVista(l.cantidad ?? null, u),
-        aplicar: valor => { lineas[lineaKey].cantidad = aDato(valor, u); },
-      };
-    });
+    .map(([lineaKey, l]) => ({ lineaKey, l, v: vistaDeCantidad(l) }))
+    // Una celda que quedó anclada a la otra unidad no se recalcula: las celdas
+    // del DOM que referencia valen lo de la vista, y su fórmula no se sabe
+    // reescribir para leerlas ahí. Se conserva el último valor calculado —
+    // igual que cuando una referencia quedó rota (ver recalcularCeldasVivas).
+    .filter(({ v }) => !v.anclada)
+    .map(({ lineaKey, l, v }) => ({
+      formula: v.formula,
+      valor: aVista(l.cantidad ?? null, v.unidad),
+      aplicar: valor => { lineas[lineaKey].cantidad = aDato(valor, v.unidad); },
+    }));
   if (!campos.length || !window.recalcularCeldasVivas(campos)) { pasadasVivas = 0; return; }
   if (++pasadasVivas > 10) {
     pasadasVivas = 0;
