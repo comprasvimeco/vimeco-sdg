@@ -101,7 +101,7 @@ function dimsHojaPlan() {
 const periodosPorHoja = () => dimsHojaPlan().periodos;
 
 let modelo = null;
-let config = { notas: null, logo: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false };
+let config = { notas: null, logo: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false, insumosCosto: true };
 let incluidas = {};   // { seccionId: bool }
 
 /* ===== Formato del documento =====
@@ -501,6 +501,11 @@ function seccionEquipos() {
    del módulo compartido js/insumosDatos.js, para que pantalla y PDF salgan
    iguales. Sirve como base de pedido de compra/acopio, no para el
    comitente. */
+// La tabla sale con o sin la columna de plata: sin costo queda la lista de lo
+// que hay que comprar o pedir, para mandarla a un proveedor o a la obra sin
+// que viaje con ella lo que nos cuesta.
+const insumosConCosto = () => config.insumosCosto !== false;
+
 // Sin desglose: una fila por insumo, con el total consolidado de toda la
 // obra — para pedir compra/acopio sin entrar en de qué ítem sale cada cantidad.
 function filaInsumoDocSimple(f) {
@@ -509,7 +514,7 @@ function filaInsumoDocSimple(f) {
       <td>${escHtml(f.nombre)}</td>
       <td class="doc-centro">${escHtml(f.unidad)}</td>
       <td class="doc-num">${docCant(f.cantidad)}</td>
-      <td class="doc-num">${f.costoTotal != null ? docARS(f.costoTotal) : '—'}</td>
+      ${insumosConCosto() ? `<td class="doc-num">${f.costoTotal != null ? docARS(f.costoTotal) : '—'}</td>` : ''}
     </tr>`;
 }
 
@@ -520,19 +525,24 @@ function filaInsumoDocSimple(f) {
 // cantidad física que multiplicar por un costoUnitario — cada `usado` ya trae
 // directamente el monto en pesos que aporta ese ítem.
 function filaInsumoDocDesglose(f) {
+  const costo = insumosConCosto();
   const principal = `
     <tr class="doc-fila-subtotal">
       <td>${escHtml(f.nombre)}</td>
       <td class="doc-centro">${escHtml(f.unidad)}</td>
       <td class="doc-num">${docCant(f.cantidad)}</td>
-      <td class="doc-num">${f.costoTotal != null ? docARS(f.costoTotal) : '—'}</td>
+      ${costo ? `<td class="doc-num">${f.costoTotal != null ? docARS(f.costoTotal) : '—'}</td>` : ''}
     </tr>`;
+  // Sin la columna de plata, el desglose de una fila `usadosMoneda` (la
+  // Capatacía) no tiene nada que mostrar: lo que aporta cada ítem es un monto,
+  // no una cantidad. Queda sólo la fila principal, con el % que se aplica.
+  if (!costo && f.usadosMoneda) return principal;
   const usos = f.usados.map(u => `
     <tr class="doc-fila-sub">
       <td>${escHtml(u.nombre)}</td>
       <td></td>
       <td class="doc-num">${f.usadosMoneda ? '—' : docCant(u.cantidad)}</td>
-      <td class="doc-num">${f.usadosMoneda ? docARS(u.cantidad) : (f.costoUnitario != null ? docARS(f.costoUnitario * u.cantidad) : '—')}</td>
+      ${costo ? `<td class="doc-num">${f.usadosMoneda ? docARS(u.cantidad) : (f.costoUnitario != null ? docARS(f.costoUnitario * u.cantidad) : '—')}</td>` : ''}
     </tr>`).join('');
   return principal + usos;
 }
@@ -542,6 +552,9 @@ function tablaInsumos(titulo, colCantidad, resultado, vacio, avisoSinPrecio) {
     return `<h3 class="doc-grafico-titulo">${escHtml(titulo)}</h3><p class="doc-centro">${escHtml(vacio)}</p>`;
   }
   const filaFn = config.insumosDesglose ? filaInsumoDocDesglose : filaInsumoDocSimple;
+  // Sin costo se van también el total estimado y el aviso de los insumos sin
+  // precio cargado: los dos hablan de plata.
+  const costo = insumosConCosto();
   return `
     <h3 class="doc-grafico-titulo">${escHtml(titulo)}</h3>
     <table class="doc-tabla">
@@ -550,15 +563,15 @@ function tablaInsumos(titulo, colCantidad, resultado, vacio, avisoSinPrecio) {
           <th>Denominación</th>
           <th style="width:16mm;">Unidad</th>
           <th style="width:24mm;">${escHtml(colCantidad)}</th>
-          <th style="width:30mm;">Costo estimado</th>
+          ${costo ? '<th style="width:30mm;">Costo estimado</th>' : ''}
         </tr>
       </thead>
       <tbody>
         ${resultado.filas.map(filaFn).join('')}
-        <tr class="doc-fila-total"><td colspan="3">Total estimado</td><td class="doc-num">${docARS(resultado.costoTotal)}</td></tr>
+        ${costo ? `<tr class="doc-fila-total"><td colspan="3">Total estimado</td><td class="doc-num">${docARS(resultado.costoTotal)}</td></tr>` : ''}
       </tbody>
     </table>
-    ${resultado.faltaPrecio ? `<p class="doc-notas">${escHtml(avisoSinPrecio)}</p>` : ''}`;
+    ${costo && resultado.faltaPrecio ? `<p class="doc-notas">${escHtml(avisoSinPrecio)}</p>` : ''}`;
 }
 
 function seccionInsumos() {
@@ -1199,18 +1212,24 @@ function controlesHojaPlan() {
     </span>`;
 }
 
-// Al lado del checkbox de Insumos (y sólo si está tildado) va el nivel de
-// detalle: sin desglose (una fila por insumo, total de la obra) o con
-// desglose (esa fila más una por cada ítem en el que se usa).
+// Al lado del checkbox de Insumos (y sólo si está tildado) van dos elecciones:
+// el nivel de detalle — sin desglose (una fila por insumo, total de la obra) o
+// con desglose (esa fila más una por cada ítem en el que se usa) — y si la
+// tabla lleva la columna de costo o sale como lista de cantidades a secas.
 function controlesInsumos() {
   const desglose = !!config.insumosDesglose;
+  const costo = insumosConCosto();
   const ro = !!window._soloLectura;
   const botones = [[false, 'Sin desglose'], [true, 'Con desglose']].map(([v, label]) =>
     `<button type="button" class="hoja-btn insumos-desglose-btn${desglose === v ? ' active' : ''}" data-desglose="${v}" ${ro ? 'disabled' : ''}>${label}</button>`
   ).join('');
+  const botonesCosto = [[false, 'Sin costo'], [true, 'Con costo']].map(([v, label]) =>
+    `<button type="button" class="hoja-btn insumos-costo-btn${costo === v ? ' active' : ''}" data-costo="${v}" ${ro ? 'disabled' : ''}>${label}</button>`
+  ).join('');
   return `
     <span class="exportar-hoja" title="Nivel de detalle de la tabla de insumos">
       <span class="hoja-segmented">${botones}</span>
+      <span class="hoja-segmented" title="Mostrar o no lo que cuesta cada insumo">${botonesCosto}</span>
     </span>`;
 }
 
@@ -1271,6 +1290,17 @@ function renderSecciones() {
       renderSecciones();
       renderDocumento();
       persistConfig({ insumosDesglose: val });
+    });
+  });
+
+  $('exportar-secciones').querySelectorAll('.insumos-costo-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.costo === 'true';
+      if (val === insumosConCosto()) return;
+      config.insumosCosto = val;
+      renderSecciones();
+      renderDocumento();
+      persistConfig({ insumosCosto: val });
     });
   });
 }
@@ -1372,7 +1402,7 @@ async function loadAll() {
     plan = window.calcPlanAvance(
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
-  config = { notas: null, logo: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false, ...(exportData || {}) };
+  config = { notas: null, logo: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false, insumosCosto: true, ...(exportData || {}) };
   SECCIONES.forEach(s => { incluidas[s.id] = !SECCIONES_INTERNAS.includes(s.id); });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
