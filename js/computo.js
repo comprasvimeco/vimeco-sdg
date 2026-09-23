@@ -65,6 +65,28 @@ function costoUnitarioDe(itemKey) {
   return r.costoUnitario;
 }
 
+/* Costo cargado a mano (ver js/apDirecto.js). La celda de costo de una línea
+   es editable mientras el ítem no tenga un análisis armado: sin ítem todavía,
+   con el A.P. vacío, o con un precio directo ya cargado (que se reescribe).
+   Con materiales/equipos/mano de obra adentro, el costo lo manda el A.P. y la
+   celda vuelve a ser de sólo lectura — un ítem tiene una cosa o la otra. */
+function versionDeItemKey(itemKey) {
+  const it = itemKey && items.find(i => i.key === itemKey);
+  return it ? versionDe(it) : null;
+}
+
+function costoDirectoEditable(linea) {
+  if (window._soloLectura) return false;
+  const version = versionDeItemKey(linea.itemKey);
+  return !version || window.apAceptaPrecioDirecto(version.lineas);
+}
+
+function lineaDirectaDeLinea(linea) {
+  const version = versionDeItemKey(linea.itemKey);
+  const entrada = version ? window.lineaDirectaDe(version.lineas) : null;
+  return entrada ? entrada[1] : null;
+}
+
 function totalLinea(linea) {
   const costo = costoUnitarioDe(linea.itemKey);
   const cantidad = linea.cantidad != null && !isNaN(linea.cantidad) ? linea.cantidad : 0;
@@ -149,6 +171,26 @@ function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
     <div class="computo-rubro-lineas" data-rubro-id="${escHtml(rubro.key)}"></div>`;
 }
 
+/* La celda de costo unitario: campo de plata cuando se puede cargar a mano,
+   texto cuando el costo lo manda el A.P. del ítem.
+
+   En vista US$ vuelve a ser texto aunque se pueda editar: todo se guarda y se
+   calcula en pesos, y los campos editables quedaron deliberadamente afuera del
+   toggle para que no haya conversiones de ida y vuelta sobre un dato real (ver
+   js/moneda.js). El title lo explica en vez de dejar la celda muda. */
+function celdaCosto(lineaKey, linea, costo, pre, etiqueta) {
+  const attrs = calcAttrs(costo, `${pre}:${lineaKey}:costoUnit`, etiqueta + ' · Costo unit.');
+  if (!costoDirectoEditable(linea)) {
+    const conAP = !!linea.itemKey;
+    const title = conAP ? 'El costo sale del Análisis de Precio de este ítem' : '';
+    return `<span class="computo-linea-costo"${attrs}${title ? ` title="${escHtml(title)}"` : ''}>${fmtARS(costo)}</span>`;
+  }
+  if (window.monedaVista() === 'USD') {
+    return `<span class="computo-linea-costo"${attrs} title="Pasá la vista a $ para cargar el costo">${fmtARS(costo)}</span>`;
+  }
+  return `<input type="text" class="form-control linea-costo" placeholder="Costo" data-calc-id="${pre}:${escHtml(lineaKey)}:costoUnit" data-calc-label="${escHtml(etiqueta + ' · Costo unit.')}" title="Costo del ítem cargado a mano — queda guardado en su Análisis de Precio">`;
+}
+
 function renderLineaRow(lineaKey, linea, numero, numeroAuto, esPrimero, esUltimo, aux) {
   const costo = costoUnitarioDe(linea.itemKey);
   const total = totalLinea(linea);
@@ -172,7 +214,7 @@ function renderLineaRow(lineaKey, linea, numero, numeroAuto, esPrimero, esUltimo
       <input type="text" class="form-control linea-nombre" placeholder="Ítem" value="${escHtml(linea.nombre || '')}" ${ro ? 'disabled' : ''}>
       <input type="text" class="form-control linea-unidad" placeholder="Unidad" value="${escHtml(linea.unidad || '')}" ${ro ? 'disabled' : ''}>
       <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="${pre}:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiqueta + ' · Cantidad')}" ${ro ? 'disabled' : ''}>
-      <span class="computo-linea-costo"${calcAttrs(costo, `${pre}:${lineaKey}:costoUnit`, etiqueta + ' · Costo unit.')}>${fmtARS(costo)}</span>
+      ${celdaCosto(lineaKey, linea, costo, pre, etiqueta)}
       <span class="computo-linea-total"${calcAttrs(total, `${pre}:${lineaKey}:total`, etiqueta + ' · Total')}>${fmtARS(total)}</span>
       <span class="computo-linea-acciones">
         <button class="computo-linea-mover" data-dir="-1" title="Subir" ${esPrimero || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
@@ -367,12 +409,83 @@ function engancharLineas(container, aux) {
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
 
+    // Costo cargado a mano: sólo existe el campo si el ítem no tiene análisis
+    // armado (ver celdaCosto). Lo que se escribe acá termina en la receta del
+    // ítem, no en esta línea — ver guardarCostoDirecto.
+    const costoInput = row.querySelector('.linea-costo');
+    if (costoInput) {
+      const directa = lineaDirectaDeLinea(linea);
+      const precio = directa && directa.precio != null && !isNaN(directa.precio) ? Number(directa.precio) : null;
+      const formulaPrevia = (directa && directa.precioFormula) || null;
+      costoInput.dataset.calcValor = precio ?? 0;
+      attachCalcInput(costoInput, formulaPrevia);
+      attachMoneyInput(costoInput);
+      attachValorInput(costoInput, precio);
+      costoInput.addEventListener('blur', () => {
+        const n = valorCampo(costoInput);
+        const formula = getCalcFormula(costoInput);
+        if (n === precio && formula === formulaPrevia) return;
+        guardarCostoDirecto(lineaKey, n, formula, aux);
+      });
+      costoInput.addEventListener('keydown', e => { if (e.key === 'Enter') costoInput.blur(); });
+    }
+
     row.querySelectorAll('.computo-linea-mover').forEach(btn => {
       btn.addEventListener('click', () => moverLinea(lineaKey, parseInt(btn.dataset.dir, 10), aux));
     });
     row.querySelector('.computo-linea-dup').addEventListener('click', () => duplicarLinea(lineaKey, aux));
     row.querySelector('.computo-linea-del').addEventListener('click', () => deleteLinea(lineaKey, aux));
   });
+}
+
+/* Guarda el costo escrito en la celda. Lo que se toca es la receta del ítem
+   (/items/…/versionesObra/{obra}/lineas/directo, ver js/apDirecto.js), no esta
+   línea: por eso el número aparece igual en el A.P., en el Presupuesto y en
+   todo lo que cuelga del costo del Cómputo.
+
+   Las escrituras van agrupadas: cargar un costo en una línea que todavía no
+   tiene ítem son tres (el ítem, su versión, el vínculo) más la del precio, y
+   es un solo gesto del usuario — un solo Ctrl+Z. Las raíces van en null
+   porque /items es un nodo compartido entre obras: reponer su foto borraría lo
+   que otro haya agregado ahí mientras tanto (ver CLAUDE.md). */
+async function guardarCostoDirecto(lineaKey, precio, formula, aux) {
+  if (guardBloqueoObra()) return;
+  const t = tienda(aux);
+  const linea = t.datos[lineaKey];
+  if (!linea) return;
+  // Vaciar la celda de una línea que nunca tuvo ítem no crea nada.
+  if (precio == null && !linea.itemKey) return;
+  try {
+    await window.undoAgrupar('Costo del ítem', null, async () => {
+      let itemKey = linea.itemKey;
+      if (!itemKey) {
+        itemKey = await window.asegurarItemDeLinea(obraKey, t.nodo, lineaKey);
+        if (!itemKey) return;
+        linea.itemKey = itemKey;
+      }
+      if (precio == null) await window.borrarPrecioDirecto(itemKey, obraKey);
+      else await window.guardarPrecioDirecto(itemKey, obraKey, { precio, precioFormula: formula });
+      aplicarDirectaEnMemoria(itemKey, linea, precio, formula);
+    });
+  } catch (_) {
+    showToast('Error al guardar el costo del ítem.', 'error');
+  }
+  renderTodo();
+}
+
+// El ítem local, para que la pantalla repinte con el costo nuevo sin volver a
+// leer /items entero. Un ítem recién creado todavía no está en la lista.
+function aplicarDirectaEnMemoria(itemKey, linea, precio, formula) {
+  let it = items.find(i => i.key === itemKey);
+  if (!it) {
+    it = { key: itemKey, nombre: linea.nombre || '', unidad: linea.unidad || '', versionesObra: {} };
+    items.push(it);
+  }
+  it.versionesObra = it.versionesObra || {};
+  const version = it.versionesObra[obraKey] || (it.versionesObra[obraKey] = { rendimiento: 1 });
+  version.lineas = version.lineas || {};
+  if (precio == null) delete version.lineas[window.LINEA_DIRECTA_KEY];
+  else version.lineas[window.LINEA_DIRECTA_KEY] = window.lineaDirectaNueva(precio, formula);
 }
 
 function renderResumen() {
@@ -424,7 +537,22 @@ function refrescarFormulasVivas() {
         persistLineaCambios(lineaKey, { cantidad: valor }, aux);
       },
     }));
-  const campos = [...camposDe(false), ...camposDe(true)];
+  // El costo cargado a mano también puede ser una fórmula que apunta a otra
+  // celda. Vive en la receta del ítem, así que se reescribe allá (y en el
+  // objeto en memoria, que es el mismo que lee el render).
+  const camposDirectosDe = aux => Object.entries(tienda(aux).datos)
+    .map(([lineaKey, l]) => [l, lineaDirectaDeLinea(l)])
+    .filter(([l, d]) => l.itemKey && d && window.formulaTieneRefs(d.precioFormula))
+    .map(([l, d]) => ({
+      formula: d.precioFormula,
+      valor: d.precio ?? null,
+      aplicar: valor => {
+        d.precio = valor;
+        window.guardarPrecioDirecto(l.itemKey, obraKey, { precio: valor, precioFormula: d.precioFormula })
+          .catch(() => showToast('Error al guardar el costo del ítem.', 'error'));
+      },
+    }));
+  const campos = [...camposDe(false), ...camposDe(true), ...camposDirectosDe(false), ...camposDirectosDe(true)];
   if (!campos.length || !window.recalcularCeldasVivas(campos)) { pasadasVivas = 0; return; }
   if (++pasadasVivas > 10) {
     pasadasVivas = 0;
@@ -837,7 +965,7 @@ async function loadAll() {
    las mismas posiciones que la línea, y no tienen unidad ni cantidad, así que
    bajando por esas dos columnas se saltean. Las dos tablas se enganchan por
    separado: un auxiliar no es parte del cómputo, no se pasa de una a la otra. */
-const NAV_CELDAS_COMPUTO = '.computo-codigo-input, .computo-rubro-nombre-input, .linea-nombre, .linea-unidad, .linea-cantidad';
+const NAV_CELDAS_COMPUTO = '.computo-codigo-input, .computo-rubro-nombre-input, .linea-nombre, .linea-unidad, .linea-cantidad, .linea-costo';
 const NAV_FILAS_COMPUTO = '.computo-rubro-header, .computo-linea[data-key]';
 
 function engancharNavegacion() {

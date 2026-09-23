@@ -284,6 +284,22 @@
             : modelo.catalogos.roles;
           const entidad = cat.find(c => c.key === l.refKey);
           const d = r.detallePorLinea[lineaKey];
+          /* Precio directo (js/apDirecto.js): el ítem costeado a mano. No hay
+             entidad de catálogo — se llama y se mide como el ítem, y su
+             cantidad es 1. En el documento sale como una fila más de
+             Materiales, que es donde se la ve en el A.P. */
+          if (tipo === 'directo') {
+            return {
+              refKey: null,
+              tipo,
+              esPrecioDirecto: true,
+              nombre: item.nombre || '',
+              unidad: item.unidad || '',
+              cantidad: 1,
+              costoUnitario: d ? d.costoUnitario : null,
+              costoTotal: d ? d.costoTotal : null,
+            };
+          }
           return {
             // refKey identifica al insumo, no sólo lo nombra: la exportación a
             // Excel lo necesita para escribir el nombre con el que quedó en la
@@ -327,7 +343,7 @@
       // Un auxiliar usado como insumo aparece dentro de "Materiales" (mismo
       // bolsón de costo C, ver calcCostos.js), intercalado entre ellos en la
       // posición que el usuario le dio — es una fila más de esa sección.
-      materiales: filas('material', 'auxiliar'),
+      materiales: filas('material', 'auxiliar', 'directo'),
       costoDiarioEquipos: r.costoDiarioEquipos,
       costoUnitarioEquipos: r.costoUnitarioEquipos,
       costoDiarioSeguridadCapataz: r.costoDiarioSeguridadCapataz,

@@ -27,6 +27,12 @@
     button.ap-linea-costo-unit:not(:disabled):hover { color: var(--primary); text-decoration: underline; }
     button.ap-linea-costo-unit:disabled { cursor: default; }
     .ap-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .3rem; }
+    /* Precio directo: el ítem costeado a mano, sin analizarlo (js/apDirecto.js).
+       Ocupa la misma grilla que cualquier línea de Materiales, pero su nombre
+       es texto (el del ítem), su cantidad es 1 fija y el precio es editable. */
+    .ap-linea-directa-nombre { font-size: .9rem; color: var(--gray-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ap-linea-cantidad-fija { text-align: center; font-size: .85rem; color: var(--gray-500); }
+    .linea-precio-directo { text-align: right; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
     .ap-section-acciones { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
     /* Cantidad con una fórmula escrita en la otra unidad: se sigue leyendo y
@@ -215,7 +221,7 @@
       </div>
 
       <div class="card">
-        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><span><button class="btn btn-sm btn-outline" id="btn-add-linea-auxiliar" data-solo-edicion>+ Agregar auxiliar</button> <button class="btn btn-sm btn-primary" id="btn-add-linea-material" data-solo-edicion>+ Agregar</button></span></span></div>
+        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><span><button class="btn btn-sm btn-outline hidden" id="btn-add-linea-directo" data-solo-edicion title="Cargar el costo del ítem a mano, sin analizarlo">+ Costo a mano</button> <button class="btn btn-sm btn-outline" id="btn-add-linea-auxiliar" data-solo-edicion>+ Agregar auxiliar</button> <button class="btn btn-sm btn-primary" id="btn-add-linea-material" data-solo-edicion>+ Agregar</button></span></span></div>
         <div class="card-body" id="lineas-material"></div>
       </div>
 
@@ -481,6 +487,7 @@
   <script src="js/undo.js"></script>
   <script src="js/storage.js"></script>
   <script src="js/numeracion.js"></script>
+  <script src="js/apDirecto.js"></script>
   <script src="js/item.js"></script>
   <script src="js/postits.js"></script>
 </body>

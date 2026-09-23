@@ -40,6 +40,10 @@
     .con-codigo .computo-rubro-header { grid-template-columns: 62px 1fr 160px 130px; }
     .con-codigo .computo-linea { grid-template-columns: 62px 1.3fr 70px 90px 120px 130px 170px; }
     .computo-linea-costo, .computo-linea-total { text-align: right; white-space: nowrap; }
+    /* La celda de costo es un campo cuando el ítem todavía no tiene análisis
+       armado (ver costoDirectoEditable en js/computo.js) y texto cuando lo
+       tiene — las dos ocupan la misma columna. */
+    .linea-costo { text-align: right; }
     .computo-linea-total { font-weight: 600; color: var(--gray-700); }
     .computo-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: none !important; }
     .computo-linea-header span:nth-child(3), .computo-linea-header span:nth-child(4) { text-align: center; }
@@ -117,6 +121,7 @@
       .linea-cantidad { grid-area: cantidad; }
       .computo-linea-costo { grid-area: costo; text-align: left; font-size: .8rem; color: var(--gray-500); }
       .computo-linea-costo::before { content: "Costo unit.: "; }
+      .linea-costo { grid-area: costo; text-align: left; }
       .computo-linea-total { grid-area: total; }
       .computo-linea-total::before { content: "Total: "; font-weight: 400; color: var(--gray-500); }
       .computo-linea-acciones { grid-area: acc; justify-content: flex-start; }
@@ -252,6 +257,7 @@
   <script src="js/versionModo.js"></script>
   <script src="js/undo.js"></script>
   <script src="js/numeracion.js"></script>
+  <script src="js/apDirecto.js"></script>
   <script src="js/computo.js"></script>
   <script src="js/computo-ia.js"></script>
 </body>

@@ -775,6 +775,23 @@
           r++;
           return;
         }
+        if (fila.esPrecioDirecto) {
+          // El ítem costeado a mano (js/apDirecto.js) no está en la hoja
+          // Materiales ni en ninguna otra: su precio es un número cargado, no
+          // un dato que se busque en otro lado. Va literal, y el total sigue
+          // siendo una fórmula como el resto de la hoja.
+          ws.getCell(r, 3).value = fila.nombre;
+          ws.getCell(r, 6).value = fila.unidad || '';
+          ws.getCell(r, 6).alignment = { horizontal: 'center' };
+          ws.getCell(r, 7).value = num(fila.cantidad);
+          ws.getCell(r, 7).numFmt = FMT_CANT;
+          ws.getCell(r, 8).value = num(fila.costoUnitario) ?? 0;
+          ws.getCell(r, 8).numFmt = FMT_ARS;
+          ws.getCell(r, 9).value = f(`=+G${r}*H${r}`);
+          ws.getCell(r, 9).numFmt = FMT_ARS;
+          r++;
+          return;
+        }
         const nombre = fila.refKey ? ref.materiales.nombres[fila.refKey] : null;
         ws.getCell(r, 3).value = nombre || fila.nombre;
         ws.getCell(r, 6).value = nombre ? f(`=VLOOKUP(C${r},${ref.materiales.rango},${ref.materiales.colUnidad},FALSE)`) : '';

@@ -290,7 +290,22 @@ function catalogoFor(tipo) {
   if (tipo === 'material') return materiales;
   if (tipo === 'equipo') return equipos;
   if (tipo === 'auxiliar') return auxiliaresDeObra;
+  // El precio directo no sale de ningún catálogo: el número está en la propia
+  // línea y el nombre/unidad son los del ítem (ver js/apDirecto.js).
+  if (tipo === 'directo') return [];
   return roles;
+}
+
+/* Este A.P. tiene el costo cargado a mano desde el Cómputo. Mientras lo tenga
+   no se le pueden agregar insumos: un ítem se costea de una forma o de la
+   otra, y sumar las dos sería contar dos veces lo mismo. Se destraba borrando
+   la línea con la "x". */
+function hayPrecioDirecto() {
+  return !!window.lineaDirectaDe(lineas);
+}
+
+function bloqueadoParaInsumos() {
+  return !!window._soloLectura || hayPrecioDirecto();
 }
 
 // Auxiliares elegibles para una línea 'auxiliar' de ESTE A.P.: si el A.P. que
@@ -364,6 +379,7 @@ function opcionesAuxiliar(refKeyActual) {
 function etiquetaLinea(lineaKey) {
   const l = lineas[lineaKey];
   if (!l) return 'Línea';
+  if (l.tipo === 'directo') return (item && item.nombre) || 'Ítem';
   const entidad = catalogoFor(l.tipo).find(c => c.key === l.refKey);
   return entidad ? labelFor(l.tipo, entidad) : 'Línea sin elegir';
 }
@@ -390,16 +406,11 @@ async function autoCrearYVincular() {
     return;
   }
   try {
-    const lineaActual = await _fbGet(`/obras/${obraParam}/${nodoLinea}/${keyLinea}.json`);
-    const nombre = (lineaActual && lineaActual.nombre) || '';
-    const unidad = (lineaActual && lineaActual.unidad) || '';
-    const key = (nombre || 'item').toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '')
-      .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
-      + '_' + Date.now();
-    await _fbPut(`/items/${key}.json`, { nombre, unidad, creadoEn: Date.now() });
-    await _fbPut(`/items/${key}/versionesObra/${obraParam}.json`, { rendimiento: 1 });
-    await _fbPatch(`/obras/${obraParam}/${nodoLinea}/${keyLinea}.json`, { itemKey: key });
+    // El alta del ítem es la misma que hace la celda de costo del Cómputo al
+    // cargar un precio directo — vive en js/apDirecto.js para que la key del
+    // ítem no se genere de dos formas distintas.
+    const key = await window.asegurarItemDeLinea(obraParam, nodoLinea, keyLinea);
+    if (!key) throw new Error('la línea ya no existe');
     window.location.href = `item.html?key=${encodeURIComponent(key)}&obra=${encodeURIComponent(obraParam)}`;
   } catch (_) {
     document.body.innerHTML = '<p style="padding:2rem;">Error al crear el Análisis de Precio. Volvé al Cómputo e intentá de nuevo.</p>';
@@ -1040,7 +1051,8 @@ function aplicarSnapshotRemoto(dataCruda) {
     // La sección "material" en pantalla incluye también las líneas tipo
     // 'auxiliar' (ver renderLineasSeccion) — sin esto, editar un auxiliar
     // mientras llega un snapshot remoto lo pisaría con la versión vieja.
-    const esDeLaSeccion = l => l.tipo === seccionEnEdicion || (seccionEnEdicion === 'material' && l.tipo === 'auxiliar');
+    const esDeLaSeccion = l => l.tipo === seccionEnEdicion ||
+      (seccionEnEdicion === 'material' && (l.tipo === 'auxiliar' || l.tipo === 'directo'));
     const propias = Object.fromEntries(Object.entries(lineas).filter(([, l]) => esDeLaSeccion(l)));
     const ajenas = Object.fromEntries(Object.entries(lineasRemotas).filter(([, l]) => !esDeLaSeccion(l)));
     lineas = { ...ajenas, ...propias };
@@ -1287,7 +1299,7 @@ async function toggleSinSeguridadCapataz(excluir) {
    Las recetas viejas no tienen `orden`: se siguen viendo como antes (ver
    window.lineasApOrdenadas) y se numeran enteras la primera vez que se mueve
    algo, así no queda media lista con orden y media sin. */
-const TIPOS_DE_SECCION = { material: ['material', 'auxiliar'], equipo: ['equipo'] };
+const TIPOS_DE_SECCION = { material: ['material', 'auxiliar', 'directo'], equipo: ['equipo'] };
 
 function entradasSeccion(tipo) {
   return window.lineasApOrdenadas(lineas, TIPOS_DE_SECCION[tipo] || [tipo]);
@@ -1357,6 +1369,36 @@ function engancharDragSeccion(tipo, container) {
   });
 }
 
+/* La fila del precio directo. No lleva buscador: el nombre y la unidad son los
+   del ítem (no se guardan en la línea, así renombrarlo no deja una copia
+   vieja), la cantidad es 1 fija —el costo unitario del ítem ES este número— y
+   lo editable es el precio. La "x" la borra y deja el A.P. vacío, listo para
+   armarlo en detalle.
+
+   En vista US$ el precio se muestra como texto, igual que en el Cómputo: todo
+   se guarda en pesos y los campos editables quedan afuera del toggle. */
+function filaPrecioDirecto(lineaKey, l) {
+  const ro = !!window._soloLectura;
+  const precio = l.precio != null && !isNaN(l.precio) ? Number(l.precio) : null;
+  const etiqueta = etiquetaLinea(lineaKey);
+  const attrsUnit = calcAttrs(precio, `ap:linea:${lineaKey}:costoUnit`, etiqueta + ' · Costo unit.');
+  const celdaPrecio = (ro || window.monedaVista() === 'USD')
+    ? `<span class="ap-linea-costo-unit"${attrsUnit}${ro ? '' : ' title="Pasá la vista a $ para editar el costo"'}>${precio != null ? fmtARS(precio) : '—'}</span>`
+    : `<input type="text" class="form-control linea-precio-directo" placeholder="Costo" data-calc-id="ap:linea:${escHtml(lineaKey)}:costoUnit" data-calc-label="${escHtml(etiqueta + ' · Costo unit.')}">`;
+  return `
+    <div class="ap-linea con-costo ap-linea-directa" data-key="${escHtml(lineaKey)}">
+      <div class="linea-select-wrap">
+        <span class="ap-linea-directa-nombre" title="Costo cargado a mano desde el Cómputo, sin analizar el ítem">${escHtml((item && item.nombre) || 'Ítem')}</span>
+        <span class="linea-unidad-badge">${escHtml((item && item.unidad) || '')}</span>
+      </div>
+      <span class="ap-linea-cantidad-fija">1</span>
+      ${celdaPrecio}<span class="ap-linea-costo-total"${calcAttrs(precio, `ap:linea:${lineaKey}:costoTotal`, etiqueta + ' · Costo total')}>${precio != null ? fmtARS(precio) : '—'}</span>
+      <span class="ap-linea-acciones">
+        <button class="ap-linea-del" title="Borrar el costo cargado a mano y armar el análisis en detalle" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
+      </span>
+    </div>`;
+}
+
 function renderLineasSeccion(tipo, r) {
   const container = $(`lineas-${tipo}`);
   const cat = catalogoFor(tipo);
@@ -1384,6 +1426,7 @@ function renderLineasSeccion(tipo, r) {
   } else {
     html += `<div class="ap-linea ap-linea-header con-costo"><span></span><span>${tituloCantidad}</span><span>Costo unitario</span><span>Costo total</span><span></span></div>`;
     html += entradas.map(([lineaKey, l], idx) => {
+      if (l.tipo === 'directo') return filaPrecioDirecto(lineaKey, l);
       const d = detallePorLineaActivo[lineaKey];
       const conBadge = tipo === 'material' || l.tipo === 'auxiliar';
       const ro = !!window._soloLectura;
@@ -1420,6 +1463,10 @@ function renderLineasSeccion(tipo, r) {
   container.querySelectorAll('.ap-linea[data-key]').forEach(row => {
     const lineaKey = row.dataset.key;
     const linea = lineas[lineaKey];
+
+    // La fila del precio directo no tiene buscador, ni cantidad, ni arrastre:
+    // es la única línea que puede haber en la receta (ver filaPrecioDirecto).
+    if (linea.tipo === 'directo') { engancharFilaDirecta(row, lineaKey, linea); return; }
 
     row.addEventListener('dragstart', () => { draggedApKey = lineaKey; row.classList.add('dragging'); });
     row.addEventListener('dragend', () => {
@@ -1552,6 +1599,46 @@ function renderLineasSeccion(tipo, r) {
   });
 }
 
+function engancharFilaDirecta(row, lineaKey, linea) {
+  row.querySelector('.ap-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
+  const input = row.querySelector('.linea-precio-directo');
+  if (!input) return;
+  const precio = linea.precio != null && !isNaN(linea.precio) ? Number(linea.precio) : null;
+  const formulaPrevia = linea.precioFormula || null;
+  input.dataset.calcValor = precio ?? 0;
+  attachCalcInput(input, formulaPrevia);
+  attachMoneyInput(input);
+  attachValorInput(input, precio);
+  input.addEventListener('blur', () => {
+    const n = valorCampo(input);
+    const formula = getCalcFormula(input);
+    if (n === precio && formula === formulaPrevia) return;
+    updateLinea(lineaKey, { precio: n, precioFormula: formula });
+  });
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+}
+
+/* Los "+" de cada sección y el botón del precio directo son excluyentes: con
+   el costo cargado a mano no se le agregan insumos al ítem, y con insumos
+   cargados no se le puede poner un precio a mano. El hint dice por dónde se
+   sale, así el botón apagado no queda mudo. */
+function actualizarBotonesInsumos() {
+  const directo = hayPrecioDirecto();
+  const btnDirecto = $('btn-add-linea-directo');
+  if (btnDirecto) {
+    // Aparece sólo con la receta vacía: no tiene sentido ofrecerlo cuando ya
+    // hay un precio cargado (se edita en la fila) ni cuando hay insumos.
+    btnDirecto.classList.toggle('hidden', !!Object.keys(lineas).length || !!window._soloLectura);
+  }
+  const hint = directo ? 'Este ítem tiene un costo cargado a mano — borralo para armar el análisis en detalle' : '';
+  ['btn-add-linea-material', 'btn-add-linea-auxiliar', 'btn-add-linea-equipo'].forEach(id => {
+    const btn = $(id);
+    if (!btn) return;
+    btn.disabled = bloqueadoParaInsumos();
+    btn.title = hint;
+  });
+}
+
 // Mano de Obra no usa buscador: se muestran fijas TODAS las categorías del
 // catálogo (roles), cada una con su cantidad para completar — no hace falta
 // elegir "cuál" agregar porque ya están todas. Vaciar la cantidad borra esa
@@ -1580,7 +1667,7 @@ function renderManoDeObraSeccion(r) {
       return `
         <div class="ap-linea-mo con-costo" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
-          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-valor="${aVista(cantidad ?? 0, uCelda)}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}" ${window._soloLectura ? 'disabled' : ''}>
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-valor="${aVista(cantidad ?? 0, uCelda)}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}" ${bloqueadoParaInsumos() ? 'disabled' : ''}${hayPrecioDirecto() ? ' title="Este ítem tiene un costo cargado a mano — borralo para armar el análisis en detalle"' : ''}>
           <button type="button" class="ap-linea-costo-unit" title="Clic para ver el detalle del costo de esta categoría"${costoUnitVista != null ? calcAttrs(costoUnitVista, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${costoUnitVista != null ? fmtARS(costoUnitVista) : '—'}</button><span class="ap-linea-costo-total"${costoTotal != null ? calcAttrs(costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${costoTotal != null ? fmtARS(costoTotal) : '—'}</span>
         </div>`;
     }).join('');
@@ -1708,6 +1795,7 @@ function renderTodasLasLineas(seccionesOmitidas) {
   if (!omitir.includes('material')) renderLineasSeccion('material', r);
   if (!omitir.includes('equipo')) renderLineasSeccion('equipo', r);
   if (!omitir.includes('manoDeObra')) renderManoDeObraSeccion(r);
+  actualizarBotonesInsumos();
   renderResumenCosto(r);
   refrescarFormulasVivas();
 }
@@ -1731,6 +1819,24 @@ function updateLinea(lineaKey, cambios) {
 
 function addLinea(tipo) {
   if (guardBloqueoObra()) return;
+  /* El precio directo es uno solo por receta y va con key fija (ver
+     js/apDirecto.js), así que no sigue el camino de las demás: es la misma
+     línea que escribe la celda de costo del Cómputo. Nace vacía, esperando el
+     número. */
+  if (tipo === 'directo') {
+    if (!window.apAceptaPrecioDirecto(lineas)) {
+      showToast('Este ítem ya tiene insumos cargados — borralos para poner el costo a mano.', 'error');
+      return;
+    }
+    lineas[window.LINEA_DIRECTA_KEY] = window.lineaDirectaNueva(null, null);
+    renderTodasLasLineas();
+    persistLineas();
+    return;
+  }
+  if (bloqueadoParaInsumos()) {
+    showToast('Este ítem tiene un costo cargado a mano — borralo para armar el análisis en detalle.', 'error');
+    return;
+  }
   if (tipo !== 'material' && !catalogoFor(tipo).length) {
     showToast('No hay nada cargado en ese catálogo todavía.', 'error');
     return;
@@ -2209,6 +2315,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-item-cancel').addEventListener('click', () => $('modal-item').classList.add('hidden'));
   $('modal-item-save').addEventListener('click', saveDatosModal);
 
+  $('btn-add-linea-directo').addEventListener('click', () => addLinea('directo'));
   $('btn-add-linea-material').addEventListener('click', () => addLinea('material'));
   $('btn-add-linea-auxiliar').addEventListener('click', () => addLinea('auxiliar'));
   $('btn-add-linea-equipo').addEventListener('click', () => addLinea('equipo'));

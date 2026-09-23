@@ -152,6 +152,33 @@ window.versionDeItem = function (item, obraKey) {
   return propia || item || {};
 };
 
+/* Precio directo: el costo unitario del ítem cargado a mano, sin analizarlo.
+   Es una línea más de la receta —con su precio adentro, sin refKey a ningún
+   catálogo— para que el número entre por el mismo camino que todo lo demás
+   (esta función) y lo vean el Presupuesto, la Carga Fija, el K, el Plan de
+   Avance, los cierres y la exportación sin enterarse de que existe. Se carga
+   desde la celda de costo del Cómputo o desde la sección Materiales del A.P.,
+   que son la misma celda vista desde dos lados (ver js/apDirecto.js).
+
+   Un ítem tiene precio directo O análisis detallado, nunca los dos: mezclarlos
+   sería sumar dos veces lo mismo. La key es fija justamente porque hay una
+   sola por receta. El nombre y la unidad no se guardan acá — salen del ítem,
+   así renombrarlo no deja una copia vieja. */
+window.LINEA_DIRECTA_KEY = 'directo';
+
+window.lineaDirectaDe = function (lineas) {
+  const e = Object.entries(lineas || {}).find(([, l]) => l && l.tipo === 'directo');
+  return e || null;
+};
+
+// Si esta receta admite que se le cargue el costo a mano: vacía, o con la
+// línea directa como única línea (es decir, ya tiene un precio cargado y se
+// lo puede reescribir). Una receta con materiales/equipos/mano de obra no.
+window.apAceptaPrecioDirecto = function (lineas) {
+  const entradas = Object.entries(lineas || {});
+  return !entradas.length || (entradas.length === 1 && entradas[0][1] && entradas[0][1].tipo === 'directo');
+};
+
 window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEquipos, paramsMO, preciosObra, dolarValor, opts) {
   preciosObra = preciosObra || {};
   opts = opts || {};
@@ -195,6 +222,12 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
   // cantidad × ese precio, sin dividir por rendimiento — para mostrar en
   // la fila de cada línea, no para el agregado.
   function costoLineaDetalle(linea) {
+    // Precio directo: no hay entidad que buscar ni cantidad que multiplicar —
+    // el costo unitario del ítem ES el número cargado, por una unidad.
+    if (linea.tipo === 'directo') {
+      if (linea.precio == null || isNaN(linea.precio)) return null;
+      return { costoUnitario: Number(linea.precio), costoTotal: Number(linea.precio) };
+    }
     const cat = catalogoFor(linea.tipo);
     const entidad = cat.find(c => c.key === linea.refKey);
     if (!entidad) return null;
@@ -225,7 +258,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     const d = costoLineaDetalle(l);
     if (!d) return;
     detallePorLinea[lineaKey] = d;
-    if (l.tipo === 'material' || l.tipo === 'auxiliar') costoMateriales += d.costoTotal;
+    if (l.tipo === 'material' || l.tipo === 'auxiliar' || l.tipo === 'directo') costoMateriales += d.costoTotal;
     else if (l.tipo === 'equipo') costoDiarioEquipos += d.costoTotal;
     else costoDiarioMORoles += d.costoTotal;
   });
