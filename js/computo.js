@@ -830,7 +830,23 @@ async function loadAll() {
   window._fbListen(`/obras/${obraKey}/auxiliares`, aplicarAuxiliaresRemotos);
 }
 
+/* Moverse por la tabla con el teclado (js/navCeldas.js). Se engancha sobre los
+   dos card-body, que sobreviven a cada render — adentro se reemplaza todo.
+   La columna de una celda es su posición en la fila, y eso hace que las
+   cabeceras de rubro entren solas en el recorrido: tienen número y nombre en
+   las mismas posiciones que la línea, y no tienen unidad ni cantidad, así que
+   bajando por esas dos columnas se saltean. Las dos tablas se enganchan por
+   separado: un auxiliar no es parte del cómputo, no se pasa de una a la otra. */
+const NAV_CELDAS_COMPUTO = '.computo-codigo-input, .computo-rubro-nombre-input, .linea-nombre, .linea-unidad, .linea-cantidad';
+const NAV_FILAS_COMPUTO = '.computo-rubro-header, .computo-linea[data-key]';
+
+function engancharNavegacion() {
+  window.engancharNavCeldas($('lineas-computo'), { celdas: NAV_CELDAS_COMPUTO, filas: NAV_FILAS_COMPUTO });
+  window.engancharNavCeldas($('lineas-auxiliares'), { celdas: NAV_CELDAS_COMPUTO, filas: NAV_FILAS_COMPUTO });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  engancharNavegacion();
   $('btn-add-rubro').addEventListener('click', () => (sinRubros() ? addItemPlano() : addRubro()));
   $('btn-add-auxiliar').addEventListener('click', crearAuxiliar);
   $('btn-computo-ia').addEventListener('click', () => {

@@ -2172,7 +2172,26 @@ async function loadAll() {
   $('main-content').style.display = '';
 }
 
+/* Moverse por las cantidades con el teclado (js/navCeldas.js). El wrap es
+   #normal-content, no cada sección: así ↑/↓ cruzan de Equipos a Mano de Obra y
+   de ahí a Materiales, en el orden en que están en la pantalla, y toda la
+   receta se recorre sin soltar el teclado. Equipos colapsado queda afuera solo
+   (sus celdas no son visibles).
+
+   Las flechas gobiernan sólo las cantidades: el buscador de insumo ya usa ↑/↓
+   para su propio desplegable. Del Tab sí participa, porque ahí es la primera
+   columna de la fila y saltearla sería perder el único camino de teclado para
+   cambiar el insumo. */
+function engancharNavegacionAp() {
+  window.engancharNavCeldas($('normal-content'), {
+    celdas: '.linea-cantidad',
+    filas: '.ap-linea[data-key], .ap-linea-mo[data-rol]',
+    tab: '.linea-cantidad, .linea-select-wrap .ss-input',
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  engancharNavegacionAp();
   // Volver: si venimos de un Cómputo (?obra=), vuelve ahí; si no, a Biblioteca.
   const hrefVolver = obraParam ? `computo.html?obra=${encodeURIComponent(obraParam)}` : 'biblioteca.html';
   $('btn-header-volver').addEventListener('click', () => window.location.href = hrefVolver);
