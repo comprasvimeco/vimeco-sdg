@@ -318,11 +318,16 @@ window.round2 = function (n) {
       // tipee reemplaza el contenido (y así un "=" arranca una fórmula en vez
       // de pegarse al número que ya estaba).
       input.select();
-      input.dataset.recienEnfocado = '1';
     });
 
     // Con mouse, el mouseup posterior al focus colapsa la selección donde se
-    // clickeó — se cancela sólo el primero, para que el select() valga.
+    // clickeó — se cancela sólo el primero, para que el select() valga. La
+    // marca se pone en el mousedown y no en el focus: si se entró con el
+    // teclado no hay mouseup pendiente, y la marca se comía el primer click
+    // con el que se quería poner el cursor.
+    input.addEventListener('mousedown', () => {
+      if (document.activeElement !== input) input.dataset.recienEnfocado = '1';
+    });
     input.addEventListener('mouseup', e => {
       if (!input.dataset.recienEnfocado) return;
       delete input.dataset.recienEnfocado;
@@ -332,6 +337,7 @@ window.round2 = function (n) {
     // Corre después de los blur de attachCalcInput (resuelve la fórmula) y
     // attachMoneyInput (reagrupa los miles), así lee el texto ya resuelto.
     input.addEventListener('blur', () => {
+      delete input.dataset.recienEnfocado;
       const v = window.valorCampo(input);
       if (v == null || isNaN(v)) delete input.dataset.valorReal;
       else input.dataset.valorReal = String(v);

@@ -53,11 +53,14 @@
      Lo que distingue un caso del otro es si el texto cambió desde que entró —
      `textoAlEnfocar`, que deja attachValorInput. Mientras la está escribiendo
      las flechas son para moverse dentro de la fórmula; se sale con Enter o Tab,
-     como en la planilla. */
+     como en la planilla.
+     Para corregir una fórmula guardada sin tipear nada todavía, se entra en
+     modo edición igual que en Excel: F2, o clickear adentro de la celda que ya
+     tiene el foco (el primer click la selecciona entera). Ver `editando`. */
   function editandoFormula(inp) {
     if (inp.dataset.calc !== '1') return false;        // campo que no admite fórmulas
     if (!inp.value.trim().startsWith('=')) return false;
-    return inp.value !== inp.dataset.textoAlEnfocar;
+    return inp.dataset.editando === '1' || inp.value !== inp.dataset.textoAlEnfocar;
   }
 
   function colapsadoEn(inp, pos) {
@@ -140,10 +143,30 @@
     const selFilas = opts.filas;
     const selTab = opts.tab || opts.celdas;
 
+    // Modo edición: la marca vive en la celda mientras tenga el foco. Se entra
+    // clickeando una celda que YA estaba enfocada (el click que la enfoca no
+    // cuenta: ése es el de seleccionarla), con doble click o con F2.
+    const editar = el => { if (el.matches && el.matches(selCeldas)) el.dataset.editando = '1'; };
+    wrap.addEventListener('mousedown', e => {
+      if (e.target === document.activeElement) editar(e.target);
+    });
+    wrap.addEventListener('dblclick', e => editar(e.target));
+    wrap.addEventListener('focusout', e => {
+      if (e.target.dataset) delete e.target.dataset.editando;
+    });
+
     wrap.addEventListener('keydown', e => {
       const el = e.target;
       if (!el.matches || !el.matches(selTab)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === 'F2' && el.matches(selCeldas)) {
+        e.preventDefault();
+        editar(el);
+        const fin = el.value.length;
+        el.setSelectionRange(fin, fin);
+        return;
+      }
 
       let destino = null;
       let sel = selCeldas;

@@ -163,7 +163,11 @@
     const input = campoActivo();
     if (!input) return;
     if (e.target.closest('.barra-formula')) { e.preventDefault(); return; }
-    if (e.target.closest('[data-calc-id]')) e.preventDefault();   // no le saca el foco al campo
+    // Otra celda: no le saca el foco al campo. La propia se deja pasar, que
+    // también es referenciable y sin esto no había forma de poner el cursor
+    // en el medio de la fórmula ni de seleccionar con doble click.
+    const celda = e.target.closest('[data-calc-id]');
+    if (celda && celda !== input) e.preventDefault();
   }, true);
 
   document.addEventListener('click', e => {
