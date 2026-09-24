@@ -346,7 +346,11 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 }
 .barra-formula.hidden { display: none; }
 .barra-formula-ops button { pointer-events: auto; }
-.barra-formula-texto { font-family: ui-monospace, 'Consolas', monospace; font-size: .76rem; color: var(--gray-700); background: var(--gray-100); border-radius: var(--radius); padding: .3rem .4rem; margin-bottom: .35rem; word-break: break-word; max-height: 4.5em; overflow-y: auto; }
+.barra-formula-texto { font-family: ui-monospace, 'Consolas', monospace; font-size: .76rem; color: var(--gray-700); background: var(--gray-100); border: 1.5px solid var(--primary-light); border-radius: var(--radius); padding: .3rem .4rem; margin-bottom: .35rem; white-space: pre-wrap; word-break: break-word; max-height: 4.5em; overflow-y: auto; pointer-events: auto; cursor: text; user-select: none; position: relative; }
+/* Espejo de la celda (js/refs.js): el cursor y la selección se dibujan. */
+.barra-formula-sel { background: rgba(37,87,167,.28); }
+.barra-formula-cursor { display: inline-block; width: 0; height: 1.15em; margin-right: -1.5px; border-left: 1.5px solid var(--gray-800, #1f2937); vertical-align: text-bottom; animation: barra-formula-parpadeo 1s step-end infinite; }
+@keyframes barra-formula-parpadeo { 50% { border-left-color: transparent; } }
 .barra-formula-resultado { font-size: 1rem; font-weight: 700; color: var(--primary); margin-bottom: .4rem; }
 .barra-formula-resultado.barra-formula-error { color: var(--gray-400); }
 .barra-formula-ops { display: grid; grid-template-columns: repeat(9, 1fr); gap: .25rem; }
