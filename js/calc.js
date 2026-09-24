@@ -241,8 +241,29 @@ window.round2 = function (n) {
       if (input.dataset.formula) input.value = aVisible(input.dataset.formula);
     });
     input.addEventListener('blur', () => resolveIfFormula(input));
-    input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') input.blur();
+      else if (e.key === '=') anteponerIgual(input, e);
+    });
   };
+
+  // Tipear "=" en una celda que tiene un número arranca la fórmula DESDE ese
+  // número: "123" pasa a "=123" con el cursor al final, listo para "*2". No
+  // importa dónde esté el cursor ni que esté todo seleccionado (así queda al
+  // entrar, y el "=" lo reemplazaba). Para una fórmula desde cero, Supr antes.
+  // Se reescribe con textoResultado y no con lo que se ve: un campo de plata
+  // muestra "1.234" y la fórmula lo leería como 1,234. Va en el keydown para
+  // ganarle a attachMoneyInput, que sólo deja pasar un "=" con el campo vacío.
+  function anteponerIgual(input, e) {
+    if (input.value.trim().startsWith('=')) return;   // ya es fórmula: el "=" es texto
+    const v = window.valorCampo ? window.valorCampo(input) : parseTexto(input, input.value);
+    if (v == null || isNaN(v)) return;                 // vacío: el "=" entra solo
+    e.preventDefault();
+    input.value = '=' + textoResultado(v);
+    const fin = input.value.length;
+    input.setSelectionRange(fin, fin);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
 
   /* ===== Valor completo vs. valor mostrado (celda tipo Excel) ===== */
 
