@@ -12,8 +12,47 @@ El resultado no fue confiable ni usable. **No se repite ese método.**
 - **Preguntar antes de asumir reglas de negocio.** Las planillas de la empresa son la fuente de
   verdad para el cálculo, pero las decisiones de alcance y prioridad las toma el dueño del
   proyecto, no se infieren.
-- Usar plan mode antes de tocar el motor de cálculo o el esquema de datos una vez que existan.
-- Commit al cerrar cada pantalla/funcionalidad verificada, con el número de versión (ver abajo).
+- Usar plan mode antes de tocar el motor de cálculo o el esquema de datos. Es la única
+  excepción al "nada de planes largos" de abajo.
+
+### Ritmo
+- Hacer primero y preguntar sólo si de verdad no se puede seguir. Si hay una opción razonable
+  por defecto, tomarla y avisar en una línea ("Decisión que tomé: X. Si preferís Y, se cambia").
+- Preguntar sólo cuando la respuesta cambia lo que se va a hacer y no se deduce del código ni
+  del pedido (por ejemplo, "¿el PDF también sin la columna Factura?"). Las reglas de negocio
+  entran siempre en este caso.
+- Nada de planes largos antes de arrancar: mirar lo justo, cambiar y mostrar el resultado.
+- Si llega un pedido nuevo a mitad de tarea, sumarlo al mismo pase y seguir. No reiniciar.
+
+### Alcance: exactamente lo pedido
+- Lo que se pidió, completo, y nada más. Sin refactors, sin abstracciones nuevas, sin
+  "ya que estaba".
+- Otro problema a la vista: arreglarlo sólo si es un bug chico y seguro, en el mismo archivo,
+  y avisarlo en una línea. Si no, mencionarlo y ofrecerlo.
+- Reusar lo que ya existe (helpers, estilos, componentes) antes de crear algo.
+- Si el pedido es un cambio de texto o de una línea, se hace en una línea.
+
+### Leer el código
+- Buscar con grep lo relevante y leer sólo esas partes. No leer archivos enteros sin motivo.
+- Imitar el estilo del código vecino: nombres, comentarios, idioma, finales de línea.
+
+### Verificar, proporcional al riesgo
+- Cambio de texto o trivial: chequeo de sintaxis y listo, diciendo que no se probó en la app.
+- Cambio de lógica o de UI: probarlo una vez de verdad (skill `verify`) y mirar una captura.
+  No repetir la verificación si ya dio bien.
+- **Nunca escribir en datos de producción para probar** (no hay staging). Si hace falta un dato
+  que no existe, simularlo sólo en la prueba (RTDB simulada o interceptando la respuesta).
+- Si algo falla, decirlo con el error. Si algo no se verificó, decirlo.
+
+### Cómo reportar
+Corto y en español rioplatense:
+1. Qué cambió, contado desde lo que se ve o se usa (no desde el código).
+2. Qué se verificó y cómo, en una línea.
+3. Decisiones tomadas o cosas a tener en cuenta, si las hay.
+4. Una pregunta de cierre concreta ("¿Commit y push?").
+
+Sin repetir el pedido, sin relleno y sin listas de opciones que no se van a hacer. Si se piden
+ideas: lista priorizada, recomendando 2 o 3 concretas.
 
 ## Versión en commits
 
@@ -30,6 +69,8 @@ git config core.hooksPath .githooks
 ```
 
 ### Regla de proceso para commits
+0. Commit y push **sólo cuando se pidan**. Un commit por tanda pedida, con un mensaje que diga
+   qué cambió para el usuario.
 1. `git pull --rebase` antes de `git commit`, para leer en `app.html` la última versión bumpeada por CI.
 2. El hook se encarga del número; solo escribir la descripción en el mensaje.
 

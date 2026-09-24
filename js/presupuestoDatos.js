@@ -330,7 +330,12 @@
     // pantalla de Mano de Obra de la obra — el mismo que se ve en el A.P.
     const ordenRol = {};
     modelo.catalogos.roles.forEach((rol, i) => { ordenRol[rol.nombre] = i; });
+    // Una línea cuyo rol no existe en esta obra (keys de antes de las
+    // categorías fijas, o de un rol borrado) no se cuesta ni se ve en el A.P.
+    // —la pantalla lista categorías, no líneas—, así que tampoco sale acá: si
+    // no, el documento mostraba filas "(sin elegir)" que nadie puede corregir.
     const manoDeObra = filas('manoDeObra')
+      .filter(f => f.refKey)
       .sort((a, b) => (ordenRol[a.nombre] ?? 99) - (ordenRol[b.nombre] ?? 99));
 
     return {

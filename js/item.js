@@ -747,10 +747,13 @@ async function remapearManoDeObra(lineasCopiadas, obraOrigenKey) {
   const rolesDestino = { ...((obrasFull[activeVersion] && obrasFull[activeVersion].roles) || {}) };
   let creados = 0;
 
-  for (const linea of Object.values(lineasCopiadas)) {
+  for (const [lineaKey, linea] of Object.entries(lineasCopiadas)) {
     if (linea.tipo !== 'manoDeObra') continue;
     const rolOrigen = rolesOrigen[linea.refKey];
-    if (!rolOrigen) continue;              // dato inconsistente en origen: se deja como está
+    // Rol que ya no existe en la obra de origen (key vieja, o rol borrado): allá
+    // no se cuesta ni se ve, y copiada acá seguiría igual de huérfana — sólo
+    // aparecería como "(sin elegir)" en el PDF. No se trae.
+    if (!rolOrigen) { delete lineasCopiadas[lineaKey]; continue; }
     if (rolesDestino[linea.refKey]) continue;   // misma key ya existe acá (típico en las 6 fijas)
 
     const matchKey = Object.keys(rolesDestino).find(k =>
@@ -954,6 +957,10 @@ async function seleccionarUsarComoBase(value, opciones) {
         showToast(`Copiando la receta desde ${opt.sublabel}…`);
         rolesCreados = await remapearManoDeObra(lineasCopiadas, obraOrigenKey);
         auxCopiados = await copiarAuxiliaresDeLineas(lineasCopiadas, obraOrigenKey);
+      } else {
+        // Misma obra: no hay nada que remapear, pero sí que dejar afuera las
+        // líneas de Mano de Obra huérfanas (ver remapearManoDeObra).
+        await remapearManoDeObra(lineasCopiadas, obraOrigenKey);
       }
       const data = {
         rendimiento: src.rendimiento || 1,
