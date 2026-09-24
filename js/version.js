@@ -3,4 +3,4 @@
    los dos digan siempre lo mismo. Lo usa el cierre de un presupuesto
    (js/cierreDatos.js), que guarda con qué versión se calculó: si algún día una
    fórmula cambia, eso es lo que dice contra qué motor se había cerrado. */
-window.APP_VERSION = 'v207';
+window.APP_VERSION = 'v208';
