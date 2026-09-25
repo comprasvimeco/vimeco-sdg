@@ -185,6 +185,9 @@ function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
   const botonNivel = sub
     ? `<button class="computo-rubro-nivel" data-rubro-id="${escHtml(rubro.key)}" data-accion="sacar" title="Volver a rubro principal" ${ro ? 'disabled' : ''}>${icSvg('outdent')}</button>`
     : `<button class="computo-rubro-nivel" data-rubro-id="${escHtml(rubro.key)}" data-accion="meter" title="${hijos.length ? 'Un rubro con subrubros no puede pasar a subrubro' : 'Pasar a subrubro del rubro de arriba'}" ${esPrimero || hijos.length || ro ? 'disabled' : ''}>${icSvg('indent')}</button>`;
+  // Sólo en un principal: un subrubro no lleva subrubros (un solo nivel).
+  const botonSub = sub ? '' :
+    `<button class="computo-rubro-add-sub" data-rubro-id="${escHtml(rubro.key)}" title="Agregar subrubro" ${ro ? 'disabled' : ''}>${icSvg('subnivel')}</button>`;
   const botonAgregar = hijos.length ? '' :
     `<button class="computo-rubro-add-linea" data-rubro-id="${escHtml(rubro.key)}" title="Agregar ítem en este ${sub ? 'subrubro' : 'rubro'}" ${ro ? 'disabled' : ''}>${icSvg('plus')}</button>`;
   // Las líneas sueltas de un principal con subrubros sólo pueden venir de un
@@ -196,6 +199,7 @@ function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
       <input type="text" class="form-control computo-rubro-nombre-input" data-rubro-id="${escHtml(rubro.key)}" value="${escHtml(rubro.nombre || '')}" placeholder="${sub ? 'Nombre del subrubro' : 'Nombre del rubro'}" ${ro ? 'disabled' : ''}>
       <span class="computo-rubro-acciones">
         ${botonAgregar}
+        ${botonSub}
         ${botonNivel}
         <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="-1" title="Subir ${sub ? 'subrubro' : 'rubro'}" ${esPrimero || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
         <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="1" title="Bajar ${sub ? 'subrubro' : 'rubro'}" ${esUltimo || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
@@ -344,6 +348,9 @@ function renderLineas() {
   });
   container.querySelectorAll('.computo-rubro-mover').forEach(btn => {
     btn.addEventListener('click', () => moverRubro(btn.dataset.rubroId, parseInt(btn.dataset.dir, 10)));
+  });
+  container.querySelectorAll('.computo-rubro-add-sub').forEach(btn => {
+    btn.addEventListener('click', () => addSubrubro(btn.dataset.rubroId));
   });
   container.querySelectorAll('.computo-rubro-nivel').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -740,6 +747,45 @@ async function eliminarRubro(rubroId) {
     await _fbDel(`/obras/${obraKey}/rubrosComputo/${rubroId}.json`);
   } catch (_) {
     showToast('Error al eliminar el rubro.', 'error');
+  }
+}
+
+/* Botón de la cabecera de un principal: crea un subrubro vacío al final de
+   los suyos. Si el rubro todavía tenía ítems sueltos, la misma regla que ⇥:
+   se ofrece pasarlos al subrubro nuevo, y si no se acepta no se crea. */
+async function addSubrubro(padreId) {
+  if (guardBloqueoObra()) return;
+  const padre = rubros.find(r => r.key === padreId);
+  if (!padre || padreDe(padre)) return;
+
+  const sueltas = subrubrosDe(padreId).length ? [] : lineasDeRubro(padreId);
+  if (sueltas.length) {
+    const cod = window.numerarComputo(obra, rubros, lineas).codigoDeRubro[padreId];
+    const ok = await showConfirm('Agregar subrubro',
+      `"${cod}. ${padre.nombre || '(sin nombre)'}" tiene ${sueltas.length} ${sueltas.length === 1 ? 'ítem' : 'ítems'}, ` +
+      'y un rubro con subrubros no puede tener ítems sueltos. ¿Pasarlos al subrubro nuevo?');
+    if (!ok) return;
+  }
+
+  const rubroId = 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const orden = Math.max(...rubros.map(r => r.orden || 0)) + 1;
+  const nuevo = { nombre: '', orden, padreId };
+  rubros.push({ key: rubroId, ...nuevo });
+  const cambiosLineas = {};
+  sueltas.forEach(([key, l]) => { l.rubroId = rubroId; cambiosLineas[`${key}/rubroId`] = rubroId; });
+  ordenarRubros();
+  renderTodo();
+  setTimeout(() => {
+    const input = document.querySelector(`.computo-rubro-nombre-input[data-rubro-id="${CSS.escape(rubroId)}"]`);
+    if (input) input.focus();
+  }, 50);
+  try {
+    await window.undoAgrupar('Agregar subrubro', null, async () => {
+      await _fbPut(`/obras/${obraKey}/rubrosComputo/${rubroId}.json`, nuevo);
+      if (sueltas.length) await _fbPatch(`/obras/${obraKey}/computo.json`, cambiosLineas);
+    });
+  } catch (_) {
+    showToast('Error al guardar el rubro.', 'error');
   }
 }
 

@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .computo-rubro-header { display: grid; grid-template-columns: 40px 1fr 160px 130px; gap: .6rem; align-items: center; padding: .4rem .5rem; margin: .6rem -0.5rem 0; background: var(--gray-100); border-radius: var(--radius); border-bottom: 2px solid var(--gray-200); }
+    .computo-rubro-header { display: grid; grid-template-columns: 40px 1fr 180px 130px; gap: .6rem; align-items: center; padding: .4rem .5rem; margin: .6rem -0.5rem 0; background: var(--gray-100); border-radius: var(--radius); border-bottom: 2px solid var(--gray-200); }
     .computo-rubro-header:first-child { margin-top: 0; }
     .computo-rubro-numero { font-weight: 700; color: var(--primary); font-size: .95rem; }
     .computo-rubro-nombre-input { font-weight: 700; font-size: .95rem; border: none; background: none; padding: .2rem 0; }
@@ -35,12 +35,12 @@
        de abajo. */
     @media (min-width: 701px) {
       .con-subrubros .computo-linea { grid-template-columns: 62px 1.3fr 70px 90px 120px 130px 170px; }
-      .con-subrubros .computo-rubro-header { grid-template-columns: 62px 1fr 160px 130px; }
+      .con-subrubros .computo-rubro-header { grid-template-columns: 62px 1fr 180px 130px; }
     }
-    .computo-rubro-nivel { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .25rem; }
-    .computo-rubro-nivel:hover:not(:disabled) { color: var(--primary); }
-    .computo-rubro-nivel:disabled { opacity: .25; cursor: default; }
-    .computo-rubro-nivel .icon { width: 15px; height: 15px; }
+    .computo-rubro-nivel, .computo-rubro-add-sub { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .25rem; }
+    .computo-rubro-nivel:hover:not(:disabled), .computo-rubro-add-sub:hover:not(:disabled) { color: var(--primary); }
+    .computo-rubro-nivel:disabled, .computo-rubro-add-sub:disabled { opacity: .25; cursor: default; }
+    .computo-rubro-nivel .icon, .computo-rubro-add-sub .icon { width: 15px; height: 15px; }
     /* Arrastrar un rubro: la línea azul marca si cae antes o después. */
     .computo-rubro-header[draggable="true"] { cursor: grab; }
     .computo-rubro-header.dragging { opacity: .4; }
@@ -61,7 +61,7 @@
     .computo-codigo-input { width: 100%; min-width: 0; font-size: .8rem; padding: .15rem .25rem; border: 1px solid var(--gray-200); border-radius: 4px; background: #fff; }
     .computo-codigo-input:focus { border-color: var(--primary); outline: none; }
     .computo-rubro-numero.computo-codigo-input { font-weight: 700; color: var(--primary); }
-    .con-codigo .computo-rubro-header { grid-template-columns: 62px 1fr 160px 130px; }
+    .con-codigo .computo-rubro-header { grid-template-columns: 62px 1fr 180px 130px; }
     .con-codigo .computo-linea { grid-template-columns: 62px 1.3fr 70px 90px 120px 130px 170px; }
     .computo-linea-costo, .computo-linea-total { text-align: right; white-space: nowrap; }
     /* La celda de costo es un campo cuando el ítem todavía no tiene análisis

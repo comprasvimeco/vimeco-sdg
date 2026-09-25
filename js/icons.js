@@ -38,6 +38,8 @@ window.ic = {
   arrowUp: '<polyline points="18 15 12 9 6 15"/>',
   arrowDown: '<polyline points="6 9 12 15 18 9"/>',
   arrowLeft: '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  // Flecha que baja y dobla: "agregar un nivel adentro" (subrubro).
+  subnivel: '<polyline points="15 10 20 15 15 20"/><path d="M4 4v7a4 4 0 004 4h12"/>',
   indent:  '<polyline points="3 8 7 12 3 16"/><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="18" x2="11" y2="18"/>',
   outdent: '<polyline points="7 8 3 12 7 16"/><line x1="21" y1="6" x2="11" y2="6"/><line x1="21" y1="12" x2="11" y2="12"/><line x1="21" y1="18" x2="11" y2="18"/>',
   copy: '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>',
