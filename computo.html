@@ -41,6 +41,11 @@
     .computo-rubro-nivel:hover:not(:disabled) { color: var(--primary); }
     .computo-rubro-nivel:disabled { opacity: .25; cursor: default; }
     .computo-rubro-nivel .icon { width: 15px; height: 15px; }
+    /* Arrastrar un rubro: la línea azul marca si cae antes o después. */
+    .computo-rubro-header[draggable="true"] { cursor: grab; }
+    .computo-rubro-header.dragging { opacity: .4; }
+    .computo-rubro-header.drop-antes { box-shadow: inset 0 3px 0 var(--primary); }
+    .computo-rubro-header.drop-despues { box-shadow: inset 0 -3px 0 var(--primary); }
     .computo-rubro-lineas.drop-target { background: var(--gray-100); outline: 2px dashed var(--primary); outline-offset: -2px; }
     .computo-linea { display: grid; grid-template-columns: 40px 1.3fr 70px 90px 120px 130px 170px; gap: .6rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .computo-linea:last-child { border-bottom: none; }

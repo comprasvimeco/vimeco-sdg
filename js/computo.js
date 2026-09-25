@@ -44,6 +44,7 @@ let paramsMO = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8
 let preciosObra = {};   // { materialKey: {precioUSD,...} } — resuelto de los precios por obra de esta obra
 let dolarObra = null;   // dólar propio de esta obra (/obras/{obraKey}/dolar)
 let draggedLineaKey = null;
+let draggedRubroId = null;
 
 function versionDe(it) {
   const propia = it.versionesObra && it.versionesObra[obraKey];
@@ -190,7 +191,7 @@ function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
   // dato viejo: se muestran igual, pero no se ofrece soltar más ahí.
   const conLineas = !hijos.length || lineasDeRubro(rubro.key).length;
   return `
-    <div class="computo-rubro-header${sub ? ' computo-subrubro' : ''}" data-rubro-id="${escHtml(rubro.key)}">
+    <div class="computo-rubro-header${sub ? ' computo-subrubro' : ''}" data-rubro-id="${escHtml(rubro.key)}" draggable="${ro ? 'false' : 'true'}">
       ${celdaNumero('computo-rubro-numero', 'rubro', rubro, numero, numeroAuto, '.')}
       <input type="text" class="form-control computo-rubro-nombre-input" data-rubro-id="${escHtml(rubro.key)}" value="${escHtml(rubro.nombre || '')}" placeholder="${sub ? 'Nombre del subrubro' : 'Nombre del rubro'}" ${ro ? 'disabled' : ''}>
       <span class="computo-rubro-acciones">
@@ -314,7 +315,8 @@ function renderLineas() {
           i === 0, i === grupoLineas.length - 1)).join('')
       : '<p class="text-muted" style="font-size:.8rem;padding:.4rem 0;">Sin líneas en este rubro todavía.</p>';
 
-    lineasContainer.addEventListener('dragover', e => { e.preventDefault(); lineasContainer.classList.add('drop-target'); });
+    // Sólo líneas: un rubro arrastrado se suelta sobre otra cabecera.
+    lineasContainer.addEventListener('dragover', e => { if (!draggedLineaKey) return; e.preventDefault(); lineasContainer.classList.add('drop-target'); });
     lineasContainer.addEventListener('dragleave', () => lineasContainer.classList.remove('drop-target'));
     lineasContainer.addEventListener('drop', e => {
       e.preventDefault();
@@ -322,6 +324,8 @@ function renderLineas() {
       if (draggedLineaKey) moverLineaARubro(draggedLineaKey, rubro.key);
     });
   });
+
+  engancharArrastreRubros(container);
 
   container.querySelectorAll('.computo-rubro-nombre-input').forEach(input => {
     const rubroId = input.dataset.rubroId;
@@ -808,6 +812,93 @@ async function volverARubroPrincipal(rubroId) {
   renderTodo();
   try {
     await window.undoAgrupar('Volver a rubro principal', null, async () => {
+      await _fbPatch(`/obras/${obraKey}/rubrosComputo.json`, cambios);
+    });
+  } catch (_) {
+    showToast('Error al guardar el rubro.', 'error');
+  }
+}
+
+/* Arrastrar una cabecera de rubro. Se suelta sobre otra del mismo nivel: un
+   principal entre principales (se lleva sus subrubros), un subrubro entre
+   subrubros — de su rubro o de otro, y en ese caso pasa a ese rubro. La mitad
+   de la cabecera donde se suelta decide si queda antes o después. */
+function puedeSoltarRubro(origenId, destinoId) {
+  if (!origenId || origenId === destinoId) return false;
+  const o = rubros.find(r => r.key === origenId), d = rubros.find(r => r.key === destinoId);
+  return !!(o && d) && !padreDe(o) === !padreDe(d);
+}
+
+function engancharArrastreRubros(container) {
+  const limpiar = h => h.classList.remove('drop-antes', 'drop-despues');
+  container.querySelectorAll('.computo-rubro-header[data-rubro-id]').forEach(h => {
+    const rubroId = h.dataset.rubroId;
+    h.addEventListener('dragstart', e => {
+      // El arrastre empieza en la cabecera, no en un campo de texto de adentro.
+      if (e.target !== h) return;
+      draggedRubroId = rubroId;
+      h.classList.add('dragging');
+    });
+    h.addEventListener('dragend', () => {
+      draggedRubroId = null;
+      h.classList.remove('dragging');
+      container.querySelectorAll('.drop-antes, .drop-despues').forEach(limpiar);
+    });
+    h.addEventListener('dragover', e => {
+      if (!puedeSoltarRubro(draggedRubroId, rubroId)) return;
+      e.preventDefault();
+      const r = h.getBoundingClientRect();
+      const despues = e.clientY > r.top + r.height / 2;
+      h.classList.toggle('drop-antes', !despues);
+      h.classList.toggle('drop-despues', despues);
+    });
+    h.addEventListener('dragleave', () => limpiar(h));
+    h.addEventListener('drop', e => {
+      if (!puedeSoltarRubro(draggedRubroId, rubroId)) return;
+      e.preventDefault();
+      const despues = h.classList.contains('drop-despues');
+      limpiar(h);
+      soltarRubro(draggedRubroId, rubroId, despues);
+    });
+  });
+}
+
+// Arma el orden de lectura nuevo con el rubro ya en su lugar y renumera el
+// `orden` de todos; sólo se escriben los que cambiaron, en un solo gesto.
+async function soltarRubro(origenId, destinoId, despues) {
+  if (guardBloqueoObra()) return;
+  const origen = rubros.find(r => r.key === origenId);
+  const destino = rubros.find(r => r.key === destinoId);
+  if (!origen || !destino) return;
+  const esSub = !!padreDe(origen);
+  const padreNuevo = esSub ? padreDe(destino) : null;
+
+  const ubicar = lista => {
+    const sin = lista.filter(r => r !== origen);
+    const i = sin.indexOf(destino);
+    sin.splice(despues ? i + 1 : i, 0, origen);
+    return sin;
+  };
+  const principales = rubros.filter(r => !padreDe(r));
+  const lectura = [];
+  (esSub ? principales : ubicar(principales)).forEach(p => {
+    const hijos = subrubrosDe(p.key).filter(s => s !== origen);
+    lectura.push(p, ...(esSub && p.key === padreNuevo ? ubicar([...hijos, origen]) : hijos));
+  });
+
+  const cambios = {};
+  if (esSub && origen.padreId !== padreNuevo) {
+    origen.padreId = padreNuevo;
+    cambios[`${origenId}/padreId`] = padreNuevo;
+  }
+  lectura.forEach((r, i) => {
+    if (r.orden !== i + 1) { r.orden = i + 1; cambios[`${r.key}/orden`] = i + 1; }
+  });
+  if (!Object.keys(cambios).length) return;
+  ordenarRubros();
+  renderTodo();
+  try {
+    await window.undoAgrupar('Mover rubro', null, async () => {
       await _fbPatch(`/obras/${obraKey}/rubrosComputo.json`, cambios);
     });
   } catch (_) {
