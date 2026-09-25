@@ -365,7 +365,24 @@ async function saveRolModal() {
 
 async function deleteRol(rol) {
   if (guardBloqueoObra()) return;
-  const ok = await showConfirm('Eliminar rol', `¿Eliminar "${rol.nombre}"? Esta acción no se puede deshacer.`);
+  // Una línea de A.P. que apunta a un rol borrado queda huérfana: deja de
+  // costearse y de verse en el A.P. sin que nada lo avise. Se nombran acá los
+  // A.P. de esta obra que lo usan, para que se sepa antes de confirmar.
+  let usadoEn = [];
+  try {
+    const items = await _fbGet('/items.json') || {};
+    usadoEn = Object.values(items)
+      .filter(it => Object.values(((it.versionesObra || {})[obraKey] || {}).lineas || {})
+        .some(l => l && l.tipo === 'manoDeObra' && l.refKey === rol.key))
+      .map(it => it.nombre || '(sin nombre)');
+  } catch (_) {
+    showToast('No se pudo revisar qué Análisis de Precio usan este rol.', 'error');
+    return;
+  }
+  const aviso = usadoEn.length
+    ? ` Lo usa${usadoEn.length === 1 ? '' : 'n'} ${usadoEn.length} Análisis de Precio de esta obra: ${usadoEn.slice(0, 5).join('; ')}${usadoEn.length > 5 ? `; y ${usadoEn.length - 5} más` : ''}. Esas líneas dejan de costearse.`
+    : '';
+  const ok = await showConfirm('Eliminar rol', `¿Eliminar "${rol.nombre}"?${aviso} Esta acción no se puede deshacer.`);
   if (!ok) return;
   try {
     await _fbDel(`/obras/${obraKey}/roles/${rol.key}.json`);
