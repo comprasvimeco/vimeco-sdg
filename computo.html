@@ -25,6 +25,22 @@
     .computo-rubro-add-linea .icon, .computo-rubro-mover .icon, .computo-rubro-del .icon, .computo-linea-mover .icon, .computo-linea-dup .icon, .computo-linea-ap .icon, .computo-linea-del .icon { width: 15px; height: 15px; }
     .computo-rubro-subtotal { font-weight: 600; color: var(--gray-700); white-space: nowrap; text-align: right; }
     .computo-rubro-lineas { min-height: 4px; }
+    /* Subrubro (ver js/numeracion.js): la misma cabecera, entrada hacia la
+       derecha y más liviana, para que se lea como parte del rubro de arriba. */
+    .computo-rubro-header.computo-subrubro { margin-left: .9rem; margin-top: .35rem; background: #fff; border: 1px solid var(--gray-200); border-left: 3px solid var(--primary); }
+    .computo-subrubro .computo-rubro-numero, .computo-subrubro .computo-rubro-nombre-input { font-size: .9rem; }
+    .computo-subrubro-lineas { margin-left: 1.4rem; }
+    /* "5.1.1" no entra en los 40px del número: con subrubros la columna toma
+       el ancho de la numeración personalizada. En el celular manda el layout
+       de abajo. */
+    @media (min-width: 701px) {
+      .con-subrubros .computo-linea { grid-template-columns: 62px 1.3fr 70px 90px 120px 130px 170px; }
+      .con-subrubros .computo-rubro-header { grid-template-columns: 62px 1fr 160px 130px; }
+    }
+    .computo-rubro-nivel { background: none; border: none; color: var(--gray-400); cursor: pointer; padding: .25rem; }
+    .computo-rubro-nivel:hover:not(:disabled) { color: var(--primary); }
+    .computo-rubro-nivel:disabled { opacity: .25; cursor: default; }
+    .computo-rubro-nivel .icon { width: 15px; height: 15px; }
     .computo-rubro-lineas.drop-target { background: var(--gray-100); outline: 2px dashed var(--primary); outline-offset: -2px; }
     .computo-linea { display: grid; grid-template-columns: 40px 1.3fr 70px 90px 120px 130px 170px; gap: .6rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .computo-linea:last-child { border-bottom: none; }

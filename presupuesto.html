@@ -16,6 +16,18 @@
     .presupuesto-rubro-nombre { font-weight: 700; font-size: .95rem; }
     .presupuesto-rubro-incidencia { font-weight: 600; color: var(--gray-600); white-space: nowrap; text-align: right; }
     .presupuesto-rubro-subtotal { font-weight: 600; color: var(--gray-700); white-space: nowrap; text-align: right; }
+    /* Subrubro: la misma cabecera, entrada y más liviana (igual que en el Cómputo). */
+    .presupuesto-rubro-header.presupuesto-subrubro { margin-left: .9rem; margin-top: .35rem; background: #fff; border: 1px solid var(--gray-200); border-left: 3px solid var(--primary); }
+    .presupuesto-subrubro .presupuesto-rubro-numero, .presupuesto-subrubro .presupuesto-rubro-nombre { font-size: .9rem; }
+    /* "5.1.1" no entra en los 40px del número. En el celular manda el layout de abajo. */
+    @media (min-width: 701px) {
+      .con-subrubros .presupuesto-rubro-header { grid-template-columns: 56px 1fr 130px 90px; }
+      .con-subrubros .presupuesto-linea { grid-template-columns: 56px 1.3fr 70px 90px 130px 130px 90px; }
+      #lineas-presupuesto.con-subrubros.cmp-oficial .presupuesto-linea,
+      #lineas-presupuesto.con-subrubros.cmp-oficial .presupuesto-linea-header {
+        grid-template-columns: 56px 1.3fr 70px 90px 130px 130px 90px 110px 70px;
+      }
+    }
     .presupuesto-linea { display: grid; grid-template-columns: 40px 1.3fr 70px 90px 130px 130px 90px; gap: .6rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .presupuesto-linea:last-child { border-bottom: none; }
     .presupuesto-linea-numero { color: var(--gray-500); font-size: .85rem; }

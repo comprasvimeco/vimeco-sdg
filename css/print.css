@@ -99,6 +99,14 @@
   font-weight: 700;
   border-color: var(--doc-linea-fuerte);
 }
+/* Subrubro: la misma fila, más clara y con el nombre entrado, para que se lea
+   como parte del rubro de arriba. */
+.doc-tabla tr.doc-fila-rubro.doc-fila-subrubro td {
+  background: #f3f4f6;
+  font-weight: 600;
+  border-color: var(--doc-linea);
+}
+.doc-tabla tr.doc-fila-subrubro td:nth-child(2) { padding-left: 4mm; }
 .doc-tabla tr.doc-fila-total td {
   background: var(--primary-dark);
   color: #fff;

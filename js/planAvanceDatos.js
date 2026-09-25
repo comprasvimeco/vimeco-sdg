@@ -70,12 +70,14 @@
 
   // Pasa los rubros del Presupuesto (js/presupuestoDatos.js) a la forma que
   // espera calcPlanAvance, para que la exportación no tenga que rearmar precios.
+  // Va por rubro principal: el subtotal del principal ya suma el de sus
+  // subrubros, y sus líneas se juntan en orden de lectura.
   window.gruposRubroDesdePresupuesto = function (modelo) {
-    return modelo.rubros.map(r => ({
+    return modelo.rubros.filter(r => r.nivel !== 2).map(r => ({
       rubro: { key: r.key, nombre: r.nombre },
       numero: r.numero,
       precioTotal: r.subtotal || 0,
-      lineas: r.lineas.map(l => ({
+      lineas: [r, ...modelo.rubros.filter(s => s.padreKey === r.key)].flatMap(x => x.lineas).map(l => ({
         key: l.key,
         numero: l.numero,
         linea: { nombre: l.nombre, unidad: l.unidad },

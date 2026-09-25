@@ -958,12 +958,14 @@
     const cantidadFilas = m.rubros.reduce((acc, ru) => acc + (plana ? 0 : 1) + ru.lineas.length, 0);
     const filaTotal = primera + Math.max(cantidadFilas, 1) + 1;   // vacío queda la fila del aviso
     const ultima = filaTotal - 2;
-    const filasRubro = [];
+    const filasRubro = [];      // sólo principales: lo que suma el total
+    const filaDeRubro = {};     // rubroKey → fila, para sumar subrubros
 
     m.rubros.forEach(rubro => {
       const filaRubro = r;
       if (!plana) {
-        filasRubro.push(filaRubro);
+        filaDeRubro[rubro.key] = filaRubro;
+        if (rubro.nivel !== 2) filasRubro.push(filaRubro);
         // El código va como texto, no como número: con la numeración
         // personalizada puede ser "I" o "01" (ver js/numeracion.js). Los dos
         // lados de cada VLOOKUP que lo busca quedan texto contra texto, que es
@@ -987,7 +989,9 @@
           ? f(`=SUM(J${filaRubro + 1}:J${filaRubro + rubro.lineas.length})`)
           : 0;
         ws.getCell(r, 10).numFmt = FMT_ARS;
-        pintar(ws, r, 2, 10, GRIS_CABECERA);
+        // Subrubro: más claro y con el nombre entrado, como en el papel.
+        if (rubro.nivel === 2) ws.getCell(r, 3).alignment = { indent: 1 };
+        pintar(ws, r, 2, 10, rubro.nivel === 2 ? GRIS_SUAVE : GRIS_CABECERA);
         negrita(ws, r, 2, 10);
         r++;
       }
@@ -1019,6 +1023,22 @@
         r++;
       });
     });
+
+    // Un principal con subrubros suma las filas de sus subrubros (y las de sus
+    // propias líneas, si quedó alguna de un dato viejo): celdas concretas, por
+    // el mismo motivo que el total de abajo.
+    if (!plana) {
+      m.rubros.filter(ru => ru.hijos.length).forEach(ru => {
+        const fr = filaDeRubro[ru.key];
+        const sumar = col => {
+          const partes = ru.hijos.map(k => `${col}${filaDeRubro[k]}`);
+          if (ru.lineas.length) partes.unshift(`${col}${fr + 1}:${col}${fr + ru.lineas.length}`);
+          return f(`=SUM(${partes.join(',')})`);
+        };
+        ws.getCell(fr, 7).value = sumar('G');
+        ws.getCell(fr, 10).value = sumar('J');
+      });
+    }
 
     if (r === primera) {
       ws.getCell(r, 2).value = plana ? 'Sin ítems cargados en el Cómputo.' : 'Sin rubros cargados en el Cómputo.';
@@ -1292,9 +1312,12 @@
     r++;
 
     const primera = r;
-    const filaTotal = primera + Math.max(m.rubros.length, 1) + 1;
+    // Sólo los principales: el importe de cada uno (VLOOKUP a CyP) ya suma el
+    // de sus subrubros.
+    const principales = m.rubros.filter(ru => ru.nivel !== 2);
+    const filaTotal = primera + Math.max(principales.length, 1) + 1;
 
-    m.rubros.forEach(rubro => {
+    principales.forEach(rubro => {
       ws.getCell(r, 2).value = rubro.numero;
       ws.getCell(r, 2).alignment = { horizontal: 'center' };
       // La designación y el importe se buscan por número de rubro (único),

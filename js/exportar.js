@@ -221,8 +221,9 @@ function cierreCuadro() {
 function seccionResumen() {
   // Un renglón por rubro, como la hoja "Resumen" de la planilla: la unidad es
   // global (gl) y la cantidad 1, porque lo que se cotiza en este cuadro es el
-  // rubro completo.
-  const filas = modelo.rubros.map(r => `
+  // rubro completo. Sólo los principales: su subtotal ya suma el de sus
+  // subrubros (ver js/presupuestoDatos.js).
+  const filas = modelo.rubros.filter(r => r.nivel !== 2).map(r => `
     <tr>
       <td class="doc-centro">${escHtml(r.numero)}</td>
       <td>${escHtml(r.nombre || '(sin nombre)')}</td>
@@ -260,7 +261,7 @@ function seccionPresupuesto() {
   const filas = modelo.rubros.map(r => {
     // Obra sin rubros: la lista sale corrida, sin la fila de cabecera.
     const cabecera = modelo.numeracion.sinRubros ? '' : `
-      <tr class="doc-fila-rubro">
+      <tr class="doc-fila-rubro${r.nivel === 2 ? ' doc-fila-subrubro' : ''}">
         <td class="doc-centro">${escHtml(r.numero)}</td>
         <td>${escHtml(r.nombre || '(sin nombre)')}</td>
         <td colspan="3"></td>

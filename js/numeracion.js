@@ -75,8 +75,11 @@
 
      Devuelve:
        cfg            — lo que resolvió numeracionCfg
-       rubros         — [{ ...rubro, codigo, lineas: [{ ...linea, codigo }] }]
-                        en orden; `codigo` vacío en las obras sin rubros
+       rubros         — [{ ...rubro, codigo, nivel, padreKey, hijos,
+                           lineas: [{ ...linea, codigo }] }]
+                        en orden de lectura: cada principal (nivel 1) seguido
+                        de sus subrubros (nivel 2, "3.1", con líneas "3.1.1");
+                        `codigo` vacío en las obras sin rubros
        lineasEnOrden  — las mismas líneas, planas y en el orden en que se leen
        codigoDeRubro  — { rubroKey: '3' }
        codigoDeLinea  — { lineaKey: '3.1' }
@@ -122,21 +125,23 @@
     const lineasEnOrden = [];
     let posGlobal = 0;
 
-    const rubrosModelo = rubros.map((rubro, ri) => {
-      const autoRubro = cfg.sinRubros ? '' : est.nivel1(ri + 1);
-      const codRubro = cfg.sinRubros ? '' : (manual(rubro) || autoRubro);
-      if (codRubro) {
-        codigoDeRubro[rubro.key] = codRubro;
-        autoDeRubro[rubro.key] = autoRubro;
-        marcar(codRubro);
-      }
+    /* Subrubros: un rubro con `padreId` cuelga de ese rubro principal (un
+       solo nivel). Si el padre no existe, o es a su vez un subrubro, el rubro
+       vale como principal: ningún dato viejo ni huérfano queda sin mostrarse.
+       Los principales se ordenan entre sí y los subrubros entre hermanos, así
+       que mover un principal arrastra a sus subrubros sin tocarlos. */
+    const esPrincipal = {};
+    rubros.forEach(r => { if (!r.padreId) esPrincipal[r.key] = true; });
+    const padreDe = r => (r.padreId && esPrincipal[r.padreId] ? r.padreId : null);
+    const principales = rubros.filter(r => !padreDe(r));
+    const hijosDe = key => rubros.filter(r => padreDe(r) === key);
 
-      const propias = lineas.filter(l => l.rubroId === rubro.key);
-      const lineasModelo = propias.map((l, li) => {
+    function numerarLineas(rubroKey, codRubro) {
+      return lineas.filter(l => l.rubroId === rubroKey).map((l, li) => {
         // El automático sale de la posición, no de un contador que saltee los
         // códigos escritos a mano: poner "1 bis" en una línea no corre a las
-        // demás. El segundo nivel se cuelga del código efectivo del rubro, así
-        // que un rubro llamado "A" numera sus líneas "A.1", "A.2"…
+        // demás. El nivel de la línea se cuelga del código efectivo de su
+        // rubro o subrubro, así que un rubro llamado "A" numera "A.1", "A.2"…
         const auto = cfg.sinRubros
           ? est.nivel1(posGlobal + 1)
           : `${codRubro}.${est.nivel2(li + 1)}`;
@@ -149,8 +154,36 @@
         lineasEnOrden.push(modelo);
         return modelo;
       });
+    }
 
-      return { ...rubro, codigo: codRubro, lineas: lineasModelo };
+    function codigoRubro(rubro, auto) {
+      const cod = cfg.sinRubros ? '' : (manual(rubro) || auto);
+      if (cod) {
+        codigoDeRubro[rubro.key] = cod;
+        autoDeRubro[rubro.key] = auto;
+        marcar(cod);
+      }
+      return cod;
+    }
+
+    // Lista plana en orden de lectura: cada principal seguido de sus
+    // subrubros. Un principal con subrubros no lleva líneas propias (las que
+    // tuviera por un dato viejo se muestran igual, antes de los subrubros).
+    const rubrosModelo = [];
+    principales.forEach((rubro, ri) => {
+      const codRubro = codigoRubro(rubro, cfg.sinRubros ? '' : est.nivel1(ri + 1));
+      const hijos = hijosDe(rubro.key);
+      rubrosModelo.push({
+        ...rubro, codigo: codRubro, nivel: 1, padreKey: null,
+        hijos: hijos.map(h => h.key), lineas: numerarLineas(rubro.key, codRubro),
+      });
+      hijos.forEach((sub, si) => {
+        const codSub = codigoRubro(sub, cfg.sinRubros ? '' : `${codRubro}.${est.nivel2(si + 1)}`);
+        rubrosModelo.push({
+          ...sub, codigo: codSub, nivel: 2, padreKey: rubro.key,
+          hijos: [], lineas: numerarLineas(sub.key, codSub),
+        });
+      });
     });
 
     return {

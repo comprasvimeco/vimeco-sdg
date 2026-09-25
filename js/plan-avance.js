@@ -189,8 +189,15 @@ function construirDatos() {
   // Presupuesto: la grilla y el cronograma impreso muestran el mismo número.
   const num = window.numerarComputo(obra, rubros, lineas);
 
-  const gruposRubro = rubros.map(r => {
-    const grupo = lineasDeRubro(r.key).map(([lineaKey, l]) => {
+  // El Plan va por rubro principal: cada uno junta, en orden de lectura, sus
+  // líneas y las de sus subrubros (que conservan su número "5.1.1"). La
+  // distribución sigue guardada por la key del principal.
+  const principales = num.rubros.filter(m => m.nivel === 1);
+  const gruposRubro = principales.map(m => {
+    const r = rubros.find(x => x.key === m.key);
+    const deRubro = [m, ...num.rubros.filter(s => s.padreKey === m.key)]
+      .flatMap(x => lineasDeRubro(x.key));
+    const grupo = deRubro.map(([lineaKey, l]) => {
       // Mismo redondeo real a 2 decimales que el Presupuesto (ver
       // presupuestoDatos.js y window.round2 en calc.js): el total de línea
       // sale de cantidad × precio unitario YA redondeado, así el total de

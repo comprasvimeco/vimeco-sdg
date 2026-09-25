@@ -125,6 +125,22 @@ function ordenarRubros() {
   rubros.sort((a, b) => (a.orden || 0) - (b.orden || 0));
 }
 
+/* Subrubros (ver js/numeracion.js): un rubro con `padreId` cuelga de ese
+   rubro principal. Un solo nivel: si el padre no existe o es a su vez un
+   subrubro, el rubro vale como principal — la misma regla que la numeración. */
+function padreDe(rubro) {
+  const p = rubro.padreId && rubros.find(r => r.key === rubro.padreId);
+  return p && !p.padreId ? p.key : null;
+}
+function subrubrosDe(rubroId) {
+  return rubros.filter(r => padreDe(r) === rubroId);
+}
+// Principales entre sí, o los subrubros de un mismo rubro — en orden.
+function hermanosDe(rubro) {
+  const p = padreDe(rubro);
+  return rubros.filter(r => padreDe(r) === p);
+}
+
 function subtotalGrupo(grupoLineas) {
   return grupoLineas.reduce((acc, [, l]) => acc + totalLinea(l), 0);
 }
@@ -152,23 +168,41 @@ function sinRubros() {
   return window.numeracionCfg(obra).sinRubros;
 }
 
+/* `esPrimero` / `esUltimo` son entre hermanos: un principal sube y baja entre
+   principales, un subrubro entre los subrubros de su rubro. Un principal con
+   subrubros no lleva ítems propios: no tiene "+" ni lugar donde soltar líneas,
+   y su subtotal es la suma de los de sus subrubros. */
 function renderRubroHeader(rubro, numero, numeroAuto, esPrimero, esUltimo) {
-  const grupoLineas = lineasDeRubro(rubro.key);
-  const vacio = !grupoLineas.length;
+  const sub = !!padreDe(rubro);
+  const hijos = subrubrosDe(rubro.key);
+  const grupoLineas = [rubro, ...hijos].flatMap(r => lineasDeRubro(r.key));
+  const vacio = !grupoLineas.length && !hijos.length;
   const ro = !!window._soloLectura;
+  const tituloDel = vacio ? 'Eliminar rubro'
+    : hijos.length ? 'Sacá o eliminá sus subrubros antes de eliminarlo' : 'Vaciá el rubro antes de eliminarlo';
+  // ⇥ cuelga el rubro del principal de arriba; ⇤ lo devuelve a principal.
+  const botonNivel = sub
+    ? `<button class="computo-rubro-nivel" data-rubro-id="${escHtml(rubro.key)}" data-accion="sacar" title="Volver a rubro principal" ${ro ? 'disabled' : ''}>${icSvg('outdent')}</button>`
+    : `<button class="computo-rubro-nivel" data-rubro-id="${escHtml(rubro.key)}" data-accion="meter" title="${hijos.length ? 'Un rubro con subrubros no puede pasar a subrubro' : 'Pasar a subrubro del rubro de arriba'}" ${esPrimero || hijos.length || ro ? 'disabled' : ''}>${icSvg('indent')}</button>`;
+  const botonAgregar = hijos.length ? '' :
+    `<button class="computo-rubro-add-linea" data-rubro-id="${escHtml(rubro.key)}" title="Agregar ítem en este ${sub ? 'subrubro' : 'rubro'}" ${ro ? 'disabled' : ''}>${icSvg('plus')}</button>`;
+  // Las líneas sueltas de un principal con subrubros sólo pueden venir de un
+  // dato viejo: se muestran igual, pero no se ofrece soltar más ahí.
+  const conLineas = !hijos.length || lineasDeRubro(rubro.key).length;
   return `
-    <div class="computo-rubro-header" data-rubro-id="${escHtml(rubro.key)}">
+    <div class="computo-rubro-header${sub ? ' computo-subrubro' : ''}" data-rubro-id="${escHtml(rubro.key)}">
       ${celdaNumero('computo-rubro-numero', 'rubro', rubro, numero, numeroAuto, '.')}
-      <input type="text" class="form-control computo-rubro-nombre-input" data-rubro-id="${escHtml(rubro.key)}" value="${escHtml(rubro.nombre || '')}" placeholder="Nombre del rubro" ${ro ? 'disabled' : ''}>
+      <input type="text" class="form-control computo-rubro-nombre-input" data-rubro-id="${escHtml(rubro.key)}" value="${escHtml(rubro.nombre || '')}" placeholder="${sub ? 'Nombre del subrubro' : 'Nombre del rubro'}" ${ro ? 'disabled' : ''}>
       <span class="computo-rubro-acciones">
-        <button class="computo-rubro-add-linea" data-rubro-id="${escHtml(rubro.key)}" title="Agregar ítem en este rubro" ${ro ? 'disabled' : ''}>${icSvg('plus')}</button>
-        <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="-1" title="Subir rubro" ${esPrimero || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
-        <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="1" title="Bajar rubro" ${esUltimo || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
-        <button class="computo-rubro-del" data-rubro-id="${escHtml(rubro.key)}" title="${vacio ? 'Eliminar rubro' : 'Vaciá el rubro antes de eliminarlo'}" ${vacio && !ro ? '' : 'disabled'}>${icSvg('x')}</button>
+        ${botonAgregar}
+        ${botonNivel}
+        <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="-1" title="Subir ${sub ? 'subrubro' : 'rubro'}" ${esPrimero || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+        <button class="computo-rubro-mover" data-rubro-id="${escHtml(rubro.key)}" data-dir="1" title="Bajar ${sub ? 'subrubro' : 'rubro'}" ${esUltimo || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+        <button class="computo-rubro-del" data-rubro-id="${escHtml(rubro.key)}" title="${tituloDel}" ${vacio && !ro ? '' : 'disabled'}>${icSvg('x')}</button>
       </span>
       <span class="computo-rubro-subtotal"${calcAttrs(subtotalGrupo(grupoLineas), `computo:rubro:${rubro.key}:subtotal`, `${numero}. ${rubro.nombre || 'Rubro'} · Subtotal`)}>${fmtARS(subtotalGrupo(grupoLineas))}</span>
     </div>
-    <div class="computo-rubro-lineas" data-rubro-id="${escHtml(rubro.key)}"></div>`;
+    ${conLineas ? `<div class="computo-rubro-lineas${sub ? ' computo-subrubro-lineas' : ''}" data-rubro-id="${escHtml(rubro.key)}"></div>` : ''}`;
 }
 
 /* La celda de costo unitario: campo de plata cuando se puede cargar a mano,
@@ -261,13 +295,19 @@ function renderLineas() {
     return;
   }
 
-  container.innerHTML = header + rubros.map((rubro, i) =>
-    renderRubroHeader(rubro, num.codigoDeRubro[rubro.key], num.autoDeRubro[rubro.key],
-      i === 0, i === rubros.length - 1)
-  ).join('');
+  // Los códigos de subrubro ("5.1.1") necesitan una primera columna más ancha.
+  container.classList.toggle('con-subrubros', num.rubros.some(r => r.nivel === 2));
+  // En orden de lectura: cada principal seguido de sus subrubros.
+  const enLectura = num.rubros.map(m => rubros.find(r => r.key === m.key));
+  container.innerHTML = header + enLectura.map(rubro => {
+    const hermanos = hermanosDe(rubro);
+    return renderRubroHeader(rubro, num.codigoDeRubro[rubro.key], num.autoDeRubro[rubro.key],
+      hermanos[0] === rubro, hermanos[hermanos.length - 1] === rubro);
+  }).join('');
 
-  rubros.forEach(rubro => {
+  enLectura.forEach(rubro => {
     const lineasContainer = container.querySelector(`.computo-rubro-lineas[data-rubro-id="${CSS.escape(rubro.key)}"]`);
+    if (!lineasContainer) return;
     const grupoLineas = lineasDeRubro(rubro.key);
     lineasContainer.innerHTML = grupoLineas.length
       ? grupoLineas.map(([k, l], i) => renderLineaRow(k, l, num.codigoDeLinea[k], num.autoDeLinea[k],
@@ -300,6 +340,13 @@ function renderLineas() {
   });
   container.querySelectorAll('.computo-rubro-mover').forEach(btn => {
     btn.addEventListener('click', () => moverRubro(btn.dataset.rubroId, parseInt(btn.dataset.dir, 10)));
+  });
+  container.querySelectorAll('.computo-rubro-nivel').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.disabled) return;
+      if (btn.dataset.accion === 'meter') pasarASubrubro(btn.dataset.rubroId);
+      else volverARubroPrincipal(btn.dataset.rubroId);
+    });
   });
   container.querySelectorAll('.computo-rubro-del').forEach(btn => {
     btn.addEventListener('click', () => { if (!btn.disabled) eliminarRubro(btn.dataset.rubroId); });
@@ -657,9 +704,14 @@ async function addItemPlano() {
   crearLineaEnRubro(rubroId);
 }
 
+// Se cambia de lugar con su vecino entre hermanos (ver hermanosDe): un
+// principal se lleva a sus subrubros sin tocarlos, porque ellos se ordenan
+// entre sí y no contra los principales.
 function moverRubro(rubroId, dir) {
   if (guardBloqueoObra()) return;
-  const ordenados = [...rubros].sort((a, b) => (a.orden || 0) - (b.orden || 0));
+  const rubro = rubros.find(r => r.key === rubroId);
+  if (!rubro) return;
+  const ordenados = hermanosDe(rubro);
   const idx = ordenados.findIndex(r => r.key === rubroId);
   const otroIdx = idx + dir;
   if (idx < 0 || otroIdx < 0 || otroIdx >= ordenados.length) return;
@@ -674,6 +726,7 @@ function moverRubro(rubroId, dir) {
 async function eliminarRubro(rubroId) {
   if (guardBloqueoObra()) return;
   if (lineasDeRubro(rubroId).length) { showToast('Vaciá el rubro antes de eliminarlo.', 'error'); return; }
+  if (subrubrosDe(rubroId).length) { showToast('Sacá o eliminá sus subrubros antes de eliminarlo.', 'error'); return; }
   const rubro = rubros.find(r => r.key === rubroId);
   const ok = await showConfirm('Eliminar rubro', `¿Eliminar "${rubro ? rubro.nombre || '(sin nombre)' : rubroId}"?`);
   if (!ok) return;
@@ -683,6 +736,82 @@ async function eliminarRubro(rubroId) {
     await _fbDel(`/obras/${obraKey}/rubrosComputo/${rubroId}.json`);
   } catch (_) {
     showToast('Error al eliminar el rubro.', 'error');
+  }
+}
+
+/* ⇥ — el rubro pasa a colgar del principal de arriba, como su último
+   subrubro. Un rubro con subrubros no lleva ítems sueltos, así que si ese
+   principal tenía ítems se ofrece pasarlos a este subrubro (delante de los
+   que ya tenga); si no se acepta, no cambia nada.
+
+   Todo va por PATCH con rutas profundas, campo por campo, y en un solo gesto
+   de deshacer. Las raíces van en null: el undo anota cada escritura. */
+async function pasarASubrubro(rubroId) {
+  if (guardBloqueoObra()) return;
+  const rubro = rubros.find(r => r.key === rubroId);
+  if (!rubro || padreDe(rubro) || subrubrosDe(rubroId).length) return;
+  const principales = hermanosDe(rubro);
+  const idx = principales.findIndex(r => r.key === rubroId);
+  if (idx <= 0) return;
+  const padre = principales[idx - 1];
+
+  const sueltas = subrubrosDe(padre.key).length ? [] : lineasDeRubro(padre.key);
+  if (sueltas.length) {
+    const cod = window.numerarComputo(obra, rubros, lineas).codigoDeRubro[padre.key];
+    const ok = await showConfirm('Pasar a subrubro',
+      `"${cod}. ${padre.nombre || '(sin nombre)'}" tiene ${sueltas.length} ${sueltas.length === 1 ? 'ítem' : 'ítems'}, ` +
+      `y un rubro con subrubros no puede tener ítems sueltos. ¿Pasarlos a "${rubro.nombre || '(sin nombre)'}"?`);
+    if (!ok) return;
+  }
+
+  const orden = Math.max(...rubros.map(r => r.orden || 0)) + 1;
+  const cambiosLineas = {};
+  [...sueltas, ...lineasDeRubro(rubroId)].forEach(([key, l], i) => {
+    if (l.rubroId !== rubroId) { l.rubroId = rubroId; cambiosLineas[`${key}/rubroId`] = rubroId; }
+    if (l.orden !== i + 1) { l.orden = i + 1; cambiosLineas[`${key}/orden`] = i + 1; }
+  });
+  rubro.padreId = padre.key;
+  rubro.orden = orden;
+  ordenarRubros();
+  renderTodo();
+  try {
+    await window.undoAgrupar('Pasar a subrubro', null, async () => {
+      await _fbPatch(`/obras/${obraKey}/rubrosComputo/${rubroId}.json`, { padreId: padre.key, orden });
+      if (Object.keys(cambiosLineas).length) await _fbPatch(`/obras/${obraKey}/computo.json`, cambiosLineas);
+    });
+  } catch (_) {
+    showToast('Error al guardar el rubro.', 'error');
+  }
+}
+
+/* ⇤ — el subrubro vuelve a ser principal y queda justo después del bloque de
+   su rubro (el rubro y todos sus subrubros). Para meterlo ahí se renumera el
+   `orden` de todos en el orden en que se leen, y sólo se escriben los que
+   cambiaron. */
+async function volverARubroPrincipal(rubroId) {
+  if (guardBloqueoObra()) return;
+  const rubro = rubros.find(r => r.key === rubroId);
+  const padreKey = rubro && padreDe(rubro);
+  if (!padreKey) return;
+
+  const lectura = [];
+  rubros.filter(r => !padreDe(r)).forEach(p => {
+    lectura.push(p, ...subrubrosDe(p.key).filter(s => s !== rubro));
+    if (p.key === padreKey) lectura.push(rubro);
+  });
+  const cambios = { [`${rubroId}/padreId`]: null };
+  lectura.forEach((r, i) => {
+    if (r.orden !== i + 1) { r.orden = i + 1; cambios[`${r.key}/orden`] = i + 1; }
+  });
+  delete rubro.padreId;
+  ordenarRubros();
+  renderTodo();
+  try {
+    await window.undoAgrupar('Volver a rubro principal', null, async () => {
+      await _fbPatch(`/obras/${obraKey}/rubrosComputo.json`, cambios);
+    });
+  } catch (_) {
+    showToast('Error al guardar el rubro.', 'error');
   }
 }
 

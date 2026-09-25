@@ -347,9 +347,9 @@ function setupSinRubros() {
       _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
       _fbGet(`/obras/${obraKey}/computo.json`),
     ]);
-    const rubros = Object.entries(rubrosData || {})
-      .map(([key, r]) => ({ key, ...r }))
-      .sort((a, b) => (a.orden || 0) - (b.orden || 0));
+    // En el orden en que se leen, con los subrubros detrás de su rubro: así
+    // la lista plana sale en el mismo orden y el primero es un principal.
+    const rubros = window.numerarComputo({}, rubrosData, {}).rubros;
     const lineas = computoData || {};
 
     if (rubros.length > 1) {

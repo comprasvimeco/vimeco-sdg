@@ -205,11 +205,28 @@
         key: rubro.key,
         numero: rubro.codigo,
         nombre: rubro.nombre || '',
+        // Subrubros (ver js/numeracion.js): la lista es plana, cada principal
+        // seguido de los suyos. nivel 1 = principal, 2 = subrubro.
+        nivel: rubro.nivel,
+        padreKey: rubro.padreKey,
+        hijos: rubro.hijos,
         lineas: lineasModelo,
         subtotalCosto,
         subtotal,
-        incidencia: total > 0 && subtotal != null ? subtotal / total : null,
       };
+    });
+
+    // Un principal con subrubros no tiene líneas propias (salvo un dato
+    // viejo): su subtotal es el de sus líneas más el de sus subrubros.
+    rubrosModelo.forEach(r => {
+      if (!r.hijos.length) return;
+      rubrosModelo.filter(s => s.padreKey === r.key).forEach(s => {
+        r.subtotalCosto += s.subtotalCosto;
+        if (r.subtotal != null) r.subtotal += s.subtotal;
+      });
+    });
+    rubrosModelo.forEach(r => {
+      r.incidencia = total > 0 && r.subtotal != null ? r.subtotal / total : null;
     });
 
     /* ---- Análisis auxiliares ----

@@ -143,6 +143,7 @@ function renderTodo() {
   }
 
   container.classList.toggle('cmp-oficial', mostrarOficial);
+  container.classList.toggle('con-subrubros', !modelo.numeracion.sinRubros && modelo.rubros.some(r => r.nivel === 2));
   const colOficialHeader = mostrarOficial ? '<span>Oficial</span><span>Dif. %</span>' : '';
   const header = `
       <div class="presupuesto-linea presupuesto-linea-header">
@@ -160,14 +161,16 @@ function renderTodo() {
     container.innerHTML = header + modelo.rubros.map(rubro => {
       const et = `${rubro.numero}. ${rubro.nombre || 'Rubro'}`;
       const rubroHtml = `
-        <div class="presupuesto-rubro-header">
+        <div class="presupuesto-rubro-header${rubro.nivel === 2 ? ' presupuesto-subrubro' : ''}">
           <span class="presupuesto-rubro-numero">${rubro.numero}.</span>
           <span class="presupuesto-rubro-nombre">${escHtml(rubro.nombre || '(sin nombre)')}</span>
           <span class="presupuesto-rubro-subtotal"${calcAttrs(rubro.subtotal, `presupuesto:rubro:${rubro.key}:subtotal`, `${et} · Subtotal`)}>${fmtARS(rubro.subtotal)}</span>
           <span class="presupuesto-rubro-incidencia"${calcAttrs(rubro.incidencia != null ? rubro.incidencia * 100 : null, `presupuesto:rubro:${rubro.key}:incidencia`, `${et} · Incidencia %`)}>${fmtPct(rubro.incidencia)}</span>
         </div>`;
+      // Un principal con subrubros no lleva líneas propias: no es un rubro vacío.
       const lineasHtml = rubro.lineas.length
         ? rubro.lineas.map(renderLineaRow).join('')
+        : rubro.hijos.length ? ''
         : '<p class="text-muted" style="font-size:.8rem;padding:.4rem 0;">Sin líneas en este rubro.</p>';
       return rubroHtml + lineasHtml;
     }).join('');
