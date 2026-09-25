@@ -306,3 +306,48 @@ window.undoOmitir          = fn => fn();
 window.undoAgrupar         = (etiqueta, raices, fn) => fn();
 window.undoRecienAplicado  = () => false;
 window.registrarRecargaUndo = () => {};
+
+/* Autoscroll al arrastrar, para todas las pantallas: el navegador no desplaza
+   solo mientras se arrastra, así que no se podía llevar una fila a un lugar
+   que no estuviera a la vista. Cerca del borde de arriba o de abajo se
+   desplaza lo que tenga scroll debajo del puntero (un modal, una tabla) o, si
+   no hay nada, la página. Más cerca del borde, más rápido. */
+(function () {
+  const BORDE = 80;       // px desde el borde donde empieza a desplazar
+  const MAX_VEL = 22;     // px por cuadro, pegado al borde
+  let y = null, x = null, cuadro = null;
+
+  function contenedorConScroll(el, dir) {
+    for (let n = el; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
+      const oy = getComputedStyle(n).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) {
+        const puede = dir < 0 ? n.scrollTop > 0 : n.scrollTop + n.clientHeight < n.scrollHeight;
+        if (puede) return n;
+      }
+    }
+    return null;
+  }
+
+  function paso() {
+    cuadro = null;
+    if (y == null) return;
+    const alto = window.innerHeight;
+    let vel = 0;
+    if (y < BORDE) vel = -MAX_VEL * (1 - y / BORDE);
+    else if (y > alto - BORDE) vel = MAX_VEL * (1 - (alto - y) / BORDE);
+    if (!vel) return;
+    const debajo = document.elementFromPoint(x, y);
+    const cont = debajo && contenedorConScroll(debajo, vel);
+    if (cont) cont.scrollTop += vel;
+    else window.scrollBy(0, vel);
+    cuadro = requestAnimationFrame(paso);
+  }
+
+  document.addEventListener('dragover', e => {
+    y = e.clientY; x = e.clientX;
+    if (!cuadro) cuadro = requestAnimationFrame(paso);
+  }, true);
+  const cortar = () => { y = null; if (cuadro) cancelAnimationFrame(cuadro); cuadro = null; };
+  document.addEventListener('dragend', cortar, true);
+  document.addEventListener('drop', cortar, true);
+})();

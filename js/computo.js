@@ -861,11 +861,53 @@ function engancharArrastreRubros(container) {
       soltarRubro(draggedRubroId, rubroId, despues);
     });
   });
+
+  /* Un subrubro soltado entre los ítems de otro subrubro corta la lista ahí:
+     queda justo después de ese subrubro y se lleva los ítems de abajo del
+     corte, delante de los suyos. Sólo entre subrubros: cortar los ítems de un
+     rubro sin subrubros dejaría sueltos los de arriba. */
+  const subrubroDeLinea = row => {
+    const l = lineas[row.dataset.key];
+    const r = l && rubros.find(x => x.key === l.rubroId);
+    return r && padreDe(r) ? r : null;
+  };
+  const puedeCortar = row => {
+    const o = draggedRubroId && rubros.find(r => r.key === draggedRubroId);
+    const t = subrubroDeLinea(row);
+    return !!(o && t && padreDe(o) && t.key !== o.key);
+  };
+  container.querySelectorAll('.computo-rubro-lineas .computo-linea[data-key]').forEach(row => {
+    row.addEventListener('dragover', e => {
+      if (!puedeCortar(row)) return;
+      e.preventDefault();
+      const r = row.getBoundingClientRect();
+      const despues = e.clientY > r.top + r.height / 2;
+      row.classList.toggle('drop-antes', !despues);
+      row.classList.toggle('drop-despues', despues);
+    });
+    row.addEventListener('dragleave', () => limpiar(row));
+    row.addEventListener('drop', e => {
+      if (!puedeCortar(row)) return;
+      e.preventDefault();
+      const despues = row.classList.contains('drop-despues');
+      limpiar(row);
+      soltarSubrubroEntreItems(draggedRubroId, row.dataset.key, despues);
+    });
+  });
+}
+
+function soltarSubrubroEntreItems(subrubroId, lineaKey, despues) {
+  const destinoId = lineas[lineaKey].rubroId;
+  const grupo = lineasDeRubro(destinoId);
+  const corte = grupo.findIndex(([k]) => k === lineaKey) + (despues ? 1 : 0);
+  soltarRubro(subrubroId, destinoId, true, grupo.slice(corte));
 }
 
 // Arma el orden de lectura nuevo con el rubro ya en su lugar y renumera el
 // `orden` de todos; sólo se escriben los que cambiaron, en un solo gesto.
-async function soltarRubro(origenId, destinoId, despues) {
+// `movidas`: líneas que pasan al rubro soltado, delante de las suyas (ver
+// soltarSubrubroEntreItems).
+async function soltarRubro(origenId, destinoId, despues, movidas) {
   if (guardBloqueoObra()) return;
   const origen = rubros.find(r => r.key === origenId);
   const destino = rubros.find(r => r.key === destinoId);
@@ -894,12 +936,20 @@ async function soltarRubro(origenId, destinoId, despues) {
   lectura.forEach((r, i) => {
     if (r.orden !== i + 1) { r.orden = i + 1; cambios[`${r.key}/orden`] = i + 1; }
   });
-  if (!Object.keys(cambios).length) return;
+  const cambiosLineas = {};
+  if (movidas && movidas.length) {
+    [...movidas, ...lineasDeRubro(origenId)].forEach(([key, l], i) => {
+      if (l.rubroId !== origenId) { l.rubroId = origenId; cambiosLineas[`${key}/rubroId`] = origenId; }
+      if (l.orden !== i + 1) { l.orden = i + 1; cambiosLineas[`${key}/orden`] = i + 1; }
+    });
+  }
+  if (!Object.keys(cambios).length && !Object.keys(cambiosLineas).length) return;
   ordenarRubros();
   renderTodo();
   try {
     await window.undoAgrupar('Mover rubro', null, async () => {
-      await _fbPatch(`/obras/${obraKey}/rubrosComputo.json`, cambios);
+      if (Object.keys(cambios).length) await _fbPatch(`/obras/${obraKey}/rubrosComputo.json`, cambios);
+      if (Object.keys(cambiosLineas).length) await _fbPatch(`/obras/${obraKey}/computo.json`, cambiosLineas);
     });
   } catch (_) {
     showToast('Error al guardar el rubro.', 'error');

@@ -46,6 +46,9 @@
     .computo-rubro-header.dragging { opacity: .4; }
     .computo-rubro-header.drop-antes { box-shadow: inset 0 3px 0 var(--primary); }
     .computo-rubro-header.drop-despues { box-shadow: inset 0 -3px 0 var(--primary); }
+    /* Subrubro soltado entre ítems: la línea marca dónde se corta la lista. */
+    .computo-linea.drop-antes { box-shadow: inset 0 3px 0 var(--primary); }
+    .computo-linea.drop-despues { box-shadow: inset 0 -3px 0 var(--primary); }
     .computo-rubro-lineas.drop-target { background: var(--gray-100); outline: 2px dashed var(--primary); outline-offset: -2px; }
     .computo-linea { display: grid; grid-template-columns: 40px 1.3fr 70px 90px 120px 130px 170px; gap: .6rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .computo-linea:last-child { border-bottom: none; }
