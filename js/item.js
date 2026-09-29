@@ -1694,7 +1694,7 @@ function renderManoDeObraSeccion(r) {
           <span class="ap-linea-costo-unit">${r.seguridadCapatazPctAplicado}%</span>
           <span class="ap-linea-costo-unit">—</span>
           <span class="ap-linea-costo-total">
-            <span data-calc-valor="${costoVista(r.costoDiarioSeguridadCapataz)}">${fmtARS(costoVista(r.costoDiarioSeguridadCapataz))}</span>
+            <span data-calc-valor="${r.costoDiarioSeguridadCapataz}">${fmtARS(r.costoDiarioSeguridadCapataz)}</span>
             <button type="button" class="ap-linea-del" id="btn-excluir-seg-cap" title="Excluir de este AP" style="margin-left:.4rem;" ${window._soloLectura ? 'disabled' : ''}>${icSvg('x')}</button>
           </span>
         </div>`;
