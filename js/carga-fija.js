@@ -233,7 +233,7 @@ function camposLineaHtml(lineaKey, l, tipo) {
     ` data-calc-id="cargafija:linea:${escHtml(lineaKey)}:${campo}" data-calc-label="${escHtml(et + ' · ' + label)}"`;
   if (window.tipoCargaFijaEsPorcentaje(tipo)) {
     return `
-      <input type="text" class="form-control cf-porcentaje" value="${l.porcentaje ?? ''}" placeholder="0"${ref('porcentaje', '%')} ${ro}>
+      <input type="text" class="form-control cf-porcentaje" data-sufijo="%" value="${l.porcentaje ?? ''}" placeholder="0%"${ref('porcentaje', '%')} ${ro}>
       <span class="cf-base-label">${TIPO_BASE_LABEL[tipo]}</span>
       <span></span>`;
   }

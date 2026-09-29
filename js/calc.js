@@ -207,7 +207,7 @@ window.round2 = function (n) {
   window.cancelarEdicionCampo = function (input) {
     input.dataset.cancelando = '1';
     const v = input.dataset.valorReal !== undefined ? parseFloat(input.dataset.valorReal) : null;
-    input.value = textoMostrado(v);
+    input.value = textoMostrado(v, input);
     input.dataset.textoAlEnfocar = input.value;
     input.blur();
   };
@@ -289,8 +289,11 @@ window.round2 = function (n) {
     return esMoney(input) ? window.formatMoneyString(valor) : textoResultado(valor);
   }
 
-  function textoMostrado(valor) {
-    return valor == null ? '' : window.fmtNum(valor);
+  // Un campo puede declarar una unidad que se ve pegada al número sólo sin
+  // foco (data-sufijo="%"): al editar se ve el número pelado, y parseTexto
+  // igual la ignora si se tipea (parseFloat corta en el primer no-dígito).
+  function textoMostrado(valor, input) {
+    return valor == null ? '' : window.fmtNum(valor) + ((input && input.dataset.sufijo) || '');
   }
 
   // ¿El usuario editó el texto desde que entró al campo? Si no lo tocó, el
@@ -317,7 +320,7 @@ window.round2 = function (n) {
     if (document.activeElement === input) {
       if (!input.dataset.formula) input.value = textoCompleto(input, valor);
     } else {
-      input.value = textoMostrado(valor);
+      input.value = textoMostrado(valor, input);
     }
     // El texto que acaba de pintarse no es una edición del usuario: si no se
     // actualiza la referencia, la próxima lectura tomaría este texto (que
@@ -362,7 +365,7 @@ window.round2 = function (n) {
       const v = window.valorCampo(input);
       if (v == null || isNaN(v)) delete input.dataset.valorReal;
       else input.dataset.valorReal = String(v);
-      input.value = textoMostrado(v);
+      input.value = textoMostrado(v, input);
       // El texto de referencia pasa a ser el que quedó en pantalla: si nadie
       // vuelve a tocar el campo, la próxima lectura devuelve el valor
       // guardado y no este texto redondeado.
@@ -377,7 +380,7 @@ window.round2 = function (n) {
   window.addEventListener('vimeco:decimales', () => {
     document.querySelectorAll('input[data-valor-real]').forEach(input => {
       if (document.activeElement === input) return;
-      input.value = textoMostrado(parseFloat(input.dataset.valorReal));
+      input.value = textoMostrado(parseFloat(input.dataset.valorReal), input);
       input.dataset.textoAlEnfocar = input.value;
     });
   });
