@@ -1223,7 +1223,7 @@
         ws.getCell(r, 4).numFmt = FMT_ARS;
       }
       if (!window.tipoCargaFijaEsPorcentaje(tipo) && !window.tipoCargaFijaLlevaMeses(tipo)) {
-        ws.getCell(r, 8).value = f(`=+C${r}*D${r}`);   // monto fijo: sin meses
+        ws.getCell(r, 8).value = f(`=+C${r}*D${r}`);   // gasto puntual: sin meses
       } else if (!window.tipoCargaFijaEsPorcentaje(tipo)) {
         ws.getCell(r, 5).value = duracion != null && num(l.meses) === duracion
           ? f(`=$C$${filaDuracion}`)

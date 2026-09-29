@@ -213,7 +213,7 @@ const TIPO_BASE_LABEL = {
 // obra que se está presupuestando.
 function tipoSelectHtml(tipo) {
   const opciones = [
-    ['fijo', 'Monto fijo'],
+    ['fijo', 'Gasto puntual'],
     ['monto', 'Gasto mensual'],
     ['pctComputo', '% Costo Cómputo'],
     ['pctPrecioSinIva', '% Presup. s/IVA'],

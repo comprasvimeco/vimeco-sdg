@@ -26,8 +26,10 @@ CURRENT=$(grep -o 'hdr-drop-version">v[0-9]*' app.html 2>/dev/null | grep -o '[0
 # Próxima versión (la que va a quedar deployada)
 NEXT=$(printf "%03d" $((10#$CURRENT + 1)))
 
-# Anteponer "vNNN: " al prefijo convencional "type: " en la primera línea
-NEW_MSG=$(printf '%s' "$MSG" | sed "1s/^\([a-z][a-z!]*\): /v${NEXT}: \1 /")
+# Anteponer "vNNN: " al prefijo convencional "type: " en la primera línea.
+# También acepta "feat descripción" sin los dos puntos (v214 y v215 salieron sin
+# número por eso), sólo con los tipos conocidos para no tocar otros mensajes.
+NEW_MSG=$(printf '%s' "$MSG" | sed -E "1s/^([a-z][a-z!]*): /v${NEXT}: \1 /; t; 1s/^(feat|fix|chore|refactor|docs|perf|style|test) /v${NEXT}: \1 /")
 
 [ "$NEW_MSG" = "$MSG" ] && exit 0
 

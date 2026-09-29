@@ -296,7 +296,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
 //                      de las líneas viejas, que no tienen el campo). La key
 //                      quedó 'monto' de cuando era el único tipo con importe:
 //                      así las obras de antes no cambian de número.
-//   'fijo'             Monto fijo: cantidad × precioUnitario, sin meses
+//   'fijo'             Gasto puntual: cantidad × precioUnitario, sin meses
 //   'pctComputo'       % del costo del Cómputo
 //   'pctOficial'       % del presupuesto oficial cargado a mano en Datos de la obra
 //   'pctPrecioSinIva'  % del presupuesto propio sin IVA
