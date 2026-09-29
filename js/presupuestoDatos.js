@@ -44,7 +44,7 @@
      sobre datos vivos o congelados. */
   window.leerFuentesObra = async function (obraKey) {
     const [obra, computo, rubros, auxiliares, items, materiales,
-           equipos, roles, cfLineas, cfConfig, encabezado] = await Promise.all([
+           equipos, roles, cfLineas, cfConfig, encabezado, cfRubros] = await Promise.all([
       _fbGet(`/obras/${obraKey}.json`),
       _fbGet(`/obras/${obraKey}/computo.json`),
       _fbGet(`/obras/${obraKey}/rubrosComputo.json`),
@@ -56,9 +56,10 @@
       _fbGet(`/obras/${obraKey}/cargaFija/lineas.json`),
       _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
       _fbGet(`/obras/${obraKey}/encabezado.json`),
+      _fbGet(`/obras/${obraKey}/cargaFija/rubros.json`),
     ]);
     return { obra, computo, rubros, auxiliares, items, materiales, equipos, roles,
-             cfLineas, cfConfig, encabezado };
+             cfLineas, cfConfig, encabezado, cfRubros };
   };
 
   /* Devuelve el modelo completo del presupuesto de una obra, o null si la obra
@@ -257,6 +258,7 @@
       computo: lineas,
       cargaFija: {
         lineas: cargaFijaLineas, config: cargaFijaConfig, gastosFijos,
+        rubros: fuentes.cfRubros || {}, // sólo agrupan (gruposCargaFija); no entran al cálculo
         totalPorLinea: kDesglose.totalPorLinea,
         precioSinIva: kDesglose.precioSinIva, precioConIva: kDesglose.precioConIva,
       },

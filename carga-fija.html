@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#1a3a5c">
   <style>
-    .cf-linea-header, .cf-linea { display: grid; grid-template-columns: 1.1fr 150px 90px 130px 80px 130px 70px 90px; gap: .5rem; align-items: center; }
+    .cf-linea-header, .cf-linea { display: grid; grid-template-columns: 1.1fr 150px 90px 130px 80px 130px 70px 110px; gap: .5rem; align-items: center; }
     .cf-linea-header { font-size: .75rem; color: var(--gray-500); padding-bottom: .35rem; border-bottom: 1px solid var(--gray-200); }
     .cf-linea { padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }
     .cf-linea:last-child { border-bottom: none; }
@@ -24,6 +24,14 @@
     .cf-linea-mover:disabled { opacity: .25; cursor: default; }
     .cf-linea-mover .icon { width: 15px; height: 15px; }
     .cf-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .3rem; }
+    .cf-linea-del:disabled { opacity: .25; cursor: default; }
+
+    /* Rubros: título con el subtotal de sus conceptos en la columna Total,
+       como la cabecera de rubro del Cómputo. */
+    .cf-rubro { display: grid; grid-template-columns: 1.1fr 150px 90px 130px 80px 130px 70px 110px; gap: .5rem; align-items: center; margin: .6rem -.5rem 0; padding: .45rem .5rem; background: var(--gray-100); border-radius: 6px; }
+    .cf-rubro-nombre { grid-column: 1 / 6; font-weight: 700; background: transparent; }
+    .cf-rubro .cf-linea-total { color: var(--primary); }
+    .cf-rubro-vacio { font-size: .8rem; color: var(--gray-400); padding: .4rem .5rem; margin: 0; }
 
     /* Duración de la obra: una sola celda que completa la columna Meses de
        todos los conceptos, que después se ajustan uno por uno. */
@@ -82,6 +90,11 @@
       .cf-linea > *:nth-child(7) { grid-area: incidencia; text-align: left; }
       .cf-linea > *:nth-child(7)::before { content: "Incidencia: "; font-weight: 400; color: var(--gray-500); }
       .cf-linea > *:nth-child(8) { grid-area: acc; justify-self: end; }
+      .cf-rubro { grid-template-columns: 1fr auto; grid-template-areas: "nombre nombre" "total acc"; row-gap: .3rem; }
+      .cf-rubro-nombre { grid-area: nombre; }
+      .cf-rubro .cf-linea-total { grid-area: total; text-align: left; }
+      .cf-rubro .cf-linea-incidencia { display: none; }
+      .cf-rubro .cf-linea-acciones { grid-area: acc; }
 
       /* Bloque del Coeficiente K: label + control + aporte pasan de 3
          columnas a 1 columna apilada -- el control del medio (a veces
@@ -120,6 +133,7 @@
         <span class="card-title">Gastos fijos de la obra</span>
         <div class="flex gap-2">
           <button class="btn btn-sm btn-outline" id="btn-importar-cf" data-solo-edicion>Importar de otra obra</button>
+          <button class="btn btn-sm btn-outline" id="btn-add-rubro" data-solo-edicion>+ Agregar rubro</button>
           <button class="btn btn-sm btn-primary" id="btn-add-linea" data-solo-edicion>+ Agregar concepto</button>
         </div>
       </div>
@@ -128,7 +142,7 @@
           <label for="cf-duracion">Duración de la obra</label>
           <input type="text" class="form-control" id="cf-duracion" placeholder="0" data-calc-id="cargafija:duracionMeses" data-calc-label="Duración de la obra (meses)" data-solo-edicion>
           <span style="font-size:.85rem;color:var(--gray-500);">meses</span>
-          <span class="form-hint">Completa la columna Meses de todos los conceptos de monto fijo; después cada línea se puede ajustar a mano.</span>
+          <span class="form-hint">Completa la columna Meses de todos los gastos mensuales; después cada línea se puede ajustar a mano.</span>
         </div>
         <div class="cf-linea-header">
           <span>Concepto</span><span>Tipo</span><span>Cantidad / %</span><span>Precio unitario / Base</span><span>Meses</span><span style="text-align:right;">Total</span><span style="text-align:right;">Incidencia</span><span></span>

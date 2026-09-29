@@ -292,8 +292,11 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
 // pantallas no se desincronicen.
 //
 // l.tipo:
-//   'monto'            cantidad × precioUnitario × meses (default de las líneas
-//                      viejas, que no tienen el campo)
+//   'monto'            Gasto mensual: cantidad × precioUnitario × meses (default
+//                      de las líneas viejas, que no tienen el campo). La key
+//                      quedó 'monto' de cuando era el único tipo con importe:
+//                      así las obras de antes no cambian de número.
+//   'fijo'             Monto fijo: cantidad × precioUnitario, sin meses
 //   'pctComputo'       % del costo del Cómputo
 //   'pctOficial'       % del presupuesto oficial cargado a mano en Datos de la obra
 //   'pctPrecioSinIva'  % del presupuesto propio sin IVA
@@ -322,6 +325,11 @@ window.tipoCargaFijaEsSobrePrecio = function (tipo) {
   return tipo === 'pctPrecioSinIva' || tipo === 'pctPrecioConIva';
 };
 
+// Sólo el gasto mensual multiplica por meses (y lo completa la duración de la obra).
+window.tipoCargaFijaLlevaMeses = function (tipo) {
+  return (tipo || 'monto') === 'monto';
+};
+
 window.totalLineaCargaFija = function (l, bases) {
   bases = bases || {};
   const campoBase = BASE_DE_TIPO[l.tipo || 'monto'];
@@ -330,8 +338,10 @@ window.totalLineaCargaFija = function (l, bases) {
     if (l.porcentaje == null || isNaN(l.porcentaje) || base == null) return null;
     return (l.porcentaje / 100) * base;
   }
-  if (l.cantidad == null || l.precioUnitario == null || l.meses == null) return null;
-  if (isNaN(l.cantidad) || isNaN(l.precioUnitario) || isNaN(l.meses)) return null;
+  if (l.cantidad == null || l.precioUnitario == null) return null;
+  if (isNaN(l.cantidad) || isNaN(l.precioUnitario)) return null;
+  if (!window.tipoCargaFijaLlevaMeses(l.tipo)) return l.cantidad * l.precioUnitario;
+  if (l.meses == null || isNaN(l.meses)) return null;
   return l.cantidad * l.precioUnitario * l.meses;
 };
 
@@ -356,6 +366,29 @@ window.lineasCargaFijaOrdenadas = function (lineas) {
     if (oa == null && ob != null) return 1;
     return ka < kb ? -1 : ka > kb ? 1 : 0;
   });
+};
+
+// Rubros de los gastos fijos (/obras/{k}/cargaFija/rubros), como en el Cómputo
+// pero de un solo nivel. Sólo agrupan: no cambian ningún total. Devuelve
+// [{ rubroKey, rubro, lineas: [[key, linea], …] }] en el orden de pantalla:
+// primero los conceptos sueltos (sin rubroId, o con un rubro que ya no existe
+// — así se ven todas las obras de antes de los rubros), sin título y sólo si
+// hay alguno; después cada rubro por su `orden`, aunque esté vacío. Dentro de
+// cada grupo, el `orden` de lineasCargaFijaOrdenadas. Lo usan la pantalla de
+// Carga Fija, el PDF y el Excel, para que los tres agrupen igual.
+window.gruposCargaFija = function (lineas, rubros) {
+  const rubrosOrd = window.lineasCargaFijaOrdenadas(rubros);
+  const existe = new Set(rubrosOrd.map(([k]) => k));
+  const porRubro = {};
+  const sueltas = [];
+  window.lineasCargaFijaOrdenadas(lineas).forEach(e => {
+    const rid = e[1].rubroId;
+    if (rid && existe.has(rid)) (porRubro[rid] = porRubro[rid] || []).push(e);
+    else sueltas.push(e);
+  });
+  const grupos = sueltas.length ? [{ rubroKey: null, rubro: null, lineas: sueltas }] : [];
+  rubrosOrd.forEach(([k, r]) => grupos.push({ rubroKey: k, rubro: r, lineas: porRubro[k] || [] }));
+  return grupos;
 };
 
 // Líneas de la receta de un A.P. (Materiales o Equipos) como [[key, linea], …]

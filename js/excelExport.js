@@ -1186,8 +1186,12 @@
     ws.getRow(r).height = 26;
     r++;
 
+    // Agrupado por rubro como en pantalla: una fila por rubro (con la suma de
+    // sus conceptos) arriba de sus conceptos; los sueltos van primero.
+    const grupos = window.gruposCargaFija(cf.lineas, cf.rubros);
+    const cantidadFilas = grupos.reduce((acc, g) => acc + (g.rubroKey ? 1 : 0) + g.lineas.length, 0);
     const primera = r;
-    const filaTotal = primera + Math.max(conceptos.length, 1) + 1;
+    const filaTotal = primera + Math.max(cantidadFilas, 1) + 1;
     const filaBase = {
       pctComputo: () => filaCosto, pctOficial: () => filaOficial,
       pctPrecioSinIva: () => filaPresupSinIva, pctPrecioConIva: () => filaPresupConIva,
@@ -1195,8 +1199,11 @@
     // Filas que NO dependen del K: son las únicas que puede sumar el % de
     // Gastos Generales de la hoja Datos sin cerrar el círculo.
     const filasIndependientes = [], filasSinIva = [], filasConIva = [];
+    // Lo que suma el TOTAL: los sueltos y las filas de rubro (no los conceptos
+    // de adentro, que ya están en su rubro).
+    const sumandos = [];
 
-    conceptos.forEach(([, l]) => {
+    const filaConcepto = ([, l]) => {
       const tipo = l.tipo || 'monto';
       ws.getCell(r, 2).value = l.concepto || '(sin nombre)';
       ws.getCell(r, 2).alignment = { wrapText: true, vertical: 'top' };
@@ -1214,6 +1221,10 @@
         ws.getCell(r, 3).numFmt = FMT_CANT;
         ws.getCell(r, 4).value = num(l.precioUnitario);
         ws.getCell(r, 4).numFmt = FMT_ARS;
+      }
+      if (!window.tipoCargaFijaEsPorcentaje(tipo) && !window.tipoCargaFijaLlevaMeses(tipo)) {
+        ws.getCell(r, 8).value = f(`=+C${r}*D${r}`);   // monto fijo: sin meses
+      } else if (!window.tipoCargaFijaEsPorcentaje(tipo)) {
         ws.getCell(r, 5).value = duracion != null && num(l.meses) === duracion
           ? f(`=$C$${filaDuracion}`)
           : num(l.meses);
@@ -1224,16 +1235,37 @@
       ws.getCell(r, 9).value = f(`=IFERROR(H${r}/$H$${filaTotal},0)`);
       ws.getCell(r, 9).numFmt = FMT_PCT;
       r++;
+    };
+
+    grupos.forEach(g => {
+      if (!g.rubroKey) {
+        if (g.lineas.length) sumandos.push(`H${r}:H${r + g.lineas.length - 1}`);
+        g.lineas.forEach(filaConcepto);
+        return;
+      }
+      const filaRubro = r;
+      sumandos.push(`H${filaRubro}`);
+      ws.getCell(r, 2).value = g.rubro.nombre || '(sin nombre)';
+      ws.mergeCells(r, 2, r, 7);
+      ws.getCell(r, 8).value = g.lineas.length
+        ? f(`=SUM(H${filaRubro + 1}:H${filaRubro + g.lineas.length})`)
+        : 0;
+      ws.getCell(r, 8).numFmt = FMT_ARS;
+      ws.getCell(r, 9).value = f(`=IFERROR(H${r}/$H$${filaTotal},0)`);
+      ws.getCell(r, 9).numFmt = FMT_PCT;
+      pintar(ws, r, 2, 9, GRIS_CABECERA);
+      negrita(ws, r, 2, 9);
+      r++;
+      g.lineas.forEach(filaConcepto);
     });
 
     if (r === primera) { ws.getCell(r, 2).value = 'Esta obra todavía no tiene conceptos de carga fija cargados.'; r++; }
-    const ultima = filaTotal - 2;
     bordear(ws, primera, 2, Math.max(r - 1, primera), 9);
 
     r = filaTotal;
     ws.getCell(r, 2).value = 'TOTAL DE GASTOS FIJOS';
     ws.mergeCells(r, 2, r, 7);
-    ws.getCell(r, 8).value = f(`=SUM(H${primera}:H${ultima})`);
+    ws.getCell(r, 8).value = sumandos.length ? f(`=SUM(${sumandos.join(',')})`) : 0;
     ws.getCell(r, 8).numFmt = FMT_ARS;
     ws.getCell(r, 9).value = f(`=IFERROR(H${r}/$H$${r},0)`);
     ws.getCell(r, 9).numFmt = FMT_PCT;

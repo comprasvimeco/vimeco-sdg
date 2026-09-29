@@ -1021,21 +1021,34 @@ function seccionGastosFijos() {
   const total = cf.gastosFijos;
   const conceptos = window.lineasCargaFijaOrdenadas(cf.lineas);
 
-  const filas = conceptos.map(([key, l]) => {
+  // Agrupado por rubro como en pantalla: la fila del rubro lleva el subtotal
+  // de sus conceptos, igual que la cabecera de rubro del Presupuesto.
+  const filaConcepto = ([key, l]) => {
     const tipo = l.tipo || 'monto';
     const esPct = window.tipoCargaFijaEsPorcentaje(tipo);
+    const conMeses = window.tipoCargaFijaLlevaMeses(tipo);
     const t = cf.totalPorLinea[key];
     return `
       <tr>
         <td>${escHtml(l.concepto || '(sin nombre)')}</td>
         <td class="doc-num">${esPct ? '' : docCant(l.cantidad)}</td>
         <td class="doc-num">${esPct ? '' : docARS(l.precioUnitario)}</td>
-        <td class="doc-num">${esPct ? '' : docCant(l.meses)}</td>
+        <td class="doc-num">${conMeses ? docCant(l.meses) : ''}</td>
         <td class="doc-num">${esPct ? docCant(l.porcentaje) + '%' : ''}</td>
         <td>${esPct ? escHtml(BASE_PCT_DOC[tipo]) : ''}</td>
         <td class="doc-num">${t == null ? '—' : docARS(t)}</td>
         <td class="doc-num">${total > 0 && t != null ? docPct(t / total) : '—'}</td>
       </tr>`;
+  };
+  const filas = window.gruposCargaFija(cf.lineas, cf.rubros).map(g => {
+    if (!g.rubroKey) return g.lineas.map(filaConcepto).join('');
+    const subtotal = g.lineas.reduce((acc, [k]) => acc + (cf.totalPorLinea[k] ?? 0), 0);
+    return `
+      <tr class="doc-fila-rubro">
+        <td colspan="6">${escHtml(g.rubro.nombre || '(sin nombre)')}</td>
+        <td class="doc-num">${docARS(subtotal)}</td>
+        <td class="doc-num">${total > 0 ? docPct(subtotal / total) : '—'}</td>
+      </tr>` + g.lineas.map(filaConcepto).join('');
   }).join('');
 
   // Datos de arriba: los mismos que encabezan la hoja "Carga fija" del Excel.

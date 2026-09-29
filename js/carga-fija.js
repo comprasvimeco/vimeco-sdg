@@ -26,7 +26,8 @@ const params = new URLSearchParams(window.location.search);
 const obraKey = params.get('obra');
 
 let obra = null;
-let lineas = {};     // { lineaKey: { concepto, tipo, cantidad, precioUnitario, meses, porcentaje } }
+let lineas = {};     // { lineaKey: { concepto, tipo, cantidad, precioUnitario, meses, porcentaje, rubroId } }
+let rubros = {};     // { rubroKey: { nombre, orden } } — sólo agrupan, ver gruposCargaFija (calcCostos.js)
 let config = { beneficioPct: null, costoFinancieroPct: null };
 let costoComputo = 0;
 let computoData = null;
@@ -64,9 +65,16 @@ function normalizarOrdenLineas() {
   lineasOrdenadas().forEach(([key], i) => { lineas[key].orden = i + 1; });
 }
 
+function grupos() {
+  return window.gruposCargaFija(lineas, rubros);
+}
+
+// Las flechas mueven dentro del rubro; para pasar a otro rubro se arrastra.
 function moverLinea(lineaKey, dir) {
   if (guardBloqueoObra()) return;
-  const ordenadas = lineasOrdenadas();
+  const grupo = grupos().find(g => g.lineas.some(([k]) => k === lineaKey));
+  if (!grupo) return;
+  const ordenadas = grupo.lineas;
   const idx = ordenadas.findIndex(([k]) => k === lineaKey);
   const otroIdx = idx + dir;
   if (idx < 0 || otroIdx < 0 || otroIdx >= ordenadas.length) return;
@@ -77,10 +85,13 @@ function moverLinea(lineaKey, dir) {
   // Se renumeran todas y se persisten juntas: un PATCH multi-path sobre
   // `lineas` que sólo toca el campo `orden` de cada una (no reescribe el
   // árbol de líneas, ver el comentario de persistLineaCambios).
+  // Se reusan los `orden` que ya tenía el grupo (intercambiados), así no se
+  // cruzan con los de los otros rubros.
+  const ordenes = ordenadas.map(([k]) => lineas[k].orden).sort((a, b) => a - b);
   const cambios = {};
   ordenadas.forEach(([k], i) => {
-    lineas[k].orden = i + 1;
-    cambios[`${k}/orden`] = i + 1;
+    lineas[k].orden = ordenes[i];
+    cambios[`${k}/orden`] = ordenes[i];
   });
   renderTodo();
   persistLineasMulti(cambios, 'Error al guardar el orden de los conceptos.');
@@ -95,8 +106,10 @@ function moverLinea(lineaKey, dir) {
    recrea) y va moviendo la fila arrastrada en el DOM para dar el feedback
    visual; recién en `dragend` se lee el orden final del DOM y se persiste,
    con el mismo PATCH multi-path que usa moverLinea. */
+// Las cabeceras de rubro también cuentan como destino: soltar justo debajo de
+// una deja el concepto en ese rubro, aunque esté vacío.
 function filaCfDespuesDe(container, y) {
-  const filas = [...container.querySelectorAll('.cf-linea:not(.dragging)')];
+  const filas = [...container.querySelectorAll('.cf-linea:not(.dragging), .cf-rubro')];
   return filas.reduce((masCercana, fila) => {
     const box = fila.getBoundingClientRect();
     const offset = y - box.top - box.height / 2;
@@ -121,14 +134,26 @@ function engancharDragContainerCF() {
 function persistirOrdenDesdeDom() {
   if (guardBloqueoObra()) return;
   const container = $('lineas-carga-fija');
-  const keysEnOrden = [...container.querySelectorAll('.cf-linea[data-key]')].map(row => row.dataset.key);
+  // Cada concepto queda en el rubro de la última cabecera que tiene arriba
+  // (ninguna: suelto, arriba de todo).
   const cambios = {};
   let huboCambio = false;
-  keysEnOrden.forEach((key, i) => {
-    const nuevoOrden = i + 1;
+  let rubroActual = null;
+  let i = 0;
+  container.querySelectorAll('.cf-rubro[data-rubro-id], .cf-linea[data-key]').forEach(row => {
+    if (row.dataset.rubroId) { rubroActual = row.dataset.rubroId; return; }
+    const key = row.dataset.key;
+    const nuevoOrden = ++i;
     if (lineas[key].orden !== nuevoOrden) huboCambio = true;
     lineas[key].orden = nuevoOrden;
     cambios[`${key}/orden`] = nuevoOrden;
+    const rubroAntes = rubros[lineas[key].rubroId] ? lineas[key].rubroId : null;
+    if (rubroAntes !== rubroActual) {
+      huboCambio = true;
+      if (rubroActual) lineas[key].rubroId = rubroActual;
+      else delete lineas[key].rubroId;
+      cambios[`${key}/rubroId`] = rubroActual;
+    }
   });
   if (!huboCambio) return;
   renderTodo();
@@ -137,14 +162,14 @@ function persistirOrdenDesdeDom() {
 
 /* ===== Duración de la obra =====
    Celda única (config.duracionMeses) que completa la columna Meses de todas
-   las líneas de monto fijo. Pisa también las que ya tenían un valor propio —
+   las líneas de gasto mensual. Pisa también las que ya tenían un valor propio —
    es para lo que está —, y después cada línea se ajusta a mano. */
 function aplicarDuracionAMeses(meses) {
   if (meses == null || isNaN(meses)) return;
   const cambios = {};
   let tocadas = 0;
   Object.entries(lineas).forEach(([key, l]) => {
-    if ((l.tipo || 'monto') !== 'monto') return;
+    if (!window.tipoCargaFijaLlevaMeses(l.tipo)) return;
     if (l.meses === meses && !l.mesesFormula) return;
     l.meses = meses;
     l.mesesFormula = null;
@@ -188,7 +213,8 @@ const TIPO_BASE_LABEL = {
 // obra que se está presupuestando.
 function tipoSelectHtml(tipo) {
   const opciones = [
-    ['monto', 'Monto fijo'],
+    ['fijo', 'Monto fijo'],
+    ['monto', 'Gasto mensual'],
     ['pctComputo', '% Costo Cómputo'],
     ['pctPrecioSinIva', '% Presup. s/IVA'],
     ['pctPrecioConIva', '% Presup. c/IVA'],
@@ -214,22 +240,21 @@ function camposLineaHtml(lineaKey, l, tipo) {
   return `
     <input type="text" class="form-control cf-cantidad" value="${l.cantidad ?? ''}" placeholder="0"${ref('cantidad', 'Cantidad')} ${ro}>
     <input type="text" class="form-control cf-precio" value="${escHtml(formatMoneyString(l.precioUnitario))}" placeholder="0"${ref('precioUnitario', 'Precio unit.')} ${ro}>
-    <input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0"${ref('meses', 'Meses')} ${ro}>`;
+    ${window.tipoCargaFijaLlevaMeses(tipo)
+      ? `<input type="text" class="form-control cf-meses" value="${l.meses ?? ''}" placeholder="0"${ref('meses', 'Meses')} ${ro}>`
+      : '<span></span>'}`;
 }
 
 function renderLineas() {
   const container = $('lineas-carga-fija');
-  const entradas = lineasOrdenadas();
+  const gs = grupos();
   const cf = calcCF();
-  if (!entradas.length) {
-    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Sin conceptos todavía.</p>';
-  } else {
-    container.innerHTML = entradas.map(([lineaKey, l], idx) => {
-      const tipo = l.tipo || 'monto';
-      const total = cf.totalPorLinea[lineaKey];
-      const incidencia = cf.gastosFijos > 0 && total != null ? total / cf.gastosFijos : null;
-      const ro = !!window._soloLectura;
-      return `
+  const ro = !!window._soloLectura;
+  const lineaHtml = ([lineaKey, l], idx, entradas) => {
+    const tipo = l.tipo || 'monto';
+    const total = cf.totalPorLinea[lineaKey];
+    const incidencia = cf.gastosFijos > 0 && total != null ? total / cf.gastosFijos : null;
+    return `
         <div class="cf-linea" data-key="${escHtml(lineaKey)}" draggable="${ro ? 'false' : 'true'}">
           <input type="text" class="form-control cf-concepto" value="${escHtml(l.concepto || '')}" placeholder="Ej: Jefe de obra" ${ro ? 'disabled' : ''}>
           ${tipoSelectHtml(tipo)}
@@ -242,8 +267,52 @@ function renderLineas() {
             <button class="cf-linea-del" title="Eliminar concepto" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
           </span>
         </div>`;
-    }).join('');
+  };
+  // Cabecera de rubro, como en el Cómputo: nombre, subtotal de sus conceptos
+  // (con su incidencia sobre el total) y acciones.
+  const rubrosOrd = gs.filter(g => g.rubroKey);
+  const rubroHtml = (g, idx) => {
+    const k = g.rubroKey;
+    const nombre = g.rubro.nombre || 'Rubro';
+    const subtotal = g.lineas.reduce((acc, [lk]) => acc + (cf.totalPorLinea[lk] ?? 0), 0);
+    const incidencia = cf.gastosFijos > 0 ? subtotal / cf.gastosFijos : null;
+    return `
+        <div class="cf-rubro" data-rubro-id="${escHtml(k)}">
+          <input type="text" class="form-control cf-rubro-nombre" value="${escHtml(g.rubro.nombre || '')}" placeholder="Nombre del rubro (ej: Inspección)" ${ro ? 'disabled' : ''}>
+          <span class="cf-linea-total"${calcAttrs(subtotal, `cargafija:rubro:${k}:subtotal`, `${nombre} · Subtotal`)}>${fmtARS(subtotal)}</span>
+          <span class="cf-linea-incidencia">${fmtPct(incidencia)}</span>
+          <span class="cf-linea-acciones">
+            <button class="cf-linea-mover cf-rubro-add" title="Agregar concepto en este rubro" ${ro ? 'disabled' : ''}>${icSvg('plus')}</button>
+            <button class="cf-linea-mover cf-rubro-mover" data-dir="-1" title="Subir rubro" ${idx === 0 || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+            <button class="cf-linea-mover cf-rubro-mover" data-dir="1" title="Bajar rubro" ${idx === rubrosOrd.length - 1 || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+            <button class="cf-linea-del cf-rubro-del" title="Eliminar rubro" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
+          </span>
+        </div>`;
+  };
+  if (!gs.length) {
+    container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Sin conceptos todavía.</p>';
+  } else {
+    container.innerHTML = gs.map(g =>
+      (g.rubroKey ? rubroHtml(g, rubrosOrd.indexOf(g)) : '') +
+      (g.rubroKey && !g.lineas.length ? '<p class="cf-rubro-vacio">Sin conceptos en este rubro.</p>' : '') +
+      g.lineas.map((e, idx) => lineaHtml(e, idx, g.lineas)).join('')
+    ).join('');
   }
+
+  container.querySelectorAll('.cf-rubro').forEach(row => {
+    const rubroKey = row.dataset.rubroId;
+    const nombre = row.querySelector('.cf-rubro-nombre');
+    nombre.addEventListener('blur', () => {
+      const v = nombre.value.trim();
+      if (v !== (rubros[rubroKey].nombre || '')) updateRubro(rubroKey, { nombre: v });
+    });
+    nombre.addEventListener('keydown', e => { if (e.key === 'Enter') nombre.blur(); });
+    row.querySelector('.cf-rubro-add').addEventListener('click', () => addLinea(rubroKey));
+    row.querySelectorAll('.cf-rubro-mover').forEach(btn => {
+      btn.addEventListener('click', () => moverRubro(rubroKey, parseInt(btn.dataset.dir, 10)));
+    });
+    row.querySelector('.cf-rubro-del').addEventListener('click', () => eliminarRubro(rubroKey));
+  });
 
   container.querySelectorAll('.cf-linea').forEach(row => {
     const lineaKey = row.dataset.key;
@@ -262,7 +331,15 @@ function renderLineas() {
     concepto.addEventListener('blur', () => updateLinea(lineaKey, { concepto: concepto.value.trim() }));
     concepto.addEventListener('keydown', e => { if (e.key === 'Enter') concepto.blur(); });
 
-    tipoSelect.addEventListener('change', () => updateLinea(lineaKey, { tipo: tipoSelect.value }));
+    // Al pasar a gasto mensual, si la línea no tenía meses arranca con la
+    // duración de la obra, igual que un concepto nuevo.
+    tipoSelect.addEventListener('change', () => {
+      const cambios = { tipo: tipoSelect.value };
+      if (window.tipoCargaFijaLlevaMeses(cambios.tipo) && l.meses == null && config.duracionMeses != null) {
+        cambios.meses = config.duracionMeses;
+      }
+      updateLinea(lineaKey, cambios);
+    });
 
     // Campo numérico de una línea: valor completo por dentro, redondeado en
     // pantalla (attachValorInput), y sin escribir si no se tocó nada.
@@ -288,10 +365,10 @@ function renderLineas() {
       attachCalcInput(cantidad, l.cantidadFormula);
       attachCalcInput(precio, l.precioUnitarioFormula);
       attachMoneyInput(precio);
-      attachCalcInput(meses, l.mesesFormula);
+      if (meses) attachCalcInput(meses, l.mesesFormula);
 
       numField(cantidad, 'cantidad');
-      numField(meses, 'meses');
+      if (meses) numField(meses, 'meses');
       numField(precio, 'precioUnitario');
     }
 
@@ -623,6 +700,68 @@ function updateLinea(lineaKey, cambios) {
   persistLineaCambios(lineaKey, cambios);
 }
 
+function updateRubro(rubroKey, cambios) {
+  if (guardBloqueoObra()) return;
+  rubros[rubroKey] = { ...rubros[rubroKey], ...cambios };
+  renderTodo();
+  persistRubrosMulti(Object.fromEntries(Object.entries(cambios).map(([c, v]) => [`${rubroKey}/${c}`, v])),
+    'Error al guardar el rubro.');
+}
+
+async function persistRubrosMulti(cambios, mensajeError) {
+  try {
+    await _fbPatch(`/obras/${obraKey}/cargaFija/rubros.json`, cambios);
+  } catch (_) {
+    showToast(mensajeError, 'error');
+  }
+}
+
+function addRubro() {
+  if (guardBloqueoObra()) return;
+  const rubroKey = 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  const orden = Object.values(rubros).reduce((max, r) => Math.max(max, r.orden || 0), 0) + 1;
+  rubros[rubroKey] = { nombre: '', orden };
+  renderTodo();
+  const input = document.querySelector(`.cf-rubro[data-rubro-id="${rubroKey}"] .cf-rubro-nombre`);
+  if (input) input.focus();
+  persistRubrosMulti({ [rubroKey]: rubros[rubroKey] }, 'Error al guardar el rubro.');
+}
+
+function moverRubro(rubroKey, dir) {
+  if (guardBloqueoObra()) return;
+  const ordenados = window.lineasCargaFijaOrdenadas(rubros);
+  const idx = ordenados.findIndex(([k]) => k === rubroKey);
+  const otroIdx = idx + dir;
+  if (idx < 0 || otroIdx < 0 || otroIdx >= ordenados.length) return;
+  [ordenados[idx], ordenados[otroIdx]] = [ordenados[otroIdx], ordenados[idx]];
+  const cambios = {};
+  ordenados.forEach(([k], i) => {
+    rubros[k].orden = i + 1;
+    cambios[`${k}/orden`] = i + 1;
+  });
+  renderTodo();
+  persistRubrosMulti(cambios, 'Error al guardar el orden de los rubros.');
+}
+
+// Igual que en el Cómputo: sólo se elimina vacío, para que borrar un rubro
+// nunca se lleve conceptos (ni los deje sueltos sin que se note).
+async function eliminarRubro(rubroKey) {
+  if (guardBloqueoObra()) return;
+  if (Object.values(lineas).some(l => l.rubroId === rubroKey)) {
+    showToast('Vaciá el rubro antes de eliminarlo.', 'error');
+    return;
+  }
+  const ok = await showConfirm('Eliminar rubro', `¿Eliminar "${rubros[rubroKey].nombre || '(sin nombre)'}"?`);
+  if (!ok) return;
+  delete rubros[rubroKey];
+  renderTodo();
+  try {
+    await _fbDel(`/obras/${obraKey}/cargaFija/rubros/${rubroKey}.json`);
+  } catch (_) {
+    showToast('Error al eliminar el rubro.', 'error');
+  }
+}
+
 function updateConfig(cambios) {
   if (guardBloqueoObra()) return;
   config = { ...config, ...cambios };
@@ -737,8 +876,14 @@ function ultimoOrden() {
   return Object.values(lineas).reduce((max, l) => Math.max(max, l.orden || 0), 0);
 }
 
-function addLinea() {
+// Sin rubro indicado (el botón de arriba) va al final del último rubro, o
+// suelto si la obra no usa rubros.
+function addLinea(rubroId) {
   if (guardBloqueoObra()) return;
+  if (rubroId === undefined) {
+    const ultimo = window.lineasCargaFijaOrdenadas(rubros).pop();
+    rubroId = ultimo ? ultimo[0] : null;
+  }
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   // Arranca con la duración de la obra si está cargada: es lo que va a tener
   // el 90% de los conceptos y si no corresponde se cambia en la línea.
@@ -746,6 +891,7 @@ function addLinea() {
     concepto: '', tipo: 'monto', cantidad: null, precioUnitario: null,
     meses: config.duracionMeses ?? null, orden: ultimoOrden() + 1,
   };
+  if (rubroId) lineas[lineaKey].rubroId = rubroId;
   renderTodo();
   persistLineaNueva(lineaKey);
 }
@@ -768,6 +914,7 @@ async function deleteLinea(lineaKey) {
 let obrasParaImportar = null; // cache: [{key, nombre}] — todas menos la actual
 let importarCfSelect = null;
 let lineasOrigenImportar = null; // { lineaKey: linea } de la obra elegida, o null
+let rubrosOrigenImportar = null; // { rubroKey: rubro } de la obra elegida
 
 async function abrirModalImportarCf() {
   $('importar-cf-confirmar').disabled = true;
@@ -800,13 +947,17 @@ async function onElegirObraOrigenImportar(obraOrigenKey) {
   lineasOrigenImportar = null;
   $('importar-cf-info').textContent = 'Buscando…';
 
-  const data = await _fbGet(`/obras/${obraOrigenKey}/cargaFija/lineas.json`);
+  const [data, rubrosData] = await Promise.all([
+    _fbGet(`/obras/${obraOrigenKey}/cargaFija/lineas.json`),
+    _fbGet(`/obras/${obraOrigenKey}/cargaFija/rubros.json`),
+  ]);
   const cantidad = Object.keys(data || {}).length;
   if (!cantidad) {
     $('importar-cf-info').textContent = 'Esa obra no tiene conceptos cargados en Carga Fija.';
     return;
   }
   lineasOrigenImportar = data;
+  rubrosOrigenImportar = rubrosData || {};
   $('importar-cf-info').textContent = `Se van a agregar ${cantidad} concepto${cantidad === 1 ? '' : 's'} a los que ya tiene esta obra.`;
   $('importar-cf-confirmar').disabled = false;
 }
@@ -814,6 +965,19 @@ async function onElegirObraOrigenImportar(obraOrigenKey) {
 async function confirmarImportarCf() {
   if (guardBloqueoObra()) return;
   if (!lineasOrigenImportar) return;
+  // Los rubros de la obra origen entran como rubros nuevos, a continuación de
+  // los de acá, y cada concepto se reengancha al suyo. Sólo los que tienen
+  // algún concepto: un rubro vacío de la otra obra no aporta nada.
+  const nuevosRubros = {};
+  const rubroNuevoDe = {};
+  let ordenRubro = Object.values(rubros).reduce((max, r) => Math.max(max, r.orden || 0), 0);
+  window.gruposCargaFija(lineasOrigenImportar, rubrosOrigenImportar).forEach(g => {
+    if (!g.rubroKey || !g.lineas.length) return;
+    const rubroKey = 'rubro_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+    nuevosRubros[rubroKey] = { nombre: g.rubro.nombre || '', orden: ++ordenRubro };
+    rubroNuevoDe[g.rubroKey] = rubroKey;
+  });
+
   const nuevas = {};
   // En el mismo orden que tienen en la obra origen, y a continuación de los
   // conceptos que ya haya acá: las keys se crean todas en el mismo
@@ -827,14 +991,19 @@ async function confirmarImportarCf() {
       porcentaje: l.porcentaje ?? null, porcentajeFormula: l.porcentajeFormula ?? null,
       orden: ++orden,
     };
+    if (rubroNuevoDe[l.rubroId]) nuevas[lineaKey].rubroId = rubroNuevoDe[l.rubroId];
   });
 
+  Object.assign(rubros, nuevosRubros);
   Object.assign(lineas, nuevas);
   renderTodo();
   cerrarModalImportarCf();
 
   try {
-    await _fbPatch(`/obras/${obraKey}/cargaFija/lineas.json`, nuevas);
+    await window.undoAgrupar('Importar gastos fijos', null, async () => {
+      if (Object.keys(nuevosRubros).length) await _fbPatch(`/obras/${obraKey}/cargaFija/rubros.json`, nuevosRubros);
+      await _fbPatch(`/obras/${obraKey}/cargaFija/lineas.json`, nuevas);
+    });
     showToast(`${Object.keys(nuevas).length} conceptos importados.`);
   } catch (_) {
     showToast('Error al importar los conceptos.', 'error');
@@ -924,6 +1093,20 @@ function aplicarLineasCFRemotas(dataCruda) {
   renderCFSegunFoco(undo);
 }
 
+// Si hay foco en el nombre de un rubro, ese rubro queda como está en memoria
+// (lo que se está tipeando) y el resto entra del servidor.
+function aplicarRubrosCFRemotos(dataCruda) {
+  const remoto = dataCruda || {};
+  const undo = esUndoPropio();
+  const el = document.activeElement;
+  const fila = !undo && el && el.closest ? el.closest('.cf-rubro[data-rubro-id]') : null;
+  const key = fila ? fila.dataset.rubroId : null;
+  const anterior = JSON.stringify(rubros);
+  rubros = (key && rubros[key]) ? { ...remoto, [key]: rubros[key] } : remoto;
+  if (JSON.stringify(rubros) === anterior) return;
+  renderCFSegunFoco(undo);
+}
+
 function aplicarConfigCFRemotas(dataCruda) {
   const remoto = dataCruda || {};
   const undo = esUndoPropio();
@@ -943,9 +1126,10 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
-  const [obraData, lineasData, configData, computoLineas, itemsData, materialesData, equiposData, rolesData, auxiliaresData] = await Promise.all([
+  const [obraData, lineasData, rubrosData, configData, computoLineas, itemsData, materialesData, equiposData, rolesData, auxiliaresData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/lineas.json`),
+    _fbGet(`/obras/${obraKey}/cargaFija/rubros.json`),
     _fbGet(`/obras/${obraKey}/cargaFija/config.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),
     _fbGet('/items.json'),
@@ -961,6 +1145,7 @@ async function loadAll() {
   }
   obra = obraData;
   lineas = lineasData || {};
+  rubros = rubrosData || {};
   normalizarOrdenLineas();
   if (configData) config = { ...config, ...configData };
   computoData = computoLineas;
@@ -992,12 +1177,14 @@ async function loadAll() {
   $('main-content').style.display = '';
 
   window._fbListen(`/obras/${obraKey}/cargaFija/lineas`, aplicarLineasCFRemotas);
+  window._fbListen(`/obras/${obraKey}/cargaFija/rubros`, aplicarRubrosCFRemotos);
   window._fbListen(`/obras/${obraKey}/cargaFija/config`, aplicarConfigCFRemotas);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
   engancharDragContainerCF();
-  $('btn-add-linea').addEventListener('click', addLinea);
+  $('btn-add-linea').addEventListener('click', () => addLinea());
+  $('btn-add-rubro').addEventListener('click', addRubro);
   $('btn-importar-cf').addEventListener('click', abrirModalImportarCf);
   $('importar-cf-close').addEventListener('click', cerrarModalImportarCf);
   $('importar-cf-cancelar').addEventListener('click', cerrarModalImportarCf);

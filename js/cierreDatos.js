@@ -143,6 +143,7 @@
       roles:       obra.roles         || null,
       cfLineas:    cargaFija.lineas   || null,
       cfConfig:    cargaFija.config   || null,
+      cfRubros:    cargaFija.rubros   || null,
       encabezado:  obra.encabezado    || null,
     };
   };
