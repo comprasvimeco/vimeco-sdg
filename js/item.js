@@ -731,6 +731,18 @@ function openUsarComoBaseModal() {
     onChange: v => seleccionarUsarComoBase(v, opciones),
   });
   $('modal-usar-base').classList.remove('hidden');
+
+  // El buscador arranca con el nombre de este ítem ya escrito y filtrando: lo
+  // más común es buscar el mismo análisis en otra obra. Queda seleccionado
+  // para que tipear otra cosa lo reemplace de una.
+  const nombre = ((lineaVinculada && lineaVinculada.nombre) || (item && item.nombre) || '').trim();
+  const input = $('usar-base-select').querySelector('.ss-input');
+  if (nombre && input) {
+    input.focus();
+    input.value = nombre;
+    input.dispatchEvent(new Event('input'));
+    input.select();
+  }
 }
 
 // Al copiar mano de obra de OTRA obra, el refKey de cada línea apunta a la
@@ -1220,6 +1232,21 @@ function calcularDetalleActivo() {
   return r;
 }
 
+// Comparación del Precio Unitario contra el oficial de esta línea, que se carga
+// en Presupuesto ("Comparar con oficial") y vive en la línea del Cómputo. Es de
+// uso interno: sólo se ve en esta pantalla, no entra a ninguna exportación ni
+// a ningún cálculo. Sin precio oficial cargado no se muestra nada.
+function comparacionOficialHtml(precioUnitario) {
+  if (activeVersion !== obraParam || !lineaVinculada || lineaVinculada.aux) return '';
+  const oficial = Number(lineaVinculada.precioOficial);
+  if (!oficial || isNaN(oficial)) return '';
+  const pct = (precioUnitario - oficial) / oficial;
+  const dif = pct > 0 ? `<span class="ap-dif-oficial dif-pos">${fmtPct(pct)} arriba</span>`
+    : pct < 0 ? `<span class="ap-dif-oficial dif-neg">${fmtPct(-pct)} abajo</span>`
+      : `<span class="ap-dif-oficial">igual</span>`;
+  return `<div class="ap-resumen-row no-print"><span>Precio oficial</span><span>${fmtARS(oficial)} · ${dif}</span></div>`;
+}
+
 // Orden A (Equipos) → B (Mano de Obra) → C (Materiales) → Subtotal,
 // mismo criterio que la planilla de referencia (CyP Taller Río Cuarto.xlsx).
 function renderResumenCosto(r) {
@@ -1231,6 +1258,7 @@ function renderResumenCosto(r) {
   const k = esAuxiliar() ? undefined : kPorObra[activeVersion];
   const precioUnitarioHtml = k
     ? `<div class="ap-resumen-row total"><span>Precio Unitario</span><span${calcAttrs(r.costoUnitario * k, 'ap:precioUnitario', 'Precio Unitario')}>${fmtARS(r.costoUnitario * k)}</span></div>
+       ${comparacionOficialHtml(r.costoUnitario * k)}
        <p class="form-hint" style="margin-top:.4rem;">Precio Unitario = Subtotal × <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> (${fmtK(k)}) de esta obra.</p>`
     : k === null
       ? `<p class="form-hint" style="margin-top:.4rem;">No se pudo calcular el Precio Unitario — a esta obra le falta Cómputo o <a href="carga-fija.html?obra=${encodeURIComponent(activeVersion)}" target="_blank" rel="noopener">Carga Fija</a> cargada.</p>`
