@@ -88,10 +88,7 @@ function renderRoles(list) {
 }
 
 function applyFilter() {
-  const q = $('mo-search').value.trim().toLowerCase();
-  const filtered = q
-    ? allRoles.filter(r => r.nombre.toLowerCase().includes(q))
-    : allRoles;
+  const filtered = window.buscarSimilares(allRoles, $('mo-search').value, r => r.nombre).lista;
   renderRoles(filtered);
 }
 

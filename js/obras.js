@@ -132,14 +132,9 @@ function renderObras(list) {
 }
 
 function applyFilter() {
-  const q = $('obras-search').value.trim().toLowerCase();
-  const filtered = allObras.filter(o => {
-    const pasaEstado = estadoActivo === 'todas' || o.estado === estadoActivo;
-    const pasaBusqueda = !q
-      || (o.nombre || '').toLowerCase().includes(q)
-      || (o.ubicacion || '').toLowerCase().includes(q);
-    return pasaEstado && pasaBusqueda;
-  });
+  const delEstado = allObras.filter(o => estadoActivo === 'todas' || o.estado === estadoActivo);
+  const filtered = window.buscarSimilares(delEstado, $('obras-search').value,
+    o => `${o.nombre || ''} ${o.ubicacion || ''}`).lista;
   renderObras(filtered);
 }
 

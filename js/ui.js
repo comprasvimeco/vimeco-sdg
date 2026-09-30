@@ -6,6 +6,58 @@ window.escHtml = function (str) {
     .replace(/</g, '&lt;').replace(/>/g, '&gt;');
 };
 
+// Texto listo para comparar en un buscador: sin mayúsculas ni tildes, así
+// "hormigon" encuentra "Hormigón" y "HORMIGÓN".
+window.normBusqueda = function (str) {
+  return String(str == null ? '' : str).trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '');
+};
+
+// Cuánto se parecen dos palabras ya normalizadas, de 0 a 1. Las cortas ("h",
+// "21") sólo valen si son iguales: si no, "21" aparecería adentro de "210".
+function _parecidoPalabras(a, b) {
+  if (a === b) return 1;
+  if (a.length >= 3 && b.includes(a)) return 1;
+  let p = 0;
+  while (p < a.length && p < b.length && a[p] === b[p]) p++;
+  // Mismo arranque: "excavaciones" con "excavacion", "pavimento" con "pavimentacion".
+  const parecido = p / Math.max(a.length, b.length);
+  return p >= 4 && parecido >= 0.6 ? parecido : 0;
+}
+
+const _PALABRAS_VACIAS = ['de', 'del', 'la', 'el', 'los', 'las', 'en', 'con', 'para', 'por', 'y', 'e', 'o', 'a', 'al', 'un', 'una'];
+
+// Filtro de todos los buscadores. Primero lo de siempre: lo que contiene el
+// texto tal cual, en el orden en que venía. Si no hay nada, devuelve los
+// parecidos — los que comparten alguna palabra — con los más parecidos arriba,
+// y avisa con `aproximado` para que la pantalla pueda decirlo.
+window.buscarSimilares = function (lista, query, textoDe) {
+  const q = window.normBusqueda(query);
+  if (!q) return { lista, aproximado: false };
+  const textos = lista.map(x => window.normBusqueda(textoDe(x)));
+  const exactos = lista.filter((_, i) => textos[i].includes(q));
+  if (exactos.length) return { lista: exactos, aproximado: false };
+
+  const palabras = txt => txt.split(/[^a-z0-9]+/).filter(Boolean);
+  const todas = palabras(q);
+  const utiles = todas.filter(w => !_PALABRAS_VACIAS.includes(w));
+  const buscadas = utiles.length ? utiles : todas;
+
+  const parecidos = [];
+  lista.forEach((x, i) => {
+    const delTexto = palabras(textos[i]);
+    let puntos = 0;
+    buscadas.forEach(w => {
+      puntos += delTexto.reduce((max, t) => Math.max(max, _parecidoPalabras(w, t)), 0);
+    });
+    // Desempate: a igual cantidad de palabras encontradas, primero el nombre
+    // que tiene menos palabras de más.
+    if (puntos > 0) parecidos.push({ x, puntos, ajuste: puntos / delTexto.length });
+  });
+  parecidos.sort((a, b) => (b.puntos - a.puntos) || (b.ajuste - a.ajuste));
+  return { lista: parecidos.map(p => p.x), aproximado: parecidos.length > 0 };
+};
+
 function _toast(msg, type) {
   const c = document.getElementById('toast-container');
   if (!c) return;

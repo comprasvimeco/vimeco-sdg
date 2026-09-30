@@ -51,11 +51,10 @@ function renderItems(list) {
 }
 
 function applyFilter() {
-  const q = $('items-search').value.trim().toLowerCase();
   const rubro = $('items-filtro-rubro').value;
   let list = allItems;
   if (rubro) list = list.filter(it => it.rubroKey === rubro);
-  if (q) list = list.filter(it => it.nombre.toLowerCase().includes(q));
+  list = window.buscarSimilares(list, $('items-search').value, it => it.nombre).lista;
   renderItems(list);
 }
 

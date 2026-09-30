@@ -68,10 +68,8 @@ function renderEquipos(list) {
 }
 
 function applyFilter() {
-  const q = $('equipos-search').value.trim().toLowerCase();
-  const filtered = q
-    ? allEquipos.filter(e => (e.codigo || '').toLowerCase().includes(q) || (e.tipo || '').toLowerCase().includes(q))
-    : allEquipos;
+  const filtered = window.buscarSimilares(allEquipos, $('equipos-search').value,
+    e => `${e.codigo || ''} ${e.tipo || ''}`).lista;
   renderEquipos(filtered);
 }
 

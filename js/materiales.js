@@ -48,10 +48,7 @@ function renderMateriales(list) {
 }
 
 function applyFilter() {
-  const q = $('materiales-search').value.trim().toLowerCase();
-  const filtered = q
-    ? allMateriales.filter(m => m.nombre.toLowerCase().includes(q))
-    : allMateriales;
+  const filtered = window.buscarSimilares(allMateriales, $('materiales-search').value, m => m.nombre).lista;
   renderMateriales(filtered);
 }
 

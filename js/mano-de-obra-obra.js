@@ -216,11 +216,9 @@ async function guardarFamiliaObra(f) {
 }
 
 function applyFilter() {
-  const q = $('mo-search').value.trim().toLowerCase();
+  const q = window.normBusqueda($('mo-search').value);
   const deLaFamilia = allRoles.filter(r => (r.familia || 'arquitectura') === familiaActiva);
-  const filtered = q
-    ? deLaFamilia.filter(r => r.nombre.toLowerCase().includes(q))
-    : deLaFamilia;
+  const filtered = window.buscarSimilares(deLaFamilia, q, r => r.nombre).lista;
   renderRoles(filtered, !q);
 }
 

@@ -73,20 +73,22 @@ window.createSearchableSelect = function (container, opts) {
       window.addEventListener('resize', positionDropdown);
     }
 
-    const q = query.trim().toLowerCase();
     // Se busca también en el sublabel: en la lista de APs de otras obras es
     // el nombre de la obra, y buscar "Rivera Indarte" es tan natural como
     // buscar por el nombre del análisis.
-    const filtered = q
-      ? currentOptions.filter(o => `${o.label} ${o.sublabel || ''}`.toLowerCase().includes(q))
-      : currentOptions;
+    const { lista: filtered, aproximado } = window.buscarSimilares(
+      currentOptions, query, o => `${o.label} ${o.sublabel || ''}`);
 
     // Los ya usados (o.usado) van arriba de todo, para elegirlos rápido —
     // p. ej. equipos que ya están en otras líneas de la obra. sort() es
     // estable: si nadie manda "usado", el orden queda intacto.
-    const ordenados = filtered.slice().sort((a, b) => (b.usado ? 1 : 0) - (a.usado ? 1 : 0));
+    // Con parecidos no se reordena: manda el parecido, el más cercano arriba.
+    const ordenados = aproximado
+      ? filtered
+      : filtered.slice().sort((a, b) => (b.usado ? 1 : 0) - (a.usado ? 1 : 0));
 
-    let html = ordenados.map(o => `
+    let html = aproximado ? '<div class="ss-empty">Sin coincidencia exacta. Parecidos:</div>' : '';
+    html += ordenados.map(o => `
       <div class="ss-option${o.usado ? ' ss-option--usado' : ''}" data-value="${escHtml(o.value)}">
         <span>${o.usado ? window.icSvg('checkSm', 'ss-option-check') : ''}${escHtml(o.label)}</span>
         ${o.sublabel ? `<span class="ss-option-sub">${escHtml(o.sublabel)}</span>` : ''}
