@@ -531,12 +531,13 @@ function renderDatos() {
     const nombre = lineaVinculada.nombre || '(sin nombre)';
     const unidad = lineaVinculada.unidad || '';
     const prefijo = numeracionActiva ? `<span class="ap-titulo-numero">${escHtml(numeracionActiva)}</span>` : '';
-    $('header-item-nombre').textContent = (numeracionActiva ? numeracionActiva + '  ' : '') + nombre;
+    $('header-item-nombre').textContent = obrasMap[obraParam || activeVersion] || nombre;
     $('item-titulo-card').innerHTML = prefijo + escHtml(nombre);
     $('item-datos-resumen').innerHTML = unidad ? `<span class="item-card-meta">Unidad: ${escHtml(unidad)}</span>` : '';
     $('btn-editar-datos').classList.add('hidden');
   } else {
-    $('header-item-nombre').textContent = item.nombre;
+    const obraNombre = obrasMap[obraParam || activeVersion];
+    $('header-item-nombre').textContent = obraNombre || item.nombre;
     $('item-titulo-card').textContent = item.nombre;
     const rubroNombre = item.rubroKey && rubrosMap[item.rubroKey] ? rubrosMap[item.rubroKey] : 'Sin rubro';
     $('item-datos-resumen').innerHTML =

@@ -120,9 +120,10 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 /* ===== APP LAYOUT ===== */
 .app-header { background: var(--grad-header); color: var(--white); padding: 0 1.5rem; height: 60px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 6px 24px -8px rgba(26,58,92,.55); position: sticky; top: 0; z-index: 100; }
 .app-header::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--grad-gold); opacity: .85; }
-.header-brand { display: flex; align-items: center; gap: .85rem; }
+.header-brand { display: flex; align-items: center; gap: .85rem; min-width: 0; flex-shrink: 1; }
 .header-logo { height: 35px; width: auto; flex-shrink: 0; }
-.header-title { font-size: .95rem; font-weight: 700; }
+/* Nombres largos de obra: hasta 2 líneas y "…", sin desbordar el header. */
+.header-title { font-size: .95rem; font-weight: 700; line-height: 1.2; min-width: 0; max-width: 420px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
 .header-tabs { display: flex; align-items: center; gap: .3rem; }
 .header-tab { color: rgba(255,255,255,.75); font-size: .85rem; font-weight: 600; text-decoration: none; padding: .4rem .85rem; border-radius: 999px; transition: background .15s, color .15s; white-space: nowrap; }
 .header-tab:hover { color: var(--white); background: rgba(255,255,255,.1); }
@@ -431,7 +432,7 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
     height: auto; min-height: 60px; padding: .5rem .65rem; flex-wrap: wrap; row-gap: .4rem;
   }
   .header-logo { height: 28px; }
-  .header-title { max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-title { max-width: 45vw; font-size: .82rem; }
   /* Sólo son 2 pastillas (Datos / CyP): comparten fila con el resto en vez de
      ocupar una fila propia con scroll, como hacía falta cuando eran 7 tabs.
      Así el header queda en 2 filas y no en 3 con la barra de sub-pestañas. */
