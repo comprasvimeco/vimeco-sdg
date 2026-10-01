@@ -544,6 +544,7 @@ function renderDatos() {
       `<span class="item-card-meta">${escHtml(rubroNombre)} · Unidad: ${escHtml(item.unidad)}</span>`;
     $('btn-editar-datos').classList.remove('hidden');
   }
+  $('ap-titulo-fijo-texto').innerHTML = $('item-titulo-card').innerHTML;
 }
 
 // -- "Usar otro AP como base" — copia receta+rendimiento de otra obra ------
@@ -2341,6 +2342,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   $('btn-ap-prev').addEventListener('click', () => irAApVecino(-1));
   $('btn-ap-next').addEventListener('click', () => irAApVecino(1));
+
+  // Título fijo: se muestra cuando el de la tarjeta quedó tapado por la barra.
+  const actualizarTituloFijo = () => {
+    const bar = $('ap-terciario-bar');
+    const tapado = $('item-titulo-card').getBoundingClientRect().bottom < bar.getBoundingClientRect().bottom;
+    $('ap-titulo-fijo').classList.toggle('visible', tapado);
+  };
+  window.addEventListener('scroll', actualizarTituloFijo, { passive: true });
+  window.addEventListener('resize', actualizarTituloFijo);
 
   // El botón vive dentro de #ap-usar-base-wrap, que renderUsarBase() redibuja:
   // su listener se engancha ahí, no acá.
