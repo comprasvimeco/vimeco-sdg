@@ -67,6 +67,14 @@
     return (valor === null || valor === undefined) ? _fbDel(path) : _fbPut(path, valor);
   }
 
+  /* Lo que se manda a escribir se guarda copiado: las pantallas suelen pasar
+     su propio objeto en memoria (las líneas del A.P.) y lo siguen modificando
+     después, así que con la referencia el "después" de un paso viejo cambiaría
+     solo, y deshacerlo chocaría contra un cambio ajeno que no existe. */
+  function copia(v) {
+    return (v === undefined || v === null) ? null : JSON.parse(JSON.stringify(v));
+  }
+
   /* ---------- captura del estado previo ---------- */
 
   async function leerAntesDeUnPatch(path, claves) {
@@ -103,7 +111,7 @@
         const claves = Object.keys(datos || {});
         if (!claves.length) return listo;
         const antes = await leerAntesDeUnPatch(path, claves);
-        const despues = Object.fromEntries(claves.map(k => [k, datos[k] ?? null]));
+        const despues = Object.fromEntries(claves.map(k => [k, copia(datos[k])]));
         // Un blur sin cambios guarda igual: si nada se movió, no ensucia la pila.
         const cambiadas = claves.filter(k => !_iguales(antes[k], despues[k]));
         if (!cambiadas.length) return listo;
@@ -114,7 +122,7 @@
         };
       } else {
         const antes   = await _fbGet(path).catch(() => null);
-        const despues = metodo === 'del' ? null : (datos ?? null);
+        const despues = metodo === 'del' ? null : copia(datos);
         if (_iguales(antes, despues)) return listo;
         entrada = { tipo: 'nodo', path, antes: antes ?? null, despues };
       }

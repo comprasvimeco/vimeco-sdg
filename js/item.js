@@ -1895,9 +1895,6 @@ async function convertirDirectoEnMaterial() {
       lineas[lineaKey] = { tipo: 'material', refKey: key, cantidad: 1, orden: directo.orden || 1 };
       await persistLineas();
     });
-    // El Ctrl+Z se queda con el objeto que se mandó a guardar, no con una
-    // copia: el insumo que se agrega enseguida no tiene que caer adentro.
-    lineas = { ...lineas };
   } catch (_) {
     showToast('Error al pasar el costo a mano a material.', 'error');
     return false;
