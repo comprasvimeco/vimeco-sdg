@@ -296,16 +296,17 @@ function catalogoFor(tipo) {
   return roles;
 }
 
-/* Este A.P. tiene el costo cargado a mano desde el Cómputo. Mientras lo tenga
-   no se le pueden agregar insumos: un ítem se costea de una forma o de la
-   otra, y sumar las dos sería contar dos veces lo mismo. Se destraba borrando
-   la línea con la "x". */
+/* Este A.P. tiene el costo cargado a mano desde el Cómputo. Un ítem se costea
+   de una forma o de la otra, nunca las dos: agregarle un insumo convierte
+   antes ese costo en un Material (convertirDirectoEnMaterial). */
 function hayPrecioDirecto() {
   return !!window.lineaDirectaDe(lineas);
 }
 
+const AVISO_DIRECTO_A_MATERIAL = 'Este ítem tiene un costo cargado a mano — al agregar un insumo, ese costo pasa a ser un material';
+
 function bloqueadoParaInsumos() {
-  return !!window._soloLectura || hayPrecioDirecto();
+  return !!window._soloLectura;
 }
 
 // Auxiliares elegibles para una línea 'auxiliar' de ESTE A.P.: si el A.P. que
@@ -1655,10 +1656,9 @@ function engancharFilaDirecta(row, lineaKey, linea) {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
 }
 
-/* Los "+" de cada sección y el botón del precio directo son excluyentes: con
-   el costo cargado a mano no se le agregan insumos al ítem, y con insumos
-   cargados no se le puede poner un precio a mano. El hint dice por dónde se
-   sale, así el botón apagado no queda mudo. */
+/* Con insumos cargados no se le puede poner un precio a mano. Al revés sí:
+   con el costo cargado a mano los "+" siguen andando, y el hint avisa que
+   agregar un insumo pasa ese costo a ser un material. */
 function actualizarBotonesInsumos() {
   const directo = hayPrecioDirecto();
   const btnDirecto = $('btn-add-linea-directo');
@@ -1667,7 +1667,7 @@ function actualizarBotonesInsumos() {
     // hay un precio cargado (se edita en la fila) ni cuando hay insumos.
     btnDirecto.classList.toggle('hidden', !!Object.keys(lineas).length || !!window._soloLectura);
   }
-  const hint = directo ? 'Este ítem tiene un costo cargado a mano — borralo para armar el análisis en detalle' : '';
+  const hint = directo ? AVISO_DIRECTO_A_MATERIAL : '';
   ['btn-add-linea-material', 'btn-add-linea-auxiliar', 'btn-add-linea-equipo'].forEach(id => {
     const btn = $(id);
     if (!btn) return;
@@ -1704,7 +1704,7 @@ function renderManoDeObraSeccion(r) {
       return `
         <div class="ap-linea-mo con-costo" data-rol="${escHtml(rol.key)}">
           <span class="ap-linea-mo-nombre">${escHtml(rol.nombre)}</span>
-          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-valor="${aVista(cantidad ?? 0, uCelda)}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}" ${bloqueadoParaInsumos() ? 'disabled' : ''}${hayPrecioDirecto() ? ' title="Este ítem tiene un costo cargado a mano — borralo para armar el análisis en detalle"' : ''}>
+          <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-valor="${aVista(cantidad ?? 0, uCelda)}" data-calc-id="ap:mo:${escHtml(rol.key)}:cantidad" data-calc-label="${escHtml(rol.nombre + ' · Cantidad')}" ${bloqueadoParaInsumos() ? 'disabled' : ''}${hayPrecioDirecto() ? ` title="${AVISO_DIRECTO_A_MATERIAL}"` : ''}>
           <button type="button" class="ap-linea-costo-unit" title="Clic para ver el detalle del costo de esta categoría"${costoUnitVista != null ? calcAttrs(costoUnitVista, `ap:mo:${rol.key}:costoUnit`, rol.nombre + ' · Costo unit.') : ''}>${costoUnitVista != null ? fmtARS(costoUnitVista) : '—'}</button><span class="ap-linea-costo-total"${costoTotal != null ? calcAttrs(costoTotal, `ap:mo:${rol.key}:costoTotal`, rol.nombre + ' · Costo total') : ''}>${costoTotal != null ? fmtARS(costoTotal) : '—'}</span>
         </div>`;
     }).join('');
@@ -1762,7 +1762,7 @@ function renderManoDeObraSeccion(r) {
     }
     attachCalcInput(cantidadInput, vista.formula);
     attachValorInput(cantidadInput, linea ? aVista(linea.cantidad ?? null, unidadCelda) : null);
-    cantidadInput.addEventListener('blur', () => {
+    cantidadInput.addEventListener('blur', async () => {
       if (cantidadInput.value.trim() === '') {
         if (entry) deleteLinea(entry[0]);
         return;
@@ -1780,6 +1780,7 @@ function renderManoDeObraSeccion(r) {
         : unidadFormulaAGuardar(formula, unidadCelda);
       if (linea && n === (linea.cantidad ?? null) && aGuardar === (linea.cantidadFormula || null)) return;
       const lineaKey = entry ? entry[0] : `mo_${rolKey}`;
+      if (!(await convertirDirectoEnMaterial())) return;
       updateLinea(lineaKey, { tipo: 'manoDeObra', refKey: rolKey, cantidad: n, cantidadFormula: aGuardar, cantidadUnidad: unidadAGuardar });
     });
     cantidadInput.addEventListener('keydown', e => { if (e.key === 'Enter') cantidadInput.blur(); });
@@ -1854,7 +1855,60 @@ function updateLinea(lineaKey, cambios) {
   persistLineas();
 }
 
-function addLinea(tipo) {
+/* Un ítem costeado a mano al que se le agrega cualquier insumo deja de ser
+   "precio directo": ese costo pasa a ser un Material más de la receta, con
+   el nombre y la unidad del ítem, cantidad 1 y el precio cargado como precio
+   de esta obra. Así el análisis no cuenta dos veces lo mismo y la ficha del
+   material se puede completar después (proveedor) como cualquier otra.
+   Devuelve false si no se pudo, para que quien llamó no siga. */
+async function convertirDirectoEnMaterial() {
+  const entry = window.lineaDirectaDe(lineas);
+  if (!entry) return true;
+  const [directoKey, directo] = entry;
+  const precioARS = directo.precio != null && !isNaN(directo.precio) ? Number(directo.precio) : 0;
+  const cotizacionUsada = window.dolarOficialVenta();
+  if (!cotizacionUsada) {
+    showToast('No se pudo obtener la cotización del dólar. Reintentá en un momento.', 'error');
+    return false;
+  }
+  const nombre = (item && item.nombre) || 'Ítem';
+  const unidad = (item && item.unidad) || '';
+  const key = nombre.toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+    + '_' + Date.now();
+  const materialData = { nombre, unidad, creadoEn: Date.now() };
+  const precioData = {
+    precioUSD: precioARS / cotizacionUsada, precioARS,
+    precioFormula: directo.precioFormula || null,
+    precioFormulaMoneda: directo.precioFormula ? 'ARS' : null,
+    proveedor: '', fecha: new Date().toISOString().slice(0, 10), cotizacionUsada,
+  };
+  const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+  try {
+    // /materiales es compartido: raíces null, cada escritura se anota sola.
+    // El material va en un solo PUT con su precio: en dos, el Ctrl+Z vería el
+    // segundo como un cambio ajeno sobre el primero y no lo desharía.
+    await window.undoAgrupar('Pasar el costo a mano a material', null, async () => {
+      await _fbPut(`/materiales/${key}.json`, { ...materialData, precios: { [activeVersion]: precioData } });
+      delete lineas[directoKey];
+      lineas[lineaKey] = { tipo: 'material', refKey: key, cantidad: 1, orden: directo.orden || 1 };
+      await persistLineas();
+    });
+    // El Ctrl+Z se queda con el objeto que se mandó a guardar, no con una
+    // copia: el insumo que se agrega enseguida no tiene que caer adentro.
+    lineas = { ...lineas };
+  } catch (_) {
+    showToast('Error al pasar el costo a mano a material.', 'error');
+    return false;
+  }
+  materiales.push({ key, ...materialData, precios: { [activeVersion]: precioData } });
+  materiales.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  showToast(`El costo a mano pasó a ser el material "${nombre}".`);
+  return true;
+}
+
+async function addLinea(tipo) {
   if (guardBloqueoObra()) return;
   /* El precio directo es uno solo por receta y va con key fija (ver
      js/apDirecto.js), así que no sigue el camino de las demás: es la misma
@@ -1870,14 +1924,12 @@ function addLinea(tipo) {
     persistLineas();
     return;
   }
-  if (bloqueadoParaInsumos()) {
-    showToast('Este ítem tiene un costo cargado a mano — borralo para armar el análisis en detalle.', 'error');
-    return;
-  }
+  if (bloqueadoParaInsumos()) return;
   if (tipo !== 'material' && !catalogoFor(tipo).length) {
     showToast('No hay nada cargado en ese catálogo todavía.', 'error');
     return;
   }
+  if (!(await convertirDirectoEnMaterial())) return;
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   const seccion = tipo === 'equipo' ? 'equipo' : 'material';
   const yaEnOrden = entradasSeccion(seccion).map(([k]) => k);
