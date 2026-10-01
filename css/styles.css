@@ -296,6 +296,10 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .ss-create { padding: .5rem .7rem; font-size: .85rem; color: var(--primary); font-weight: 600; cursor: pointer; border-top: 1px solid var(--gray-200); }
 .ss-create:hover { background: var(--gray-100); }
 .ss-create.disabled { color: var(--gray-400); cursor: default; pointer-events: none; }
+/* Sin coincidencia exacta el "+ Crear" encabeza la lista: el borde va abajo. */
+.ss-create--arriba { border-top: none; border-bottom: 1px solid var(--gray-200); }
+.ss-more { padding: .45rem .7rem; font-size: .82rem; color: var(--primary); cursor: pointer; }
+.ss-more:hover { background: var(--gray-100); }
 
 /* ===== SVG ICONS ===== */
 .icon { display: inline-block; width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.15em; flex-shrink: 0; pointer-events: none; }

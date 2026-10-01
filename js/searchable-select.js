@@ -38,6 +38,10 @@ window.createSearchableSelect = function (container, opts) {
   // quedaba con la lista vieja: setValue(keyNueva) no encontraba el label y el
   // input se veía vacío, como si no se hubiera asignado nada.
   let currentOptions = options;
+  // Con parecidos se ven los primeros MAX_PARECIDOS; verTodos los despliega
+  // a todos hasta que se vuelva a tipear o a abrir el buscador.
+  const MAX_PARECIDOS = 5;
+  let verTodos = false;
 
   function labelFor(v) {
     const opt = currentOptions.find(o => o.value === v);
@@ -87,18 +91,30 @@ window.createSearchableSelect = function (container, opts) {
       ? filtered
       : filtered.slice().sort((a, b) => (b.usado ? 1 : 0) - (a.usado ? 1 : 0));
 
-    let html = aproximado ? '<div class="ss-empty">Sin coincidencia exacta. Parecidos:</div>' : '';
-    html += ordenados.map(o => `
+    // Con parecidos se muestran los 5 más cercanos; el resto, plegado detrás
+    // de "Ver N parecidos más", para no tener que recorrer una lista larga.
+    const visibles = aproximado && !verTodos ? ordenados.slice(0, MAX_PARECIDOS) : ordenados;
+    const ocultos = ordenados.length - visibles.length;
+
+    // Sin coincidencia exacta lo más probable es que haya que crearlo: el
+    // "+ Crear" va primero. Con coincidencias, sigue al final como siempre.
+    const crearHtml = onCreateNew
+      ? `<div class="ss-create ${query.trim() ? '' : 'disabled'}">+ Crear "${escHtml(query.trim())}"</div>`
+      : '';
+    const crearArriba = aproximado || !filtered.length;
+
+    let html = crearArriba ? crearHtml.replace('ss-create', 'ss-create ss-create--arriba') : '';
+    if (aproximado) html += '<div class="ss-empty">Sin coincidencia exacta. Parecidos:</div>';
+    html += visibles.map(o => `
       <div class="ss-option${o.usado ? ' ss-option--usado' : ''}" data-value="${escHtml(o.value)}">
         <span>${o.usado ? window.icSvg('checkSm', 'ss-option-check') : ''}${escHtml(o.label)}</span>
         ${o.sublabel ? `<span class="ss-option-sub">${escHtml(o.sublabel)}</span>` : ''}
       </div>`).join('');
+    if (ocultos) html += `<div class="ss-more">Ver ${ocultos} parecido${ocultos === 1 ? '' : 's'} más ▾</div>`;
 
     if (!filtered.length) html += '<div class="ss-empty">Sin resultados.</div>';
 
-    if (onCreateNew) {
-      html += `<div class="ss-create ${query.trim() ? '' : 'disabled'}">+ Crear "${escHtml(query.trim())}"</div>`;
-    }
+    if (!crearArriba) html += crearHtml;
 
     dropdown.innerHTML = html;
     activeIndex = -1; // cada render (tipeo) arranca sin resaltado; se activa recién al usar flechas
@@ -112,12 +128,17 @@ window.createSearchableSelect = function (container, opts) {
     if (createEl) {
       createEl.addEventListener('mousedown', e => { e.preventDefault(); selectItem(createEl); });
     }
+
+    const moreEl = dropdown.querySelector('.ss-more');
+    if (moreEl) {
+      moreEl.addEventListener('mousedown', e => { e.preventDefault(); selectItem(moreEl); });
+    }
   }
 
-  // Opciones navegables con flechas: las .ss-option más, al final, el
-  // "+ Crear ..." si está habilitado (mismo orden en que se ven en pantalla).
+  // Opciones navegables con flechas: las .ss-option, el "Ver más" y el
+  // "+ Crear ..." si está habilitado, en el mismo orden en que se ven.
   function navItems() {
-    return dropdown ? Array.from(dropdown.querySelectorAll('.ss-option, .ss-create:not(.disabled)')) : [];
+    return dropdown ? Array.from(dropdown.querySelectorAll('.ss-option, .ss-more, .ss-create:not(.disabled)')) : [];
   }
 
   function setActive(idx) {
@@ -131,7 +152,12 @@ window.createSearchableSelect = function (container, opts) {
   }
 
   function selectItem(el) {
-    if (el.classList.contains('ss-create')) {
+    if (el.classList.contains('ss-more')) {
+      // Despliega el resto y deja el foco de teclado en el primero que estaba oculto.
+      verTodos = true;
+      renderList(input.value);
+      setActive(navItems().findIndex(x => x.classList.contains('ss-option')) + MAX_PARECIDOS);
+    } else if (el.classList.contains('ss-create')) {
       const texto = input.value.trim();
       closeDropdown();
       onCreateNew(texto);
@@ -144,8 +170,8 @@ window.createSearchableSelect = function (container, opts) {
   }
 
   input.value = labelFor(currentValue);
-  input.addEventListener('focus', () => renderList(''));
-  input.addEventListener('input', () => renderList(input.value));
+  input.addEventListener('focus', () => { verTodos = false; renderList(''); });
+  input.addEventListener('input', () => { verTodos = false; renderList(input.value); });
   input.addEventListener('blur', () => {
     setTimeout(() => {
       closeDropdown();
