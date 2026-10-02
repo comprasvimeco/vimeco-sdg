@@ -197,6 +197,10 @@ function openDuplicarModal(obra) {
    {obraKey}) y el precio propio de cada material (/materiales/{k}/precios/
    {obraKey}). Las dos últimas se copian primero y el nodo de la obra al final,
    así la obra no aparece en la lista hasta estar completa.
+   Cada ítem se copia como un ítem NUEVO, con las líneas del Cómputo y los
+   auxiliares de la copia apuntando a él: si la copia colgara su versión del
+   mismo ítem, el A.P. quedaría compartido entre las dos obras (pestañas por
+   obra en item.html, y renombrarlo en una lo renombraría en la otra).
    Las Versiones guardadas (`cierres`) no se copian: sus fotos guardan ítems y
    precios bajo la key de la obra original, y restaurarlas en la copia
    escribiría sobre la original. */
@@ -209,9 +213,18 @@ async function duplicarObra(origenKey, nuevaKey, campos) {
   if (!obra) throw new Error('La obra original ya no existe.');
 
   const escrituras = [];
-  Object.entries(items || {}).forEach(([k, it]) => {
+  const itemNuevo = {};   // itemKey original → itemKey de la copia
+  const ahora = Date.now();
+  Object.entries(items || {}).forEach(([k, it], i) => {
     const v = it && it.versionesObra && it.versionesObra[origenKey];
-    if (v) escrituras.push(() => _fbPut(`/items/${k}/versionesObra/${nuevaKey}.json`, v));
+    if (!v) return;
+    const key = (it.nombre || 'item').toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+      + '_' + (ahora + i);
+    itemNuevo[k] = key;
+    const copiaItem = { ...it, creadoEn: ahora, versionesObra: { [nuevaKey]: v } };
+    escrituras.push(() => _fbPut(`/items/${key}.json`, copiaItem));
   });
   Object.entries(materiales || {}).forEach(([k, m]) => {
     const p = m && m.precios && m.precios[origenKey];
@@ -220,6 +233,11 @@ async function duplicarObra(origenKey, nuevaKey, campos) {
 
   const copia = { ...obra, ...campos, creadaEn: Date.now() };
   delete copia.cierres;
+  ['computo', 'auxiliares'].forEach(nodo => {
+    Object.values(copia[nodo] || {}).forEach(l => {
+      if (l && itemNuevo[l.itemKey]) l.itemKey = itemNuevo[l.itemKey];
+    });
+  });
 
   // Nodos compartidos (/items, /materiales): raíces null, cada escritura se
   // anota por separado (ver CLAUDE.md, Deshacer).
