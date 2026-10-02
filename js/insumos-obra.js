@@ -359,9 +359,54 @@ async function loadAll() {
    guardar siempre pisa el precio de ESTA obra. */
 let editingPrecioMaterialKey = null;
 let mepFuenteSelect = null;
+// Fila de la comparativa de proveedores que se está editando en el
+// formulario (null = un proveedor nuevo). Ver js/preciosMaterial.js.
+let mepProvKeyEditando = null;
 
 function loadMepPrecioFields(mat, fuenteObraKey) {
   const p = (mat.precios || {})[fuenteObraKey];
+  // El precio de otra obra que se trae para consultar, si se guarda, entra a
+  // la comparativa de esta obra como un proveedor más (o actualiza al mismo).
+  const elegido = window.comparativaPrecios(mat, obraKey).find(f => f.elegido);
+  mepProvKeyEditando = p && fuenteObraKey === obraKey && elegido ? elegido.provKey : null;
+  fillMepPrecioFields(p);
+  renderMepComparativa(mat);
+}
+
+function renderMepComparativa(mat) {
+  const vigente = window.textoPrecioVigente(mat, obraKey, obrasMap);
+  $('mep-vigente').textContent = vigente || '';
+  $('mep-vigente').classList.toggle('hidden', !vigente);
+  window.renderComparativaPrecios($('mep-comparativa'), mat, obraKey, {
+    editandoKey: mepProvKeyEditando,
+    soloLectura: !!window._soloLectura,
+    onEditar: f => { mepProvKeyEditando = f.provKey; fillMepPrecioFields(f); renderMepComparativa(mat); },
+    onNuevo: () => { mepProvKeyEditando = null; fillMepPrecioFields(null); renderMepComparativa(mat); $('mep-proveedor').focus(); },
+    onElegir: k => escribirComparativaMep(mat, 'el proveedor elegido', () => window.elegirProveedorPrecio(mat, obraKey, k)),
+    onEliminar: k => escribirComparativaMep(mat, 'el proveedor sacado de la comparativa', async () => {
+      if (!await window.eliminarProveedorPrecio(mat, obraKey, k)) showToast('Es el proveedor que usa la obra: elegí otro antes de sacarlo.', 'error');
+    }),
+  });
+}
+
+// Elegir o sacar un proveedor se guarda en el momento, sin pasar por Guardar.
+async function escribirComparativaMep(mat, etiqueta, fn) {
+  if (guardBloqueoObra()) { renderMepComparativa(mat); return; }
+  try {
+    await window.undoAgrupar(etiqueta, null, fn);
+  } catch (_) {
+    showToast('Error al guardar. Intentá de nuevo.', 'error');
+  }
+  const filas = window.comparativaPrecios(mat, obraKey);
+  const editando = filas.find(f => f.provKey === mepProvKeyEditando) || filas.find(f => f.elegido) || null;
+  mepProvKeyEditando = editando ? editando.provKey : null;
+  fillMepPrecioFields(editando);
+  renderMepComparativa(mat);
+  modeloIns.preciosObra = window.resolverPreciosObra(modeloIns.catalogos.materiales, obraKey);
+  renderTodo();
+}
+
+function fillMepPrecioFields(p) {
   $('mep-precio-usd').value = p ? formatMoneyString(p.precioUSD) : '';
   $('mep-precio-ars').value = p ? formatMoneyString(p.precioARS) : '';
   setCalcFormula($('mep-precio-usd'), p && p.precioFormulaMoneda === 'USD' ? p.precioFormula : null);
@@ -437,17 +482,17 @@ async function saveEditarPrecioModal() {
   const precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada };
 
   try {
-    await Promise.all([
-      _fbPatch(`/materiales/${editingPrecioMaterialKey}.json`, { nombre, unidad }),
-      _fbPut(`/materiales/${editingPrecioMaterialKey}/precios/${obraKey}.json`, precioData),
-    ]);
     const mat = modeloIns.catalogos.materiales.find(m => m.key === editingPrecioMaterialKey);
+    let res;
+    await window.undoAgrupar('el precio del material', null, async () => {
+      await _fbPatch(`/materiales/${editingPrecioMaterialKey}.json`, { nombre, unidad });
+      res = await window.guardarPrecioProveedor(mat, obraKey, precioData, { provKeyAnterior: mepProvKeyEditando });
+    });
     mat.nombre = nombre;
     mat.unidad = unidad;
-    mat.precios = { ...(mat.precios || {}), [obraKey]: precioData };
     modeloIns.preciosObra = window.resolverPreciosObra(modeloIns.catalogos.materiales, obraKey);
     $('modal-material-editar-precio').classList.add('hidden');
-    showToast('Precio actualizado.');
+    showToast(res.elegido ? 'Precio actualizado.' : 'Proveedor sumado a la comparativa. La obra sigue usando el elegido.');
     renderTodo();
   } catch (_) {
     errEl.textContent = 'Error al guardar. Intentá de nuevo.';

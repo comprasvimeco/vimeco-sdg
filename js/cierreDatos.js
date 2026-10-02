@@ -110,6 +110,7 @@
       const base = { ...m };
       delete base.key;
       delete base.precios;
+      delete base.proveedores; // la comparativa (js/preciosMaterial.js) no hace al número: va sólo el elegido
       const precio = modelo.preciosObra[key];
       if (precio) base.precios = { [obraKey]: precio };
       materiales[key] = base;

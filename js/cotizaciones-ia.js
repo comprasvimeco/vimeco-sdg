@@ -1,7 +1,7 @@
 /* VIMECO S.A. — Sistema de Gestión — Cotizaciones (extracción con IA)
    Sobre un presupuesto de proveedor YA guardado en la carpeta de la obra:
    leerlo con IA, revisar/corregir materiales y precios detectados (o
-   cargarlos a mano), y aplicarlos a /materiales/{key}/precios/{obraKey}.
+   cargarlos a mano), y aplicarlos a la comparativa de proveedores de la obra (js/preciosMaterial.js).
    La subida del archivo y el listado viven en cotizaciones-obra.js, que
    además declara el `$` que este archivo NO redeclara — ambos corren en el
    mismo scope global. */
@@ -652,7 +652,11 @@
     for (const l of aLineas) {
       if (!l.materialKey) continue; // no se pudo crear el material: ya está en `fallos`
       try {
-        await _fbPut(`/materiales/${l.materialKey}/precios/${state.obraKey}.json`, {
+        // Se suma a la comparativa de proveedores de la obra (js/preciosMaterial.js):
+        // pasa a ser el precio que usa la obra sólo si no tenía ninguno o si
+        // es el mismo proveedor que el elegido.
+        const material = state.allMateriales.find(m => m.key === l.materialKey) || { key: l.materialKey };
+        await window.guardarPrecioProveedor(material, state.obraKey, {
           precioUSD: l.precioUSD, precioARS: l.precioARS,
           precioFormula: l.precioFormula, precioFormulaMoneda: l.precioFormulaMoneda,
           proveedor, fecha, cotizacionUsada, origenCotizacionKey: cotizacionKey,

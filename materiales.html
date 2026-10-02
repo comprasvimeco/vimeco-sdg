@@ -27,6 +27,8 @@
     .mat-tabla .mat-vigente { font-size: .68rem; color: var(--primary); margin-left: .3rem; }
     .mat-tabla tbody tr:hover td { background: var(--gray-50); }
     .mat-tabla .mat-acciones { text-align: right; }
+    .mat-tabla .mat-alt { font-size: .68rem; color: var(--gray-400); margin-left: .3rem; }
+    .mat-tabla tr.mat-fila-alt td { color: var(--gray-500); }
   </style>
 </head>
 <body>
@@ -60,7 +62,7 @@
 
   <!-- Modal: Agregar / Editar material -->
   <div class="modal-overlay hidden" id="modal-material">
-    <div class="modal modal--sm">
+    <div class="modal modal--lg">
       <div class="modal-header">
         <span class="modal-title" id="modal-material-title">Agregar material</span>
         <button class="modal-close" id="modal-material-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -97,6 +99,7 @@
           <div class="linea-select-container" id="material-fuente-container"></div>
           <span class="form-hint">Obras que ya tienen un precio cargado para este material — elegí una para verlo/editarlo, o cualquier otra para cargar el primero.</span>
         </div>
+        <div id="material-comparativa" class="mep-comparativa"></div>
 
         <div id="modal-material-error" class="alert alert-error hidden"></div>
       </div>
@@ -132,6 +135,7 @@
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
   <script src="js/calcCostos.js"></script>
+  <script src="js/preciosMaterial.js"></script>
   <script src="js/vendor/firebase-app-compat.js"></script>
   <script src="js/vendor/firebase-auth-compat.js"></script>
   <script src="js/config.js"></script>

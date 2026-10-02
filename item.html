@@ -385,7 +385,7 @@
 
   <!-- Modal: Editar precio de un material (inline, por línea del AP) -->
   <div class="modal-overlay hidden" id="modal-material-editar-precio">
-    <div class="modal modal--sm">
+    <div class="modal modal--lg">
       <div class="modal-header">
         <span class="modal-title">Precio del material</span>
         <button class="modal-close" id="modal-mep-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
@@ -396,6 +396,8 @@
           <div class="linea-select-container" id="mep-fuente-container"></div>
           <span class="form-hint" id="mep-fuente-hint"></span>
         </div>
+        <div id="mep-vigente" class="alert alert-info mep-vigente hidden"></div>
+        <div id="mep-comparativa" class="mep-comparativa"></div>
         <div class="form-row">
           <div class="form-group">
             <label for="mep-nombre">Nombre *</label>
@@ -480,6 +482,7 @@
   <script src="js/dolar.js"></script>
   <script src="js/moneda.js"></script>
   <script src="js/calcCostos.js"></script>
+  <script src="js/preciosMaterial.js"></script>
   <script src="js/calculadora-flotante.js"></script>
   <script src="js/vendor/firebase-app-compat.js"></script>
   <script src="js/vendor/firebase-auth-compat.js"></script>

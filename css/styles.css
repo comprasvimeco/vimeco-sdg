@@ -465,3 +465,23 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
      se cambian mientras se lee la tabla, así que el control se queda. */
   .header-dolar { display: none; }
 }
+
+/* ===== Comparativa de proveedores de un material (js/preciosMaterial.js) ===== */
+.cmp-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .35rem; }
+.cmp-head label { margin: 0; }
+.cmp-wrap { overflow-x: auto; border: 1px solid var(--gray-200); border-radius: var(--radius); }
+.cmp-tabla { width: 100%; border-collapse: collapse; font-size: .78rem; }
+.cmp-tabla th, .cmp-tabla td { padding: .3rem .45rem; border-bottom: 1px solid var(--gray-200); white-space: nowrap; text-align: left; }
+.cmp-tabla thead th { background: var(--gray-100); font-size: .7rem; font-weight: 600; color: var(--gray-600); }
+.cmp-tabla .num { text-align: right; font-variant-numeric: tabular-nums; }
+.cmp-tabla tbody tr { cursor: pointer; }
+.cmp-tabla tbody tr:hover td { background: var(--gray-50); }
+.cmp-tabla tbody tr.cmp-editando td { background: #eff6ff; }
+.cmp-tabla tbody tr:last-child td { border-bottom: none; }
+.cmp-tag { font-size: .65rem; color: var(--success); font-weight: 600; margin-left: .25rem; }
+.cmp-baja { color: var(--success); }
+.cmp-sube { color: var(--danger); }
+.cmp-del { border: none; background: none; color: var(--gray-400); font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 .2rem; }
+.cmp-del:hover { color: var(--danger); }
+.mep-comparativa:not(:empty) { margin: .75rem 0; }
+.mep-vigente { margin-bottom: .75rem; }

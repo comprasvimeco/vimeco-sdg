@@ -229,6 +229,9 @@ async function duplicarObra(origenKey, nuevaKey, campos) {
   Object.entries(materiales || {}).forEach(([k, m]) => {
     const p = m && m.precios && m.precios[origenKey];
     if (p) escrituras.push(() => _fbPut(`/materiales/${k}/precios/${nuevaKey}.json`, p));
+    // Los otros proveedores de la comparativa (js/preciosMaterial.js) también.
+    const alt = m && m.proveedores && m.proveedores[origenKey];
+    if (alt) escrituras.push(() => _fbPut(`/materiales/${k}/proveedores/${nuevaKey}.json`, alt));
   });
 
   const copia = { ...obra, ...campos, creadaEn: Date.now() };

@@ -13,6 +13,9 @@ let allObras = [];
 let obrasMap = {};
 let editingKey = null;
 let fuenteSelect = null;
+// Fila de la comparativa de proveedores que se está editando en el modal
+// (null = un proveedor nuevo). Ver js/preciosMaterial.js.
+let provKeyEditando = null;
 
 // Planilla: una fila por cada precio cargado (material × obra-fuente), y una
 // fila sin precio para los materiales que todavía no tienen ninguno. Los
@@ -35,9 +38,15 @@ function filasDe(materiales) {
   const filas = [];
   materiales.forEach(m => {
     const def = window.precioDefaultDe(m);
-    const entries = Object.entries(m.precios || {});
+    // Una fila por proveedor de cada obra (ver js/preciosMaterial.js): el
+    // elegido es el que usa la obra; el vigente, el elegido más reciente.
+    const obraKeys = [...new Set([...Object.keys(m.precios || {}), ...Object.keys(m.proveedores || {})])];
+    const entries = obraKeys.flatMap(obraKey => {
+      const cmp = window.comparativaPrecios(m, obraKey);
+      return cmp.map(p => [obraKey, { ...p, nProv: cmp.length }]);
+    });
     if (!entries.length) {
-      filas.push({ material: m, obraKey: null, nombre: m.nombre, unidad: m.unidad || '', proveedor: '', fecha: '', obra: '', ars: null, cot: null, usd: null, vigente: false });
+      filas.push({ material: m, obraKey: null, nombre: m.nombre, unidad: m.unidad || '', proveedor: '', fecha: '', obra: '', ars: null, cot: null, usd: null, vigente: false, elegido: false });
       return;
     }
     entries.forEach(([obraKey, p]) => {
@@ -45,9 +54,9 @@ function filasDe(materiales) {
       const ars = p.precioARS != null ? p.precioARS : (p.precioUSD != null && cot ? p.precioUSD * cot : null);
       const usd = p.precioUSD != null ? p.precioUSD : (ars != null && cot ? ars / cot : null);
       filas.push({
-        material: m, obraKey, nombre: m.nombre, unidad: m.unidad || '',
+        material: m, obraKey, provKey: p.provKey, nombre: m.nombre, unidad: m.unidad || '',
         proveedor: (p.proveedor || '').trim(), fecha: p.fecha || '', obra: obrasMap[obraKey] || obraKey,
-        ars, cot, usd, vigente: def && def.obraKey === obraKey,
+        ars, cot, usd, elegido: p.elegido, nProv: p.nProv, vigente: p.elegido && def && def.obraKey === obraKey,
       });
     });
   });
@@ -82,12 +91,15 @@ function renderMateriales(filas) {
     `<th data-col="${c.col}"${c.num ? ' class="num"' : ''}>${c.label}${flecha(c.col)}</th>`).join('')}<th class="mat-sin-orden"></th></tr></thead>`;
   const vacio = '<span class="mat-vacio">—</span>';
   const cuerpo = filas.map((f, i) => `
-    <tr data-i="${i}">
+    <tr data-i="${i}"${f.obraKey && !f.elegido ? ' class="mat-fila-alt"' : ''}>
       <td class="mat-nombre">${escHtml(f.nombre)}</td>
       <td>${escHtml(f.unidad)}</td>
       <td>${f.proveedor ? escHtml(f.proveedor) : vacio}</td>
       <td>${f.fecha ? fmtFecha(f.fecha) : vacio}</td>
-      <td>${f.obraKey ? escHtml(f.obra) + (f.vigente ? '<span class="mat-vigente" title="Es el precio más reciente: el que se usa en obras sin precio propio">vigente</span>' : '') : '<span class="mat-vacio">Sin precio cargado</span>'}</td>
+      <td>${f.obraKey ? escHtml(f.obra)
+        + (f.elegido && f.nProv > 1 ? '<span class="mat-vigente" title="Hay varios proveedores en esta obra: este es el que entra en el costo">elegido</span>' : '')
+        + (f.vigente ? '<span class="mat-vigente" title="Es el precio más reciente: el que se usa en obras sin precio propio">vigente</span>' : '')
+        + (!f.elegido ? '<span class="mat-alt" title="Otro proveedor cargado para esta obra: no entra en el costo">alternativa</span>' : '') : '<span class="mat-vacio">Sin precio cargado</span>'}</td>
       <td class="num">${f.ars != null ? fmtARSFijo(f.ars) : vacio}</td>
       <td class="num">${f.cot != null ? fmtARSFijo(f.cot) : vacio}</td>
       <td class="num">${f.usd != null ? fmtUSD(f.usd) : vacio}</td>
@@ -105,7 +117,7 @@ function renderMateriales(filas) {
   }));
   container.querySelectorAll('tbody tr').forEach(tr => {
     const f = filas[+tr.dataset.i];
-    tr.querySelector('.btn-edit-material').addEventListener('click', () => openEditModal(f.material, f.obraKey));
+    tr.querySelector('.btn-edit-material').addEventListener('click', () => openEditModal(f.material, f.obraKey, f.provKey));
     tr.querySelector('.btn-del-material').addEventListener('click', () => deleteMaterial(f.material));
   });
 }
@@ -168,7 +180,14 @@ function todayIso() {
 function onFuenteChange(material, obraKey) {
   const disabled = !obraKey;
   ['material-precio-usd', 'material-precio-ars', 'material-proveedor', 'material-fecha'].forEach(id => { $(id).disabled = disabled; });
-  const p = obraKey && material && material.precios ? material.precios[obraKey] : null;
+  const filas = window.comparativaPrecios(material, obraKey);
+  const elegido = filas.find(f => f.elegido) || null;
+  provKeyEditando = elegido ? elegido.provKey : null;
+  fillPrecioCampos(elegido);
+  renderComparativaModal(material, obraKey);
+}
+
+function fillPrecioCampos(p) {
   $('material-precio-usd').value = p ? formatMoneyString(p.precioUSD) : '';
   $('material-precio-ars').value = p ? formatMoneyString(p.precioARS) : '';
   setCalcFormula($('material-precio-usd'), p && p.precioFormulaMoneda === 'USD' ? p.precioFormula : null);
@@ -176,6 +195,36 @@ function onFuenteChange(material, obraKey) {
   $('material-proveedor').value = p ? (p.proveedor || '') : '';
   $('material-fecha').value = p ? (p.fecha || todayIso()) : todayIso();
   $('material-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
+}
+
+// Proveedores cargados para la obra elegida en "Fuente (obra)" — ver
+// js/preciosMaterial.js. Elegir o sacar uno se guarda en el momento.
+function renderComparativaModal(material, obraKey) {
+  const cont = $('material-comparativa');
+  if (!material || !obraKey) { cont.innerHTML = ''; return; }
+  const escribir = async (etiqueta, fn) => {
+    try {
+      await window.undoAgrupar(etiqueta, null, fn);
+    } catch (_) {
+      showToast('Error al guardar. Intentá de nuevo.', 'error');
+    }
+    const filas = window.comparativaPrecios(material, obraKey);
+    const editando = filas.find(f => f.provKey === provKeyEditando) || filas.find(f => f.elegido) || null;
+    provKeyEditando = editando ? editando.provKey : null;
+    fillPrecioCampos(editando);
+    renderComparativaModal(material, obraKey);
+    renderOpcionesFiltros();
+    applyFilter();
+  };
+  window.renderComparativaPrecios(cont, material, obraKey, {
+    editandoKey: provKeyEditando,
+    onEditar: f => { provKeyEditando = f.provKey; fillPrecioCampos(f); renderComparativaModal(material, obraKey); },
+    onNuevo: () => { provKeyEditando = null; fillPrecioCampos(null); renderComparativaModal(material, obraKey); $('material-proveedor').focus(); },
+    onElegir: k => escribir('el proveedor elegido', () => window.elegirProveedorPrecio(material, obraKey, k)),
+    onEliminar: k => escribir('el proveedor sacado de la comparativa', async () => {
+      if (!await window.eliminarProveedorPrecio(material, obraKey, k)) showToast('Es el proveedor que usa la obra: elegí otro antes de sacarlo.', 'error');
+    }),
+  });
 }
 
 // material: null en alta (sin precios todavía). En edición, muestra TODAS
@@ -210,14 +259,20 @@ function openAddModal() {
   setTimeout(() => $('material-nombre').focus(), 50);
 }
 
-// obraKey: la fila de la planilla desde la que se abrió; sin ella, el vigente.
-function openEditModal(material, obraKey) {
+// obraKey/provKey: la fila de la planilla desde la que se abrió; sin ella, el vigente.
+function openEditModal(material, obraKey, provKey) {
   editingKey = material.key;
   $('modal-material-title').textContent = 'Editar material';
   $('modal-material-error').classList.add('hidden');
   $('material-nombre').value = material.nombre || '';
   $('material-unidad').value = material.unidad || '';
   renderFuenteSelect(material, obraKey);
+  const fila = provKey && window.comparativaPrecios(material, obraKey).find(f => f.provKey === provKey);
+  if (fila && !fila.elegido) {
+    provKeyEditando = provKey;
+    fillPrecioCampos(fila);
+    renderComparativaModal(material, obraKey);
+  }
   $('modal-material').classList.remove('hidden');
   setTimeout(() => $('material-nombre').focus(), 50);
 }
@@ -270,18 +325,23 @@ async function saveMaterialModal() {
 
   try {
     let key = editingKey;
-    if (editingKey) {
-      await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad });
-    } else {
-      key = nombre.toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
-        .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
-        + '_' + Date.now();
-      await _fbPut(`/materiales/${key}.json`, { nombre, unidad, creadoEn: Date.now() });
-    }
-    if (precioData) await _fbPut(`/materiales/${key}/precios/${obraKey}.json`, precioData);
+    let res = null;
+    await window.undoAgrupar(editingKey ? 'el material editado' : 'el material nuevo', null, async () => {
+      if (editingKey) {
+        await _fbPatch(`/materiales/${editingKey}.json`, { nombre, unidad });
+      } else {
+        key = nombre.toLowerCase()
+          .normalize('NFD').replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
+          + '_' + Date.now();
+        await _fbPut(`/materiales/${key}.json`, { nombre, unidad, creadoEn: Date.now() });
+      }
+      const material = allMateriales.find(m => m.key === key) || { key };
+      if (precioData) res = await window.guardarPrecioProveedor(material, obraKey, precioData, { provKeyAnterior: editingKey ? provKeyEditando : null });
+    });
     $('modal-material').classList.add('hidden');
-    showToast(editingKey ? 'Material actualizado.' : 'Material creado.');
+    showToast(res && !res.elegido ? 'Proveedor sumado a la comparativa. La obra sigue usando el elegido.'
+      : (editingKey ? 'Material actualizado.' : 'Material creado.'));
     await loadMateriales();
   } catch (_) {
     errEl.textContent = 'Error al guardar. Intentá de nuevo.';
