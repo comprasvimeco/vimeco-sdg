@@ -21,6 +21,7 @@ const KEY_GRUPOS_COLAPSADOS = 'obras_grupos_colapsados';
 
 let allObras = [];
 let editingKey = null;
+let duplicandoKey = null;
 let estadoActivo = 'todas';
 let gruposColapsados = new Set();
 
@@ -79,6 +80,7 @@ function renderObraCard(o) {
       </div>
       <div class="item-card-actions">
         <button class="btn btn-sm btn-outline btn-edit-obra">Editar</button>
+        <button class="btn btn-sm btn-outline btn-duplicar-obra">Duplicar</button>
         <button class="btn btn-sm btn-outline btn-datos-obra">Datos</button>
         <button class="btn btn-sm btn-primary btn-computo-obra">CyP</button>
       </div>
@@ -122,6 +124,7 @@ function renderObras(list) {
     const key = card.dataset.key;
     const obra = allObras.find(o => o.key === key);
     card.querySelector('.btn-edit-obra').addEventListener('click', () => openEditModal(obra));
+    card.querySelector('.btn-duplicar-obra').addEventListener('click', () => openDuplicarModal(obra));
     card.querySelector('.btn-datos-obra').addEventListener('click', () => {
       window.location.href = 'datos-obra.html?obra=' + encodeURIComponent(obra.key);
     });
@@ -152,6 +155,7 @@ async function loadObras() {
 
 function openAddModal() {
   editingKey = null;
+  duplicandoKey = null;
   $('modal-obra-title').textContent = 'Agregar obra';
   $('modal-obra-error').classList.add('hidden');
   $('obra-nombre').value = '';
@@ -164,6 +168,7 @@ function openAddModal() {
 
 function openEditModal(obra) {
   editingKey = obra.key;
+  duplicandoKey = null;
   $('modal-obra-title').textContent = 'Editar obra';
   $('modal-obra-error').classList.add('hidden');
   $('obra-nombre').value = obra.nombre || '';
@@ -172,6 +177,58 @@ function openEditModal(obra) {
   $('obra-estado').value = obra.estado || 'preparacion';
   $('modal-obra').classList.remove('hidden');
   setTimeout(() => $('obra-nombre').focus(), 50);
+}
+
+function openDuplicarModal(obra) {
+  editingKey = null;
+  duplicandoKey = obra.key;
+  $('modal-obra-title').textContent = 'Duplicar obra';
+  $('modal-obra-error').classList.add('hidden');
+  $('obra-nombre').value = (obra.nombre || '') + ' (copia)';
+  $('obra-ubicacion').value = obra.ubicacion || '';
+  $('obra-anio').value = obra.anio || '';
+  $('obra-estado').value = obra.estado || 'preparacion';
+  $('modal-obra').classList.remove('hidden');
+  setTimeout(() => { $('obra-nombre').focus(); $('obra-nombre').select(); }, 50);
+}
+
+/* Copia exacta de una obra bajo una key nueva. Lo de la obra vive en tres
+   lugares: su propio nodo, la versión de cada ítem (/items/{k}/versionesObra/
+   {obraKey}) y el precio propio de cada material (/materiales/{k}/precios/
+   {obraKey}). Las dos últimas se copian primero y el nodo de la obra al final,
+   así la obra no aparece en la lista hasta estar completa.
+   Las Versiones guardadas (`cierres`) no se copian: sus fotos guardan ítems y
+   precios bajo la key de la obra original, y restaurarlas en la copia
+   escribiría sobre la original. */
+async function duplicarObra(origenKey, nuevaKey, campos) {
+  const [obra, items, materiales] = await Promise.all([
+    _fbGet(`/obras/${origenKey}.json`),
+    _fbGet('/items.json'),
+    _fbGet('/materiales.json'),
+  ]);
+  if (!obra) throw new Error('La obra original ya no existe.');
+
+  const escrituras = [];
+  Object.entries(items || {}).forEach(([k, it]) => {
+    const v = it && it.versionesObra && it.versionesObra[origenKey];
+    if (v) escrituras.push(() => _fbPut(`/items/${k}/versionesObra/${nuevaKey}.json`, v));
+  });
+  Object.entries(materiales || {}).forEach(([k, m]) => {
+    const p = m && m.precios && m.precios[origenKey];
+    if (p) escrituras.push(() => _fbPut(`/materiales/${k}/precios/${nuevaKey}.json`, p));
+  });
+
+  const copia = { ...obra, ...campos, creadaEn: Date.now() };
+  delete copia.cierres;
+
+  // Nodos compartidos (/items, /materiales): raíces null, cada escritura se
+  // anota por separado (ver CLAUDE.md, Deshacer).
+  await window.undoAgrupar('Duplicar obra', null, async () => {
+    for (let i = 0; i < escrituras.length; i += 20) {
+      await Promise.all(escrituras.slice(i, i + 20).map(f => f()));
+    }
+    await _fbPut(`/obras/${nuevaKey}.json`, copia);
+  });
 }
 
 async function saveObraModal() {
@@ -189,7 +246,7 @@ async function saveObraModal() {
 
   const saveBtn = $('modal-obra-save');
   saveBtn.disabled = true;
-  saveBtn.textContent = 'Guardando…';
+  saveBtn.textContent = duplicandoKey ? 'Duplicando…' : 'Guardando…';
 
   try {
     if (editingKey) {
@@ -199,10 +256,11 @@ async function saveObraModal() {
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      await _fbPut(`/obras/${key}.json`, { nombre, ubicacion, anio, estado, creadaEn: Date.now() });
+      if (duplicandoKey) await duplicarObra(duplicandoKey, key, { nombre, ubicacion, anio, estado });
+      else await _fbPut(`/obras/${key}.json`, { nombre, ubicacion, anio, estado, creadaEn: Date.now() });
     }
     $('modal-obra').classList.add('hidden');
-    showToast(editingKey ? 'Obra actualizada.' : 'Obra creada.');
+    showToast(editingKey ? 'Obra actualizada.' : duplicandoKey ? 'Obra duplicada.' : 'Obra creada.');
     await loadObras();
   } catch (_) {
     errEl.textContent = 'Error al guardar. Intentá de nuevo.';
