@@ -14,42 +14,131 @@ let obrasMap = {};
 let editingKey = null;
 let fuenteSelect = null;
 
-function renderMateriales(list) {
+// Planilla: una fila por cada precio cargado (material × obra-fuente), y una
+// fila sin precio para los materiales que todavía no tienen ninguno. Los
+// valores son los guardados tal cual (precioARS / cotizacionUsada /
+// precioUSD), no se recalculan con el dólar de hoy.
+let orden = { col: 'nombre', dir: 1 };
+
+const COLUMNAS = [
+  { col: 'nombre',    label: 'Material' },
+  { col: 'unidad',    label: 'Unidad' },
+  { col: 'proveedor', label: 'Proveedor' },
+  { col: 'fecha',     label: 'Fecha' },
+  { col: 'obra',      label: 'Obra' },
+  { col: 'ars',       label: 'Precio $',     num: true },
+  { col: 'cot',       label: 'Cotización USD', num: true },
+  { col: 'usd',       label: 'Precio USD',   num: true },
+];
+
+function filasDe(materiales) {
+  const filas = [];
+  materiales.forEach(m => {
+    const def = window.precioDefaultDe(m);
+    const entries = Object.entries(m.precios || {});
+    if (!entries.length) {
+      filas.push({ material: m, obraKey: null, nombre: m.nombre, unidad: m.unidad || '', proveedor: '', fecha: '', obra: '', ars: null, cot: null, usd: null, vigente: false });
+      return;
+    }
+    entries.forEach(([obraKey, p]) => {
+      const cot = p.cotizacionUsada || null;
+      const ars = p.precioARS != null ? p.precioARS : (p.precioUSD != null && cot ? p.precioUSD * cot : null);
+      const usd = p.precioUSD != null ? p.precioUSD : (ars != null && cot ? ars / cot : null);
+      filas.push({
+        material: m, obraKey, nombre: m.nombre, unidad: m.unidad || '',
+        proveedor: (p.proveedor || '').trim(), fecha: p.fecha || '', obra: obrasMap[obraKey] || obraKey,
+        ars, cot, usd, vigente: def && def.obraKey === obraKey,
+      });
+    });
+  });
+  return filas;
+}
+
+function compararFilas(a, b) {
+  const { col, dir } = orden;
+  const va = a[col], vb = b[col];
+  const vacioA = va == null || va === '', vacioB = vb == null || vb === '';
+  if (vacioA !== vacioB) return vacioA ? 1 : -1; // sin dato siempre al final
+  let r = 0;
+  if (!vacioA) r = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'es');
+  return r * dir || a.nombre.localeCompare(b.nombre, 'es') || (b.fecha || '').localeCompare(a.fecha || '');
+}
+
+function renderMateriales(filas) {
   const container = $('materiales-list');
-  if (!list.length) {
+  $('materiales-conteo').textContent = allMateriales.length
+    ? `${filas.length} ${filas.length === 1 ? 'fila' : 'filas'} · ${new Set(filas.map(f => f.material.key)).size} materiales`
+    : '';
+  if (!allMateriales.length) {
     container.innerHTML = '<div class="list-empty">No hay materiales cargados todavía.</div>';
     return;
   }
-  container.innerHTML = list.map(m => {
-    const def = window.precioDefaultDe(m);
-    const fuente = def ? (obrasMap[def.obraKey] || def.obraKey) : null;
-    const meta = def
-      ? [m.unidad, fmtUSDConEquivalente(def.precio.precioUSD), def.precio.proveedor, def.precio.fecha ? fmtFecha(def.precio.fecha) : '', `Fuente: ${fuente}`].filter(Boolean).join(' · ')
-      : [m.unidad, 'Sin precio cargado'].filter(Boolean).join(' · ');
-    return `
-      <div class="item-card" data-key="${escHtml(m.key)}">
-        <div class="item-card-info">
-          <span class="item-card-title">${escHtml(m.nombre)}</span>
-          <span class="item-card-meta">${escHtml(meta)}</span>
-        </div>
-        <div class="item-card-actions">
-          <button class="btn btn-sm btn-outline btn-edit-material">Editar</button>
-          <button class="btn btn-sm btn-danger btn-del-material">Eliminar</button>
-        </div>
-      </div>`;
-  }).join('');
+  if (!filas.length) {
+    container.innerHTML = '<div class="list-empty">Ningún material coincide con los filtros.</div>';
+    return;
+  }
+  const flecha = col => orden.col === col ? (orden.dir === 1 ? ' ▲' : ' ▼') : '';
+  const head = `<thead><tr>${COLUMNAS.map(c =>
+    `<th data-col="${c.col}"${c.num ? ' class="num"' : ''}>${c.label}${flecha(c.col)}</th>`).join('')}<th class="mat-sin-orden"></th></tr></thead>`;
+  const vacio = '<span class="mat-vacio">—</span>';
+  const cuerpo = filas.map((f, i) => `
+    <tr data-i="${i}">
+      <td class="mat-nombre">${escHtml(f.nombre)}</td>
+      <td>${escHtml(f.unidad)}</td>
+      <td>${f.proveedor ? escHtml(f.proveedor) : vacio}</td>
+      <td>${f.fecha ? fmtFecha(f.fecha) : vacio}</td>
+      <td>${f.obraKey ? escHtml(f.obra) + (f.vigente ? '<span class="mat-vigente" title="Es el precio más reciente: el que se usa en obras sin precio propio">vigente</span>' : '') : '<span class="mat-vacio">Sin precio cargado</span>'}</td>
+      <td class="num">${f.ars != null ? fmtARSFijo(f.ars) : vacio}</td>
+      <td class="num">${f.cot != null ? fmtARSFijo(f.cot) : vacio}</td>
+      <td class="num">${f.usd != null ? fmtUSD(f.usd) : vacio}</td>
+      <td class="mat-acciones">
+        <button class="btn btn-sm btn-outline btn-edit-material">Editar</button>
+        <button class="btn btn-sm btn-danger btn-del-material">Eliminar</button>
+      </td>
+    </tr>`).join('');
+  container.innerHTML = `<table class="mat-tabla">${head}<tbody>${cuerpo}</tbody></table>`;
 
-  container.querySelectorAll('.item-card').forEach(card => {
-    const key = card.dataset.key;
-    const material = allMateriales.find(m => m.key === key);
-    card.querySelector('.btn-edit-material').addEventListener('click', () => openEditModal(material));
-    card.querySelector('.btn-del-material').addEventListener('click', () => deleteMaterial(material));
+  container.querySelectorAll('thead th[data-col]').forEach(th => th.addEventListener('click', () => {
+    const col = th.dataset.col;
+    orden = { col, dir: orden.col === col ? -orden.dir : 1 };
+    applyFilter();
+  }));
+  container.querySelectorAll('tbody tr').forEach(tr => {
+    const f = filas[+tr.dataset.i];
+    tr.querySelector('.btn-edit-material').addEventListener('click', () => openEditModal(f.material, f.obraKey));
+    tr.querySelector('.btn-del-material').addEventListener('click', () => deleteMaterial(f.material));
   });
 }
 
+// Opciones de los desplegables a partir de lo que hay cargado: sólo obras
+// con algún precio, y proveedores sin repetir (ignorando mayúsculas).
+function renderOpcionesFiltros() {
+  const filas = filasDe(allMateriales);
+  const llenar = (sel, primera, valores) => {
+    const actual = sel.value;
+    sel.innerHTML = `<option value="">${primera}</option>` +
+      valores.map(([v, l]) => `<option value="${escHtml(v)}">${escHtml(l)}</option>`).join('');
+    sel.value = valores.some(([v]) => v === actual) ? actual : '';
+  };
+  const conPrecio = new Set(filas.filter(f => f.obraKey).map(f => f.obraKey));
+  llenar($('materiales-filtro-obra'), 'Todas las obras',
+    allObras.filter(o => conPrecio.has(o.key)).map(o => [o.key, o.nombre]));
+  const provs = new Map();
+  filas.forEach(f => { if (f.proveedor && !provs.has(f.proveedor.toLowerCase())) provs.set(f.proveedor.toLowerCase(), f.proveedor); });
+  llenar($('materiales-filtro-proveedor'), 'Todos los proveedores',
+    [...provs.entries()].sort((a, b) => a[1].localeCompare(b[1], 'es')));
+}
+
 function applyFilter() {
-  const filtered = window.buscarSimilares(allMateriales, $('materiales-search').value, m => m.nombre).lista;
-  renderMateriales(filtered);
+  const obra = $('materiales-filtro-obra').value;
+  const prov = $('materiales-filtro-proveedor').value;
+  const soloVigente = $('materiales-solo-vigente').checked;
+  let filas = filasDe(allMateriales).filter(f =>
+    (!obra || f.obraKey === obra) &&
+    (!prov || f.proveedor.toLowerCase() === prov) &&
+    (!soloVigente || f.vigente || !f.obraKey));
+  filas = window.buscarSimilares(filas, $('materiales-search').value, f => `${f.nombre} ${f.proveedor}`).lista;
+  renderMateriales(filas.sort(compararFilas));
 }
 
 async function loadMateriales() {
@@ -65,6 +154,7 @@ async function loadMateriales() {
       .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
     obrasMap = {};
     allObras.forEach(o => { obrasMap[o.key] = o.nombre; });
+    renderOpcionesFiltros();
     applyFilter();
   } catch (_) {
     $('materiales-list').innerHTML = '<div class="list-empty">Error al cargar materiales.</div>';
@@ -90,8 +180,9 @@ function onFuenteChange(material, obraKey) {
 
 // material: null en alta (sin precios todavía). En edición, muestra TODAS
 // las obras (no sólo las que ya tienen precio) para poder cargar el primero.
-function renderFuenteSelect(material) {
+function renderFuenteSelect(material, obraKey) {
   const def = material ? window.precioDefaultDe(material) : null;
+  const inicial = obraKey || (def ? def.obraKey : null);
   const options = allObras.map(o => {
     const p = material && material.precios ? material.precios[o.key] : null;
     const sublabel = p
@@ -101,11 +192,11 @@ function renderFuenteSelect(material) {
   });
   fuenteSelect = createSearchableSelect($('material-fuente-container'), {
     options,
-    value: def ? def.obraKey : null,
+    value: inicial,
     placeholder: 'Buscar obra…',
     onChange: obraKey => onFuenteChange(material, obraKey),
   });
-  onFuenteChange(material, def ? def.obraKey : null);
+  onFuenteChange(material, inicial);
 }
 
 function openAddModal() {
@@ -119,13 +210,14 @@ function openAddModal() {
   setTimeout(() => $('material-nombre').focus(), 50);
 }
 
-function openEditModal(material) {
+// obraKey: la fila de la planilla desde la que se abrió; sin ella, el vigente.
+function openEditModal(material, obraKey) {
   editingKey = material.key;
   $('modal-material-title').textContent = 'Editar material';
   $('modal-material-error').classList.add('hidden');
   $('material-nombre').value = material.nombre || '';
   $('material-unidad').value = material.unidad || '';
-  renderFuenteSelect(material);
+  renderFuenteSelect(material, obraKey);
   $('modal-material').classList.remove('hidden');
   setTimeout(() => $('material-nombre').focus(), 50);
 }
@@ -225,6 +317,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('modal-material-save').addEventListener('click', saveMaterialModal);
   $('material-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') saveMaterialModal(); });
   $('materiales-search').addEventListener('input', applyFilter);
+  ['materiales-filtro-obra', 'materiales-filtro-proveedor', 'materiales-solo-vigente'].forEach(id => $(id).addEventListener('change', applyFilter));
 
   await loadMateriales();
   getDolarSnapshot().then(() => applyFilter()).catch(() => {});

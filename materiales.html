@@ -11,6 +11,22 @@
   <meta name="theme-color" content="#1a3a5c">
   <style>
     .linea-select-container { min-width: 0; }
+    .mat-filtros { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .mat-filtros #materiales-search { flex: 1 1 220px; max-width: 320px; }
+    .mat-filtros select { flex: 0 1 220px; width: auto; }
+    .mat-filtros label { display: flex; align-items: center; gap: .35rem; font-size: .85rem; color: var(--gray-600); white-space: nowrap; }
+    .mat-conteo { font-size: .8rem; color: var(--gray-500); margin-left: auto; }
+    .mat-tabla-wrap { overflow: auto; max-height: 72vh; border: 1px solid var(--gray-200); border-radius: var(--radius); background: var(--white); }
+    .mat-tabla { width: 100%; border-collapse: separate; border-spacing: 0; font-size: .82rem; }
+    .mat-tabla th, .mat-tabla td { padding: .35rem .5rem; border-bottom: 1px solid var(--gray-200); white-space: nowrap; background: var(--white); text-align: left; }
+    .mat-tabla thead th { position: sticky; top: 0; z-index: 2; background: var(--gray-100); font-size: .72rem; font-weight: 600; color: var(--gray-600); border-bottom: 2px solid var(--gray-300); cursor: pointer; user-select: none; }
+    .mat-tabla thead th.mat-sin-orden { cursor: default; }
+    .mat-tabla .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .mat-tabla .mat-nombre { white-space: normal; min-width: 220px; font-weight: 500; color: var(--gray-800); }
+    .mat-tabla .mat-vacio { color: var(--gray-400); font-style: italic; }
+    .mat-tabla .mat-vigente { font-size: .68rem; color: var(--primary); margin-left: .3rem; }
+    .mat-tabla tbody tr:hover td { background: var(--gray-50); }
+    .mat-tabla .mat-acciones { text-align: right; }
   </style>
 </head>
 <body>
@@ -30,10 +46,14 @@
       <span class="list-toolbar-title">Catálogo de materiales</span>
       <button class="btn btn-primary btn-sm" id="btn-add-material">+ Agregar material</button>
     </div>
-    <div class="form-group">
-      <input type="text" id="materiales-search" class="form-control" placeholder="Buscar material...">
+    <div class="mat-filtros">
+      <input type="text" id="materiales-search" class="form-control" placeholder="Buscar material o proveedor...">
+      <select id="materiales-filtro-obra" class="form-control"><option value="">Todas las obras</option></select>
+      <select id="materiales-filtro-proveedor" class="form-control"><option value="">Todos los proveedores</option></select>
+      <label><input type="checkbox" id="materiales-solo-vigente"> Sólo precio vigente</label>
+      <span class="mat-conteo" id="materiales-conteo"></span>
     </div>
-    <div id="materiales-list" class="list-container">
+    <div id="materiales-list" class="mat-tabla-wrap">
       <div class="list-loading">Cargando materiales…</div>
     </div>
   </main>
