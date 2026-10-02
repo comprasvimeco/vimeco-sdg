@@ -1,5 +1,5 @@
 // Versión reemplazada automáticamente por build.js en cada push (GitHub Actions)
-const CACHE_NAME = 'vimeco-sdg-v1790946686230';
+const CACHE_NAME = 'vimeco-sdg-v1790959918083';
 
 const BASE = '/vimeco-sdg';
 
