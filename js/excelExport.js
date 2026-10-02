@@ -356,7 +356,8 @@
     // sumando aporte por aporte — dos caminos que dan lo mismo en papel pero
     // no bit a bit en punto flotante.
     ws.getCell(r, 2).value = 'CARGA FIJA';
-    ws.getCell(r, 4).value = f(rangoImp ? `=D${rSubF}*(1+SUM(${rangoImp}))` : `=D${rSubF}`);
+    // Redondeado a 4 decimales reales, como window.round4 en el motor.
+    ws.getCell(r, 4).value = f(rangoImp ? `=ROUND(D${rSubF}*(1+SUM(${rangoImp})),4)` : `=ROUND(D${rSubF},4)`);
     ws.getCell(r, 4).numFmt = FMT_COEF;
     pintar(ws, r, 2, 4, AZUL);
     negrita(ws, r, 2, 4, 'FFFFFFFF');

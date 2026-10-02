@@ -29,6 +29,13 @@ window.round2 = function (n) {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 };
 
+// Redondeo real a 4 decimales: el Coeficiente K (Carga Fija). Como el precio
+// unitario, el K que se usa es el que se ve — 1,3573, no 1,357284…
+window.round4 = function (n) {
+  if (typeof n !== 'number' || !isFinite(n)) return n;
+  return Math.round((n + Number.EPSILON) * 10000) / 10000;
+};
+
 (function () {
   // Coeficiente K (Carga Fija) de la obra abierta — referenciable como "k" en
   // cualquier fórmula "=..." de la app (mismo mecanismo que "pi"). Lo registra

@@ -571,7 +571,10 @@ window.calcCoeficienteK = function (config, gastosFijos, costoComputo) {
   const subtotalCosto = 1 + ggFrac + beneficioFrac;
   const subtotalConFinanciero = subtotalCosto * (1 + costoFinancieroFrac);
   const impuestosFracTotal = impuestos.reduce((acc, i) => acc + (i.porcentaje || 0) / 100, 0);
-  const k = subtotalConFinanciero * (1 + impuestosFracTotal);
+  // El K se redondea de verdad a 4 decimales (window.round4): es el que se
+  // multiplica en todo el presupuesto. Los aportes de cada fila no se tocan.
+  const kCompleto = subtotalConFinanciero * (1 + impuestosFracTotal);
+  const k = window.round4(kCompleto);
 
   const aportePorImpuesto = {};
   impuestos.forEach(i => {
@@ -583,7 +586,7 @@ window.calcCoeficienteK = function (config, gastosFijos, costoComputo) {
     beneficioFrac, subtotalCosto,
     costoFinancieroFrac, aporteFinanciero: subtotalConFinanciero - subtotalCosto,
     subtotalConFinanciero,
-    impuestos, aportePorImpuesto, impuestoFrac: k - subtotalConFinanciero,
+    impuestos, aportePorImpuesto, impuestoFrac: kCompleto - subtotalConFinanciero,
     k,
   };
 };
