@@ -1247,20 +1247,56 @@ function controlesInsumos() {
     </span>`;
 }
 
-function renderSecciones() {
-  $('exportar-secciones').innerHTML = seccionesDisponibles().map(s => `
-    <span class="exportar-item">
-      <label class="exportar-check">
-        <input type="checkbox" data-seccion="${s.id}" ${incluidas[s.id] ? 'checked' : ''}>
-        <span>${escHtml(s.label)}</span>
-      </label>
-      ${s.id === 'plan' && incluidas[s.id] ? controlesHojaPlan() : ''}
-      ${s.id === 'insumos' && incluidas[s.id] ? controlesInsumos() : ''}
-    </span>`).join('');
+// Última elección de secciones: se recuerda en el navegador (no en la obra),
+// así la próxima exportación — de esta obra o de otra — arranca con lo mismo
+// tildado. Una sección que nunca se eligió cae en el default (internas
+// destildadas).
+const SECCIONES_GUARDADAS_KEY = 'vimeco-exportar-secciones';
+function seccionesGuardadas() {
+  try { return JSON.parse(localStorage.getItem(SECCIONES_GUARDADAS_KEY) || '{}') || {}; } catch (_) { return {}; }
+}
+function guardarSecciones() {
+  try { localStorage.setItem(SECCIONES_GUARDADAS_KEY, JSON.stringify(incluidas)); } catch (_) {}
+}
 
-  $('exportar-secciones').querySelectorAll('input[type="checkbox"]').forEach(chk => {
+// Cada sección es una tarjeta seleccionable; las opciones propias (hoja del
+// Plan, detalle de Insumos) van adentro de la tarjeta, debajo del nombre.
+function tarjetaSeccion(s) {
+  const on = !!incluidas[s.id];
+  const opciones = !on ? ''
+    : s.id === 'plan' ? controlesHojaPlan()
+    : s.id === 'insumos' ? controlesInsumos()
+    : '';
+  return `
+    <div class="exp-tile${on ? ' on' : ''}">
+      <label class="exp-tile-head">
+        <input type="checkbox" class="exp-tile-input" data-seccion="${s.id}" ${on ? 'checked' : ''}>
+        <span class="exp-tile-check" aria-hidden="true"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>
+        <span class="exp-tile-label">${escHtml(s.label)}</span>
+      </label>
+      ${opciones ? `<div class="exp-tile-opciones">${opciones}</div>` : ''}
+    </div>`;
+}
+
+function renderSecciones() {
+  const disponibles = seccionesDisponibles();
+  const grupos = [
+    ['Para el comitente', disponibles.filter(s => !SECCIONES_INTERNAS.includes(s.id))],
+    ['Internas de la empresa', disponibles.filter(s => SECCIONES_INTERNAS.includes(s.id))],
+  ].filter(([, lista]) => lista.length);
+  $('exportar-secciones').innerHTML = grupos.map(([titulo, lista]) => {
+    const n = lista.filter(s => incluidas[s.id]).length;
+    return `
+      <div class="exp-grupo">
+        <div class="exp-grupo-titulo">${titulo}<span class="exp-grupo-cuenta">${n} de ${lista.length}</span></div>
+        <div class="exp-grilla">${lista.map(tarjetaSeccion).join('')}</div>
+      </div>`;
+  }).join('');
+
+  $('exportar-secciones').querySelectorAll('.exp-tile-input').forEach(chk => {
     chk.addEventListener('change', () => {
       incluidas[chk.dataset.seccion] = chk.checked;
+      guardarSecciones();
       renderSecciones();
       renderDocumento();
     });
@@ -1417,7 +1453,10 @@ async function loadAll() {
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
   config = { notas: null, logo: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false, insumosCosto: true, ...(exportData || {}) };
-  SECCIONES.forEach(s => { incluidas[s.id] = !SECCIONES_INTERNAS.includes(s.id); });
+  const guardadas = seccionesGuardadas();
+  SECCIONES.forEach(s => {
+    incluidas[s.id] = typeof guardadas[s.id] === 'boolean' ? guardadas[s.id] : !SECCIONES_INTERNAS.includes(s.id);
+  });
 
   $('header-obra-nombre').textContent = 'Exportar — ' + modelo.obra.nombre;
   renderHeaderTabs(obraKey, 'exportar');

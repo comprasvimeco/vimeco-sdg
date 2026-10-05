@@ -286,24 +286,53 @@
 
 /* ===== Pantalla: controles de la exportación ===== */
 
-.exportar-secciones { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; }
-/* Los <label> de un .form-group van en versalitas; los de un checkbox se leen
-   como texto corriente. */
-.exportar-secciones .exportar-check {
-  display: flex; align-items: center; gap: .4rem; cursor: pointer;
-  margin-bottom: 0; font-size: .9rem; font-weight: 500;
-  text-transform: none; letter-spacing: normal; color: var(--gray-700);
+.exportar-secciones { display: flex; flex-direction: column; gap: 1rem; margin-top: .35rem; }
+.exp-grupo-titulo {
+  display: flex; align-items: baseline; gap: .5rem; margin-bottom: .45rem;
+  font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gray-500);
 }
-.exportar-check input { width: 16px; height: 16px; cursor: pointer; }
+.exp-grupo-cuenta { font-weight: 500; letter-spacing: normal; text-transform: none; color: var(--gray-400); }
+.exp-grilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: .5rem; align-items: start; }
+
+/* Tarjeta de sección: el checkbox real queda escondido y el tilde es un
+   cuadradito redondeado propio; toda la cabecera de la tarjeta es clickeable.
+   Los <label> de un .form-group van en versalitas; éstos se leen como texto
+   corriente. */
+.exp-tile {
+  border: 1.5px solid var(--gray-200); border-radius: var(--radius-lg); background: var(--white);
+  transition: border-color .15s, background .15s, box-shadow .15s;
+}
+.exp-tile:hover { border-color: var(--gray-300); box-shadow: var(--shadow-sm); }
+.exp-tile.on { border-color: var(--primary-light); background: #2557a70d; }
+.exportar-secciones .exp-tile-head {
+  display: flex; align-items: center; gap: .6rem; padding: .6rem .75rem; margin: 0; cursor: pointer;
+  font-size: .9rem; font-weight: 500; text-transform: none; letter-spacing: normal; color: var(--gray-700);
+  user-select: none;
+}
+.exp-tile.on .exp-tile-head { color: var(--primary-dark); font-weight: 600; }
+.exp-tile-input { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.exp-tile-check {
+  flex-shrink: 0; width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--gray-300);
+  background: var(--white); display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s, border-color .15s;
+}
+.exp-tile-check svg {
+  width: 12px; height: 12px; fill: none; stroke: var(--white); stroke-width: 3.5;
+  stroke-linecap: round; stroke-linejoin: round; opacity: 0; transform: scale(.6);
+  transition: opacity .15s, transform .2s var(--ease-spring);
+}
+.exp-tile.on .exp-tile-check { background: var(--primary-light); border-color: var(--primary-light); }
+.exp-tile.on .exp-tile-check svg { opacity: 1; transform: scale(1); }
+.exp-tile-input:focus-visible + .exp-tile-check { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.exp-tile-opciones { padding: 0 .75rem .65rem calc(.75rem + 18px + .6rem); }
 #export-notas { font-family: inherit; }
 .exportar-acciones { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
 
 /* Tamaño de hoja del Plan de trabajos: discreto, sólo aparece pegado a su
    checkbox cuando la sección está tildada (renderSecciones en exportar.js) —
    no tiene sentido elegir hoja para una sección que no va en el documento. */
-.exportar-item { display: inline-flex; align-items: center; }
-.exportar-hoja { display: inline-flex; align-items: center; gap: .35rem; margin-left: .6rem; }
-.hoja-segmented { display: inline-flex; border: 1.5px solid var(--gray-300); border-radius: 999px; overflow: hidden; }
+.exportar-hoja { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.hoja-segmented { display: inline-flex; border: 1.5px solid var(--gray-300); border-radius: 999px; overflow: hidden; background: var(--white); }
 .hoja-btn {
   border: none; background: none; padding: .2rem .55rem; font-size: .72rem; font-weight: 600;
   color: var(--gray-500); cursor: pointer;
