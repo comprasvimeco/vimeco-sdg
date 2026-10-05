@@ -349,6 +349,105 @@
     }));
   };
 
+  /* ===== Diagrama de Gantt =====
+     El plan sin números: una fila por rubro/ítem y una barra en cada tramo de
+     períodos seguidos en los que tiene avance cargado (un hueco en el medio
+     corta la barra). Las filas se arman aparte (filasGanttPlan) para que el
+     PDF pueda partir un plan largo en varios dibujos, uno por hoja.
+
+     opts.sinRubros: obra sin rubros (js/numeracion.js) — sólo ítems.
+     opts.soloRubros: plan cargado por rubro — sus ítems avanzan igual que el
+     rubro, repetirlos no agrega nada. */
+  window.filasGanttPlan = function (d, opts) {
+    const o = Object.assign({ sinRubros: false, soloRubros: false }, opts);
+    const ocupa = v => v > 1e-9;
+    const filas = [];
+    d.gruposRubro.forEach(g => {
+      if (!o.sinRubros) {
+        // El rubro ocupa un período si lo ocupa él (plan por rubro) o
+        // cualquiera de sus ítems — no por su % en obra, que es 0 si el
+        // rubro todavía no tiene precio.
+        const ocupados = g.pctItem.map((v, i) => ocupa(v) || g.lineas.some(x => ocupa(x.pctItem[i])));
+        filas.push({ tipo: 'rubro', numero: g.numero, nombre: g.rubro.nombre || '', ocupados });
+      }
+      if (o.soloRubros && !o.sinRubros) return;
+      g.lineas.forEach(x => filas.push({ tipo: 'item', numero: x.numero, nombre: x.linea.nombre || '', ocupados: x.pctItem.map(ocupa) }));
+    });
+    return filas;
+  };
+
+  window.svgGanttPlan = function (d, opts) {
+    const o = Object.assign({ W: 960, hover: false, unidad: 'Semana' }, opts);
+    const filas = o.filas || window.filasGanttPlan(d, o);
+    const n = d.n;
+    const ALTO_FILA = 18;
+    const m = { top: 26, right: 12, bottom: 6, left: 300 };
+    const pw = o.W - m.left - m.right;
+    const H = m.top + filas.length * ALTO_FILA + m.bottom;
+    const anchoSlot = pw / n;
+    const xPer = i => m.left + i * anchoSlot;
+    const paso = n > 30 ? Math.ceil(n / 15) : 1;
+
+    // Columnas de período alternadas y números arriba: es la única escala del
+    // gráfico, se lee contando columnas.
+    const fondo = [];
+    const ticks = [];
+    for (let i = 0; i < n; i++) {
+      if (i % 2 === 1) fondo.push(`<rect x="${xPer(i)}" y="${m.top}" width="${anchoSlot}" height="${filas.length * ALTO_FILA}" fill="#f5f6f8"/>`);
+      if ((i + 1) % paso === 0 || i === 0 || i === n - 1) {
+        ticks.push(`<text x="${xPer(i) + anchoSlot / 2}" y="${m.top - 8}" text-anchor="middle" class="pa-svg-tick">${i + 1}</text>`);
+      }
+    }
+
+    // El nombre se corta a mano: un <text> de SVG no tiene elipsis. 6px por
+    // carácter alcanza para Segoe UI a 11px.
+    const recortar = (s, maxPx) => {
+      const max = Math.floor(maxPx / 6);
+      return s.length > max ? s.slice(0, Math.max(max - 1, 1)) + '…' : s;
+    };
+
+    const cuerpo = filas.map((f, idx) => {
+      const y = m.top + idx * ALTO_FILA;
+      const esRubro = f.tipo === 'rubro';
+      const sangria = esRubro || o.sinRubros ? 4 : 14;
+      const numero = f.numero ? `${f.numero} ` : '';
+      const texto = recortar(numero + f.nombre, m.left - sangria - 10);
+      const etiqueta = esRubro
+        ? `<text x="${sangria}" y="${y + 13}" class="pa-svg-label" fill="#1a3a5c">${escHtml(texto)}</text>`
+        : `<text x="${sangria}" y="${y + 13}" class="pa-svg-tick" style="fill:#374151">${escHtml(texto)}</text>`;
+
+      // Tramos de períodos seguidos con avance: una barra por tramo.
+      const barras = [];
+      let i = 0;
+      while (i < n) {
+        if (!f.ocupados[i]) { i++; continue; }
+        const desde = i;
+        while (i < n && f.ocupados[i]) i++;
+        const alto = esRubro ? 6 : 10;
+        const x = xPer(desde) + 1;
+        const w = Math.max((i - desde) * anchoSlot - 2, 1);
+        const titulo = o.hover
+          ? `<title>${escHtml(numero + f.nombre)}: ${escHtml(o.unidad.toLowerCase())} ${desde + 1}${i - desde > 1 ? ` a ${i}` : ''}</title>`
+          : '';
+        barras.push(`<rect x="${x}" y="${y + (ALTO_FILA - alto) / 2}" width="${w}" height="${alto}" rx="${Math.min(3, alto / 2)}" fill="${esRubro ? '#1a3a5c' : COLOR_ACUM}">${titulo}</rect>`);
+      }
+
+      const separador = esRubro && idx > 0
+        ? `<line x1="0" y1="${y}" x2="${o.W - m.right}" y2="${y}" stroke="${COLOR_GRID}" stroke-width="1"/>`
+        : '';
+      return separador + etiqueta + barras.join('');
+    }).join('');
+
+    return `
+      <svg viewBox="0 0 ${o.W} ${H}" class="pa-svg" role="img" aria-label="Diagrama de Gantt del plan de avance, por ${escHtml(o.unidad.toLowerCase())}">
+        ${fondo.join('')}
+        <text x="${m.left - 8}" y="${m.top - 8}" text-anchor="end" class="pa-svg-tick">${escHtml(o.unidad)}</text>
+        ${ticks.join('')}
+        <line x1="${m.left}" y1="${m.top}" x2="${m.left + pw}" y2="${m.top}" stroke="${COLOR_EJE}" stroke-width="1"/>
+        ${cuerpo}
+      </svg>`;
+  };
+
   window.svgCertificacionPorPeriodo = function (d, opts) {
     const o = Object.assign({ W: 960, H: 260, hover: false, unidad: 'Semana', fmtMonto: window.fmtARS }, opts);
     const m = { top: 18, right: 20, bottom: 40, left: 92 };

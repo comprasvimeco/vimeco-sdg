@@ -60,6 +60,14 @@ try {
   if (guardado != null) remanentesColapsado = guardado === '1';
 } catch (_) { /* sin storage: arranca cerrado igual */ }
 
+// Diagrama de Gantt: mismo desplegable que el Cuadro de Remanentes.
+const GANTT_COLAPSADO_KEY = 'vimeco-plan-avance-gantt-colapsado';
+let ganttColapsado = true;
+try {
+  const guardado = localStorage.getItem(GANTT_COLAPSADO_KEY);
+  if (guardado != null) ganttColapsado = guardado === '1';
+} catch (_) { /* sin storage: arranca cerrado igual */ }
+
 const MAX_PERIODOS = window.PLAN_MAX_PERIODOS;
 
 /* ===== Ancho de columnas de la grilla (ajustable a mano) =====
@@ -556,6 +564,28 @@ function engancharRemanentesToggle() {
   });
 }
 
+function aplicarColapsoGantt() {
+  $('pa-gantt-body').classList.toggle('hidden', ganttColapsado);
+  $('pa-gantt-chevron').classList.toggle('is-colapsado', ganttColapsado);
+}
+
+function engancharGanttToggle() {
+  $('pa-gantt-header').addEventListener('click', () => {
+    ganttColapsado = !ganttColapsado;
+    try { localStorage.setItem(GANTT_COLAPSADO_KEY, ganttColapsado ? '1' : '0'); } catch (_) { /* sin storage: no se guarda, la pantalla funciona igual */ }
+    aplicarColapsoGantt();
+  });
+}
+
+function renderGantt(d) {
+  $('pa-gantt').innerHTML = window.svgGanttPlan(d, {
+    hover: true,
+    unidad: nombreUnidad(),
+    sinRubros: window.numeracionCfg(obra).sinRubros,
+    soloRubros: modoEfectivo() === 'rubros',
+  });
+}
+
 /* ===== Resumen ===== */
 
 function renderResumen(d) {
@@ -701,6 +731,7 @@ function renderTodo() {
   renderResumen(d);
   renderTabla(d);
   renderTablaRemanentes(d);
+  renderGantt(d);
   renderCurvaAvance(d);
   renderCurvaInversion(d);
   renderBarras(d);
@@ -1035,6 +1066,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   engancharTabla();
   engancharRemanentesToggle();
   aplicarColapsoRemanentes();
+  engancharGanttToggle();
+  aplicarColapsoGantt();
   await loadAll();
   await getDolarSnapshot().catch(() => {});
   if (obra) renderTodo();

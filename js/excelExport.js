@@ -1634,6 +1634,10 @@
     if (curvasImgs) {
       const ALTO_FILA_PX = 20;
       r++;
+      r = titulo(ws, r, 2, 8, 'Diagrama de Gantt', 10);
+      ws.addImage(curvasImgs.gantt.id, { tl: { col: 1, row: r - 1 }, ext: curvasImgs.gantt.ext });
+      r += Math.ceil(curvasImgs.gantt.ext.height / ALTO_FILA_PX) + 2;
+
       r = titulo(ws, r, 2, 8, 'Plan de avance — acumulado y remanente', 10);
       ws.addImage(curvasImgs.avance.id, { tl: { col: 1, row: r - 1 }, ext: curvasImgs.avance.ext });
       r += Math.ceil(curvasImgs.avance.ext.height / ALTO_FILA_PX) + 2;
@@ -1850,11 +1854,15 @@
     if (hayPlanCargado) {
       const unidad = window.nombreUnidadPlan(ctx.planConfig);
       const ANCHO_CURVA_PX = 680;
-      const [avance, inversion] = await Promise.all([
+      const [avance, inversion, gantt] = await Promise.all([
         svgComoPng(window.svgPlanAvance(ctx.plan, { unidad }), ANCHO_CURVA_PX),
         svgComoPng(window.svgCurvaInversion(ctx.plan, { unidad, fmtMonto: window.fmtARS }), ANCHO_CURVA_PX),
+        svgComoPng(window.svgGanttPlan(ctx.plan, {
+          unidad, sinRubros: ctx.modelo.numeracion.sinRubros, soloRubros: ctx.planConfig.modo === 'rubros',
+        }), ANCHO_CURVA_PX),
       ]);
       curvasImgs = {
+        gantt: { id: wb.addImage({ base64: gantt.base64, extension: 'png' }), ext: { width: gantt.width, height: gantt.height } },
         avance: { id: wb.addImage({ base64: avance.base64, extension: 'png' }), ext: { width: avance.width, height: avance.height } },
         inversion: { id: wb.addImage({ base64: inversion.base64, extension: 'png' }), ext: { width: inversion.width, height: inversion.height } },
       };

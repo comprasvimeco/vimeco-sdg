@@ -32,6 +32,10 @@ const SECCIONES = [
   { id: 'auxiliares',  label: 'Análisis auxiliares', render: seccionAuxiliares },
   { id: 'plan',        label: 'Plan de trabajos', render: seccionPlanTrabajos, apaisada: true },
   { id: 'remanentes',  label: 'Cuadro de Remanentes', render: seccionRemanentes, apaisada: true },
+  { id: 'gantt',       label: 'Diagrama de Gantt', render: seccionGantt },
+  { id: 'avance',      label: 'Curva de avance', render: seccionCurvaAvance },
+  // id 'curvas' por compatibilidad: era la sección que juntaba las dos curvas,
+  // y así se conserva si estaba tildada.
   { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas },
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
   { id: 'gastosfijos', label: 'Gastos fijos de la obra', render: seccionGastosFijos },
@@ -893,6 +897,43 @@ function seccionRemanentes() {
     ${bloques.join('')}`;
 }
 
+// El plan sin números: qué períodos ocupa cada ítem. Un plan largo se parte en
+// varios dibujos (cada uno con su fila de períodos), porque un SVG no se corta
+// entre hojas: ~55 filas entran en una A4 vertical.
+const GANTT_FILAS_POR_HOJA = 55;
+
+function seccionGantt() {
+  if (!hayPlanCargado()) return `${membrete('Diagrama de Gantt')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
+  const unidad = window.nombreUnidadPlan(planConfig);
+  const opts = { unidad, sinRubros: modelo.numeracion.sinRubros, soloRubros: planConfig.modo === 'rubros' };
+  const filas = window.filasGanttPlan(plan, opts);
+  const dibujos = [];
+  for (let i = 0; i < filas.length; i += GANTT_FILAS_POR_HOJA) {
+    dibujos.push(`<div class="doc-grafico">${window.svgGanttPlan(plan, { ...opts, filas: filas.slice(i, i + GANTT_FILAS_POR_HOJA) })}</div>`);
+  }
+  return `
+    ${membrete('Diagrama de Gantt')}
+    <p class="doc-subtitulo">Plazo de obra: ${plan.n} ${escHtml(plan.n === 1 ? unidad.toLowerCase() : unidadPlural())}</p>
+    ${dibujos.join('')}`;
+}
+
+function seccionCurvaAvance() {
+  if (!hayPlanCargado()) return `${membrete('Curva de avance')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
+  const unidad = window.nombreUnidadPlan(planConfig);
+  const ultimoAcum = plan.acumPct.length ? plan.acumPct[plan.acumPct.length - 1] : 0;
+  return `
+    ${membrete('Curva de avance')}
+    <table class="doc-tabla doc-tabla-datos">
+      <tbody>
+        <tr><td>Plazo de obra</td><td class="doc-num">${plan.n} ${escHtml(plan.n === 1 ? unidad.toLowerCase() : unidadPlural())}</td>
+            <td>Avance planificado</td><td class="doc-num">${docPct(ultimoAcum)}</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="doc-grafico-titulo">Plan de avance — acumulado y remanente</h3>
+    <div class="doc-grafico">${window.svgPlanAvance(plan, { unidad })}</div>`;
+}
+
 function seccionCurvas() {
   if (!hayPlanCargado()) return `${membrete('Curva de inversión')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
   const unidad = window.nombreUnidadPlan(planConfig);
@@ -924,9 +965,6 @@ function seccionCurvas() {
             <td colspan="2"></td></tr>
       </tbody>
     </table>
-
-    <h3 class="doc-grafico-titulo">Plan de avance — acumulado y remanente</h3>
-    <div class="doc-grafico">${window.svgPlanAvance(plan, { unidad })}</div>
 
     <h3 class="doc-grafico-titulo">Curva de inversión — acumulado y remanente</h3>
     <div class="doc-grafico">${window.svgCurvaInversion(plan, { unidad, fmtMonto: docARS })}</div>
@@ -1269,7 +1307,12 @@ function cargarOrden() {
   try { guardado = JSON.parse(localStorage.getItem(ORDEN_GUARDADO_KEY) || '[]') || []; } catch (_) {}
   const ids = SECCIONES.map(s => s.id);
   const validos = Array.isArray(guardado) ? guardado.filter((id, i) => ids.includes(id) && guardado.indexOf(id) === i) : [];
-  orden = validos.concat(ids.filter(id => !validos.includes(id)));
+  // Una sección nueva entra detrás de la que la precede en SECCIONES, no al
+  // final de un orden ya guardado.
+  orden = validos.slice();
+  ids.forEach((id, i) => {
+    if (!orden.includes(id)) orden.splice(i > 0 ? orden.indexOf(ids[i - 1]) + 1 : 0, 0, id);
+  });
 }
 function guardarOrden() {
   try { localStorage.setItem(ORDEN_GUARDADO_KEY, JSON.stringify(orden)); } catch (_) {}
