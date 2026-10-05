@@ -46,8 +46,47 @@
     });
   }
 
-  // El progreso se escribe en el cartel de carga de la pantalla
-  // (#main-loading .list-loading), que todas tienen.
+  // Tarjeta animada en el lugar del cartel de carga de la pantalla
+  // (#main-loading .list-loading, que todas tienen): anillo con el conteo,
+  // barra, el A.P. en curso y un punto por cada uno. Más de 60 puntos ya no
+  // se leen: ahí queda sólo la barra.
+  function armarTarjeta(total) {
+    const cartel = document.querySelector('#main-loading .list-loading');
+    if (!cartel) return null;
+    cartel.className = 'refresco-ap';
+    cartel.innerHTML = `
+      <div class="refresco-ap-anillo"><span>0/${total}</span></div>
+      <div class="refresco-ap-titulo">Actualizando análisis de precio</div>
+      <div class="refresco-ap-sub">Recalculando las fórmulas que usan el K, el dólar o celdas del A.P.</div>
+      <div class="refresco-ap-barra"><div></div></div>
+      <div class="refresco-ap-actual"></div>
+      ${total <= 60 ? `<div class="refresco-ap-puntos">${'<i></i>'.repeat(total)}</div>` : ''}`;
+    const q = s => cartel.querySelector(s);
+    const puntos = [...cartel.querySelectorAll('.refresco-ap-puntos i')];
+    return {
+      ronda(n) {
+        if (n === 1) return;
+        q('.refresco-ap-sub').textContent = n === 2
+          ? 'Segunda pasada: el K cambió con los valores nuevos'
+          : 'Última pasada para que todo cierre';
+        puntos.forEach(p => { p.className = ''; });
+        q('.refresco-ap-barra > div').style.width = '0';
+        q('.refresco-ap-anillo span').textContent = `0/${total}`;
+      },
+      empieza(i, nombre) {
+        if (puntos[i]) puntos[i].className = 'en-curso';
+        const actual = q('.refresco-ap-actual');
+        actual.innerHTML = '<span></span>';
+        actual.firstChild.textContent = nombre;
+      },
+      termina(i, hechos) {
+        if (puntos[i]) puntos[i].className = 'hecho';
+        q('.refresco-ap-barra > div').style.width = (100 * hechos / total) + '%';
+        q('.refresco-ap-anillo span').textContent = `${hechos}/${total}`;
+      },
+    };
+  }
+
   window.refrescarAPsConFormulasVivas = async function (obraKey) {
     if (hecho) return;
     hecho = true;
@@ -58,16 +97,19 @@
     ]);
     const keys = apsConFormulasVivas(obraKey, computo, auxiliares, items);
     if (!keys.length) return;
-    const cartel = document.querySelector('#main-loading .list-loading');
+    const tarjeta = armarTarjeta(keys.length);
     for (let ronda = 1; ronda <= 3; ronda++) {
+      if (tarjeta) tarjeta.ronda(ronda);
       let hechos = 0;
       let cambio = false;
-      const pendientes = [...keys];
+      let siguiente = 0;
       const trabajar = async () => {
-        while (pendientes.length) {
-          if (await refrescarAP(obraKey, pendientes.shift())) cambio = true;
+        while (siguiente < keys.length) {
+          const i = siguiente++;
+          if (tarjeta) tarjeta.empieza(i, (items[keys[i]] || {}).nombre || '');
+          if (await refrescarAP(obraKey, keys[i])) cambio = true;
           hechos++;
-          if (cartel) cartel.textContent = `Actualizando análisis de precio con fórmulas (${hechos} de ${keys.length})…`;
+          if (tarjeta) tarjeta.termina(i, hechos);
         }
       };
       await Promise.all([trabajar(), trabajar(), trabajar()]);

@@ -262,6 +262,38 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .version-tabs .btn { padding: .3rem .75rem; box-shadow: none; }
 .list-loading, .list-empty { text-align: center; padding: 2rem 1rem; color: var(--gray-400); font-size: .88rem; }
 
+/* ===== PUESTA AL DÍA DE A.P. (js/refrescoAPs.js) =====
+   Reemplaza el cartel de carga mientras se recalculan los A.P. con fórmulas
+   vivas: anillo, barra con brillo, el A.P. en curso y un punto por cada uno. */
+.refresco-ap { max-width: 440px; margin: 2.5rem auto; padding: 1.6rem 1.5rem 1.4rem; text-align: center;
+  background: var(--glass-bg-strong); border: 1px solid var(--glass-border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-glass); backdrop-filter: blur(var(--glass-blur)); animation: popIn .45s var(--ease-spring); }
+.refresco-ap-anillo { position: relative; width: 56px; height: 56px; margin: 0 auto 1rem; }
+.refresco-ap-anillo::before { content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent 0 25%, var(--primary-light) 60%, var(--accent-2) 100%);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+          mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: refresco-giro 1s linear infinite; }
+.refresco-ap-anillo span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font: 600 .8rem var(--font-num); color: var(--primary); }
+.refresco-ap-titulo { font-weight: 600; color: var(--primary-dark); font-size: .98rem; }
+.refresco-ap-sub { color: var(--gray-500); font-size: .8rem; margin-top: .2rem; min-height: 1.2em; }
+.refresco-ap-barra { position: relative; height: 8px; margin: 1.1rem 0 .55rem; border-radius: 99px; background: var(--gray-200); overflow: hidden; }
+.refresco-ap-barra > div { position: relative; height: 100%; width: 0; border-radius: inherit; background: var(--grad-accent);
+  transition: width .5s var(--ease-spring); overflow: hidden; }
+.refresco-ap-barra > div::after { content: ''; position: absolute; inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+  transform: translateX(-100%); animation: refresco-brillo 1.3s ease-in-out infinite; }
+.refresco-ap-actual { font-size: .8rem; color: var(--gray-600); height: 1.2em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.refresco-ap-actual span { display: inline-block; animation: slideUp .3s var(--ease-spring); }
+.refresco-ap-puntos { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: .9rem; }
+.refresco-ap-puntos i { width: 9px; height: 9px; border-radius: 50%; background: var(--gray-300); transition: background .3s, transform .3s var(--ease-spring); }
+.refresco-ap-puntos i.en-curso { background: var(--accent-2); animation: refresco-latido .9s ease-in-out infinite; }
+.refresco-ap-puntos i.hecho { background: var(--success); transform: scale(1.15); }
+@keyframes refresco-giro   { to { transform: rotate(360deg); } }
+@keyframes refresco-brillo { to { transform: translateX(100%); } }
+@keyframes refresco-latido { 50% { transform: scale(1.45); opacity: .6; } }
+
 /* ===== COMBOBOX BUSCADOR (searchable-select.js) =====
    El dropdown se monta en <body> con position:fixed (no como hijo de su
    contenedor): .card usa overflow:hidden para recortar sus bordes
