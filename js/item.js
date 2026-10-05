@@ -983,6 +983,7 @@ async function seleccionarUsarComoBase(value, opciones) {
       const data = {
         rendimiento: src.rendimiento || 1,
         rendimientoFormula: src.rendimientoFormula || null,
+        rendimientoFormulaUnidad: src.rendimientoFormulaUnidad || null,
         lineas: lineasCopiadas,
         familiaMO: familiaMOExplicita(src, obraOrigenKey),
         // Queda registrado de dónde salió la receta: se muestra como nota en la
@@ -1217,7 +1218,9 @@ function renderVersionRendimiento() {
     if (n === rendimientoActivo && formula === (rendimientoFormulaActiva || null)) return;
     rendimientoActivo = n;
     rendimientoFormulaActiva = formula;
-    persistRendimiento({ rendimiento: n, rendimientoFormula: rendimientoFormulaActiva });
+    // La unidad de la vista al escribirla: ver rendimientoSeRecalcula.
+    persistRendimiento({ rendimiento: n, rendimientoFormula: rendimientoFormulaActiva,
+      rendimientoFormulaUnidad: rendimientoFormulaActiva ? unidadAP() : null });
     renderTodasLasLineas();
   });
   input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
@@ -1818,16 +1821,46 @@ function refrescarFormulasVivas() {
     .map(({ lineaKey, l, v }) => ({
       formula: v.formula,
       valor: aVista(l.cantidad ?? null, v.unidad),
-      aplicar: valor => { lineas[lineaKey].cantidad = aDato(valor, v.unidad); },
+      aplicar: valor => { lineas[lineaKey].cantidad = aDato(valor, v.unidad); cambioLineas = true; },
     }));
+  let cambioLineas = false;
+  let cambioRendimiento = false;
+  if (rendimientoSeRecalcula()) {
+    campos.push({
+      formula: rendimientoFormulaActiva,
+      valor: rendimientoActivo,
+      aplicar: valor => { if (valor > 0) { rendimientoActivo = valor; cambioRendimiento = true; } },
+    });
+  }
   if (!campos.length || !window.recalcularCeldasVivas(campos)) { pasadasVivas = 0; return; }
   if (++pasadasVivas > 10) {
     pasadasVivas = 0;
     showToast('Hay referencias circulares entre celdas — se detuvo el recálculo.', 'error');
     return;
   }
-  persistenciasVivas.push(persistLineas());
+  if (cambioLineas) persistenciasVivas.push(persistLineas());
+  if (cambioRendimiento) {
+    persistenciasVivas.push(persistRendimiento({ rendimiento: rendimientoActivo }));
+    renderVersionRendimiento();
+  }
   renderTodasLasLineas();
+}
+
+/* El rendimiento con fórmula viva se recalcula igual que una cantidad, salvo:
+   - mientras se lo está editando (repintarlo le sacaría el campo de abajo);
+   - si su fórmula apunta a celdas y la vista no está en la unidad en la que se
+     escribió: las celdas de Equipos y M.O. valen distinto en Horas y en
+     Jornadas, y el rendimiento no tiene conversión (siempre es por jornada).
+     Las fórmulas viejas, sin unidad guardada, se toman como escritas en
+     Jornadas, que es la vista por defecto. Con sólo "k"/"us" no hay celdas en
+     juego y se recalcula en cualquier vista. */
+function rendimientoSeRecalcula() {
+  const f = rendimientoFormulaActiva;
+  if (!window.formulaTieneRefs(f)) return false;
+  if (document.activeElement && document.activeElement.id === 'rend-obra-input') return false;
+  if (!f.includes('@{')) return true;
+  const unidad = (versionesObra[activeVersion] || {}).rendimientoFormulaUnidad || 'jornada';
+  return unidad === unidadAP();
 }
 
 /* Una cantidad con fórmula viva ("k", "us", o una celda de esta pantalla) se

@@ -1,6 +1,6 @@
 /* VIMECO S.A. — Puesta al día de los A.P. con fórmulas vivas.
 
-   Una cantidad de A.P. con fórmula viva ("k", "us", o una celda del propio
+   Una cantidad (o el rendimiento) de A.P. con fórmula viva ("k", "us", o una celda del propio
    A.P.) se recalcula y se guarda sólo con ese A.P. abierto: sin esto, las
    pantallas que leen la receta guardada (Presupuesto, Exportar, Insumos, Plan de
    Avance) mostraban el número viejo hasta que alguien entraba a cada uno.
@@ -20,7 +20,8 @@
     [...Object.values(auxiliares || {}), ...Object.values(computo || {})].forEach(l => {
       const it = l && l.itemKey && (items || {})[l.itemKey];
       const v = it && (it.versionesObra || {})[obraKey];
-      if (v && Object.values(v.lineas || {}).some(x => x && window.formulaTieneRefs(x.cantidadFormula))) keys.add(l.itemKey);
+      if (v && (window.formulaTieneRefs(v.rendimientoFormula) ||
+                Object.values(v.lineas || {}).some(x => x && window.formulaTieneRefs(x.cantidadFormula)))) keys.add(l.itemKey);
     });
     return [...keys];
   }
