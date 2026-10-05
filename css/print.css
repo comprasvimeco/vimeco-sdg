@@ -227,6 +227,10 @@
    la dejara en 396mm, el propio layout la comprimiría antes de poder medir
    cuánto mide "de verdad" sin apretarse. */
 .doc-seccion-apaisada.doc-plan-ajustar { width: max-content; }
+/* El bloque mide lo que mide su tabla (no el ancho de la sección) para que la
+   medición de ajustarSeccionAUnaHoja no cambie, y una vez achicado queda
+   centrado en la hoja: la sección recibe ahí el ancho útil como mínimo. */
+.doc-plan-ajustar .doc-plan-bloque { width: fit-content; margin-inline: auto; }
 .doc-tabla-plan-ajustar { table-layout: auto; width: auto; }
 
 .doc-plan-bloque + .doc-plan-bloque { break-before: page; margin-top: 6mm; }

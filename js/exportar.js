@@ -1223,6 +1223,7 @@ function ajustarSeccionAUnaHoja(seccionId) {
   if (!bloque) return;
 
   bloque.style.zoom = 1;
+  seccion.style.minWidth = '';
   const periodoThs = Array.from(bloque.querySelectorAll('.doc-plan-periodo'));
   periodoThs.forEach(th => { th.style.width = ANCHO_PERIODO_MIN_MM + 'mm'; });
 
@@ -1254,6 +1255,9 @@ function ajustarSeccionAUnaHoja(seccionId) {
   let escala = Math.min(1, escalaX, escalaY);
   if (escala < 1) escala *= 0.97;   // colchón extra: en tablas largas el redondeo fila a fila se acumula
   bloque.style.zoom = escala > 0 && isFinite(escala) ? escala : 1;
+  // Ya achicado, el bloque es más angosto que la hoja: con la sección al
+  // ancho útil, el margin auto del CSS lo centra.
+  seccion.style.minWidth = dims.anchoUtilMm + 'mm';
 }
 
 // El Plan de trabajos es la única sección con hoja elegible: al lado de su
