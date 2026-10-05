@@ -23,6 +23,9 @@ const modoVincular = !itemKey && !!keyLinea && !!obraParam;
 // de la obra, sin venir de una línea puntual del Cómputo): aterriza en el
 // primer A.P. del Cómputo de esa obra — ver irAlPrimerAP().
 const modoDefault = !itemKey && !keyLinea && !!obraParam;
+// Presupuesto abre los A.P. con fórmulas vivas en un iframe oculto
+// (?refrescar=1) para dejarlos al día — ver refrescarParaPresupuesto().
+const modoRefrescar = params.get('refrescar') === '1';
 
 let item = null;
 let versionesObra = {};    // { obraKey: { rendimiento, rendimientoFormula, lineas } }
@@ -1796,6 +1799,7 @@ function setEquiposExpandido(abierto) {
 // de recalcular las cantidades cuya fórmula apunta a otras celdas (js/refs.js).
 // Tope de pasadas para cortar una referencia circular.
 let pasadasVivas = 0;
+let persistenciasVivas = [];   // guardados que disparó el recálculo — los espera refrescarParaPresupuesto
 
 function refrescarFormulasVivas() {
   if (!window.recalcularCeldasVivas) return;
@@ -1822,8 +1826,25 @@ function refrescarFormulasVivas() {
     showToast('Hay referencias circulares entre celdas — se detuvo el recálculo.', 'error');
     return;
   }
-  persistLineas();
+  persistenciasVivas.push(persistLineas());
   renderTodasLasLineas();
+}
+
+/* Una cantidad con fórmula viva ("k", "us", o una celda de esta pantalla) se
+   recalcula y se guarda sólo con el A.P. abierto: hasta que alguien entraba a
+   mirarlo, el Presupuesto seguía con el número viejo. Por eso Presupuesto abre
+   esos A.P. en un iframe oculto con ?refrescar=1, que hace lo mismo que
+   abrirlo a mano —con el K traído una vez en vez de escuchado— y avisa cuando
+   terminó de guardar. Si nada cambió, no escribe nada. */
+async function refrescarParaPresupuesto() {
+  try {
+    if (item && obraParam) {
+      window.setRefK(await calcularKObra(obraParam));
+      renderTodasLasLineas();
+      await Promise.all(persistenciasVivas);
+    }
+  } catch (_) { /* sin red: queda como estaba */ }
+  window.parent.postMessage({ tipo: 'ap-refrescado', key: itemKey, cambio: persistenciasVivas.length > 0 }, location.origin);
 }
 
 function renderTodasLasLineas(seccionesOmitidas) {
@@ -2382,7 +2403,7 @@ async function loadAll() {
   // alguien la cambia mientras este A.P. está abierto, "k" se actualiza solo
   // (recalcula y vuelve a evaluar cualquier cantidad que lo use, ver
   // refrescarFormulasVivas). No bloquea el resto de la carga.
-  if (obraParam) escucharKObraEnVivo(obraParam);
+  if (obraParam && !modoRefrescar) escucharKObraEnVivo(obraParam);
 
   if (obraParam) {
     ubicarLineaYNumeracion(computoData, rubrosComputoData, auxiliaresData);
@@ -2503,6 +2524,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   attachDualPrecioInputs({ usdInput: $('mep-precio-usd'), arsInput: $('mep-precio-ars'), notaEl: $('mep-precio-nota') });
 
   await loadAll();
+  if (modoRefrescar) await refrescarParaPresupuesto();
 });
 
 window.onDecimalesVista(() => {
