@@ -1832,8 +1832,9 @@ function refrescarFormulasVivas() {
 
 /* Una cantidad con fórmula viva ("k", "us", o una celda de esta pantalla) se
    recalcula y se guarda sólo con el A.P. abierto: hasta que alguien entraba a
-   mirarlo, el Presupuesto seguía con el número viejo. Por eso Presupuesto abre
-   esos A.P. en un iframe oculto con ?refrescar=1, que hace lo mismo que
+   mirarlo, el Presupuesto seguía con el número viejo. Por eso Presupuesto,
+   Exportar, Plan de Avance e Insumos abren esos A.P. en un iframe oculto con
+   ?refrescar=1 (js/refrescoAPs.js), que hace lo mismo que
    abrirlo a mano —con el K traído una vez en vez de escuchado— y avisa cuando
    terminó de guardar. Si nada cambió, no escribe nada. */
 async function refrescarParaPresupuesto() {

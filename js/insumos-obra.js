@@ -295,6 +295,7 @@ async function loadAll() {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
     return;
   }
+  await window.refrescarAPsConFormulasVivas(obraKey);   // js/refrescoAPs.js
   const [obraData, lineasData, itemsData, materialesData, equiposData, rolesData, todasObrasData, auxiliaresData] = await Promise.all([
     _fbGet(`/obras/${obraKey}.json`),
     _fbGet(`/obras/${obraKey}/computo.json`),

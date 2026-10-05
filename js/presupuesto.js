@@ -218,72 +218,6 @@ async function loadCierre() {
   return true;
 }
 
-/* Una cantidad de A.P. con fórmula viva ("k", "us", o una celda del propio
-   A.P.) se recalcula y se guarda sólo con ese A.P. abierto: sin esto, el
-   Presupuesto mostraba el número viejo hasta que alguien entraba a cada uno.
-   Antes de armar el presupuesto se abren esos A.P. en iframes ocultos
-   (item.html?refrescar=1, ver refrescarParaPresupuesto en item.js), que hacen
-   exactamente lo mismo que abrirlos a mano. Como el K depende del costo de
-   todos y algunas fórmulas dependen del K, se repite mientras algo cambie
-   (con tope). Sólo al entrar a la pantalla, no en la recarga de un Ctrl+Z. */
-let apsRefrescados = false;
-
-function apsConFormulasVivas(computo, auxiliares, items) {
-  const keys = new Set();
-  [...Object.values(auxiliares || {}), ...Object.values(computo || {})].forEach(l => {
-    const it = l && l.itemKey && (items || {})[l.itemKey];
-    const v = it && (it.versionesObra || {})[obraKey];
-    if (v && Object.values(v.lineas || {}).some(x => x && window.formulaTieneRefs(x.cantidadFormula))) keys.add(l.itemKey);
-  });
-  return [...keys];
-}
-
-function refrescarAP(itemKey) {
-  return new Promise(resolve => {
-    const frame = document.createElement('iframe');
-    frame.style.display = 'none';
-    let timer;
-    const fin = cambio => {
-      clearTimeout(timer);
-      window.removeEventListener('message', onMsg);
-      frame.remove();
-      resolve(cambio);
-    };
-    const onMsg = e => {
-      if (e.source === frame.contentWindow && e.data && e.data.tipo === 'ap-refrescado') fin(!!e.data.cambio);
-    };
-    window.addEventListener('message', onMsg);
-    timer = setTimeout(() => fin(false), 30000);
-    frame.src = `item.html?key=${encodeURIComponent(itemKey)}&obra=${encodeURIComponent(obraKey)}&refrescar=1`;
-    document.body.appendChild(frame);
-  });
-}
-
-async function refrescarAPsConFormulasVivas() {
-  const [computo, auxiliares, items] = await Promise.all([
-    _fbGet(`/obras/${obraKey}/computo.json`),
-    _fbGet(`/obras/${obraKey}/auxiliares.json`),
-    _fbGet('/items.json'),
-  ]);
-  const keys = apsConFormulasVivas(computo, auxiliares, items);
-  if (!keys.length) return;
-  const cartel = document.querySelector('#main-loading .list-loading');
-  for (let ronda = 1; ronda <= 3; ronda++) {
-    let hechos = 0;
-    let cambio = false;
-    const pendientes = [...keys];
-    const trabajar = async () => {
-      while (pendientes.length) {
-        if (await refrescarAP(pendientes.shift())) cambio = true;
-        hechos++;
-        if (cartel) cartel.textContent = `Actualizando análisis de precio con fórmulas (${hechos} de ${keys.length})…`;
-      }
-    };
-    await Promise.all([trabajar(), trabajar(), trabajar()]);
-    if (!cambio) break;
-  }
-}
-
 async function loadAll() {
   if (!obraKey) {
     document.body.innerHTML = '<p style="padding:2rem;">Falta la obra (?obra=...).</p>';
@@ -293,10 +227,7 @@ async function loadAll() {
     const ok = await loadCierre();
     if (!ok) return;
   } else {
-    if (!apsRefrescados) {
-      apsRefrescados = true;
-      await refrescarAPsConFormulasVivas();
-    }
+    await window.refrescarAPsConFormulasVivas(obraKey);   // js/refrescoAPs.js
     modelo = await window.cargarPresupuestoObra(obraKey);
     if (!modelo) {
       document.body.innerHTML = '<p style="padding:2rem;">No se encontró la obra.</p>';
