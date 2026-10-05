@@ -552,13 +552,15 @@ function openDetalleRolModal(rol) {
     const paramsMO = modeloIns.paramsMO;
     const c = window.calcCostoManoDeObra(rol, paramsMO);
     const filas = [
-      filaDesglose('Básico efectivo', `Básico × (1 + Extra%)`,
-        `${fmtARS(rol.basico)} × (1 + ${rol.extraPct || 0}%)`, c.basicoEfectivo, '/hs'),
-      filaDesglose('Con Asistencia', `Básico efectivo × (1 + Asistencia%)`,
-        `${fmtARS(c.basicoEfectivo)} × (1 + ${paramsMO.asistenciaPct}%)`, c.conAsistencia, '/hs'),
+      filaDesglose('Con Asistencia', `Básico × (1 + Asistencia%)`,
+        `${fmtARS(rol.basico)} × (1 + ${paramsMO.asistenciaPct}%)`, c.conAsistencia, '/hs'),
       filaDesglose('Con Cargas Sociales', `Con Asistencia × (1 + Cargas%)`,
         `${fmtARS(c.conAsistencia)} × (1 + ${paramsMO.cargasPct}%)`, c.conCargas, '/hs'),
     ];
+    if (rol.extraPct) {
+      filas.push(filaDesglose('Extra (aparte, sin cargas)', `Básico × Extra%`,
+        `${fmtARS(rol.basico)} × ${rol.extraPct}%`, c.extraPorHora, '/hs'));
+    }
     if (rol.noRemunerativoMensual) {
       filas.push(filaDesglose('No remunerativo (prorrateado)', `No remunerativo ÷ (días/mes × jornada)`,
         `${fmtARS(rol.noRemunerativoMensual)} ÷ (${fmtNum(paramsMO.diasMes)} × ${fmtNum(paramsMO.jornadaHoras)})`, c.comidaPorHora, '/hs'));

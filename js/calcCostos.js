@@ -10,15 +10,17 @@
 // al jornal de cada categoría cuando está activo — a diferencia del
 // "no remunerativo" (que es propio de cada rol y se prorratea por hora),
 // éste va directo al jornal completo, sin prorratear.
+// El extra es un pago aparte (en negro): se calcula sobre el básico y se suma
+// tal cual, sin asistencia ni cargas sociales.
 window.calcCostoManoDeObra = function (rol, params) {
-  const basicoEfectivo = rol.basico * (1 + (rol.extraPct || 0) / 100);
-  const conAsistencia = basicoEfectivo * (1 + params.asistenciaPct / 100);
+  const conAsistencia = rol.basico * (1 + params.asistenciaPct / 100);
   const conCargas = conAsistencia * (1 + params.cargasPct / 100);
+  const extraPorHora = rol.basico * (rol.extraPct || 0) / 100;
   const comidaPorHora = (rol.noRemunerativoMensual || 0) / (params.diasMes * params.jornadaHoras);
-  const costoHorario = conCargas + comidaPorHora;
+  const costoHorario = conCargas + extraPorHora + comidaPorHora;
   const comidaDia = params.comidaActivo ? (params.comidaMonto || 0) : 0;
   return {
-    basicoEfectivo, conAsistencia, conCargas, comidaPorHora, comidaDia,
+    conAsistencia, conCargas, extraPorHora, comidaPorHora, comidaDia,
     costoHorario, costoJornal: costoHorario * params.jornadaHoras + comidaDia,
   };
 };

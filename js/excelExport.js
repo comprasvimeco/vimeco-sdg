@@ -288,8 +288,9 @@
 
     /* Categorías de mano de obra: el costo horario y el jornal salen por
        fórmula de los parámetros de arriba, con la misma cuenta que
-       calcCostoManoDeObra() — básico con extra, asistencia, cargas y el no
-       remunerativo prorrateado por hora; la comida va al jornal sin prorratear. */
+       calcCostoManoDeObra() — básico con asistencia y cargas, más el extra
+       sobre el básico (aparte, sin cargas) y el no remunerativo prorrateado
+       por hora; la comida va al jornal sin prorratear. */
     grupo('Categorías de mano de obra');
     const filaCabRoles = r;
     cabecera(ws, r, 2, ['Categoría', 'Básico $/h', 'Extra', 'No remunerativo $/mes', 'Costo horario $/h', 'Jornal $/día']);
@@ -304,7 +305,7 @@
       ws.getCell(r, 4).numFmt = FMT_PCT;
       ws.getCell(r, 5).value = num(rol.noRemunerativoMensual) || 0;
       ws.getCell(r, 5).numFmt = FMT_ARS;
-      ws.getCell(r, 6).value = f(`=C${r}*(1+D${r})*(1+${ref.asistencia})*(1+${ref.cargas})+E${r}/(${ref.diasMes}*${ref.jornada})`);
+      ws.getCell(r, 6).value = f(`=C${r}*(1+${ref.asistencia})*(1+${ref.cargas})+C${r}*D${r}+E${r}/(${ref.diasMes}*${ref.jornada})`);
       ws.getCell(r, 6).numFmt = FMT_ARS;
       ws.getCell(r, 7).value = f(`=F${r}*${ref.jornada}+${ref.comida}`);
       ws.getCell(r, 7).numFmt = FMT_ARS;
