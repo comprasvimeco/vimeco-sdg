@@ -118,11 +118,13 @@ let incluidas = {};   // { seccionId: bool }
 
 function fmtDoc(n, dec, extra) {
   if (n == null || n === '' || isNaN(n)) return '—';
+  // Un residuo de redondeo (-0,000001) se mostraría como "-0,00".
+  if (Math.abs(n) < 0.5 / 10 ** dec) n = 0;
   return Number(n).toLocaleString('es-AR',
     Object.assign({ minimumFractionDigits: dec, maximumFractionDigits: dec }, extra));
 }
 const docARS  = n => fmtDoc(n, 2, { style: 'currency', currency: 'ARS' });
-const docCant = n => (n == null || isNaN(n) ? '—' : Number(n).toLocaleString('es-AR', { maximumFractionDigits: 2 }));
+const docCant = n => (n == null || isNaN(n) ? '—' : Number(Math.abs(n) < 0.005 ? 0 : n).toLocaleString('es-AR', { maximumFractionDigits: 2 }));
 const docPct  = frac => (frac == null || isNaN(frac) ? '—' : fmtDoc(frac * 100, 2) + '%');
 
 /* ===== Importe en letras ===== */
@@ -613,8 +615,9 @@ function etiquetaPeriodoDoc(i) {
 
 // Celda de la grilla del cronograma: el 0 va vacío (una tabla de 13 columnas
 // llena de "0,00%" no se lee) y los enteros van sin decimales — lo que se
-// carga son valores como 20% o 12,5%.
-const pctDoc = frac => (!frac ? '' : Number(frac * 100).toLocaleString('es-AR', { maximumFractionDigits: 1 }) + '%');
+// carga son valores como 20% o 12,5%. Hasta 2 decimales: con 1, un 1/12
+// sale 8,3% y doce de ellos suman 99,6% a la vista.
+const pctDoc = frac => (!frac ? '' : Number(frac * 100).toLocaleString('es-AR', { maximumFractionDigits: 2 }) + '%');
 const cantDoc = n => (!n ? '' : docCant(n));
 const montoDoc = n => (!n ? '' : docARS(n));
 

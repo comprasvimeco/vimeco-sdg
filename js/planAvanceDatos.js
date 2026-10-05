@@ -266,9 +266,19 @@
     // con la misma frecuencia que los números del eje X (paso, arriba). El
     // primer y último punto no centran el texto sobre el punto para no pisar
     // la etiqueta del eje Y ni la de fin de línea.
-    const valorPunto = (i, v, color, dy) => {
-      const anchor = i === 0 ? 'start' : (i === n ? 'end' : 'middle');
-      const x = i === 0 ? px(i) + 4 : (i === n ? px(i) - 4 : px(i));
+    // En el medio, el texto se corre al lado del punto por donde la línea no
+    // pasa (arriba de una línea que sube, a la izquierda; arriba de una que
+    // baja, a la derecha; abajo, al revés): centrado, la línea lo tacha.
+    // Junto al cruce de las curvas va centrado igual: corrido, se mete en
+    // el lado de la otra curva y choca con sus valores.
+    const lado = i => Math.sign(acum[i] - rem[i]);
+    const juntoAlCruce = i => (i > 0 && lado(i - 1) !== lado(i)) || (i < n && lado(i + 1) !== lado(i));
+    const valorPunto = (i, v, color, dy, vals) => {
+      const sube = vals[Math.min(i + 1, n)] - vals[Math.max(i - 1, 0)] > 0;
+      const aLaDerecha = (dy < 0) !== sube;
+      const centrado = i !== 0 && i !== n && juntoAlCruce(i);
+      const anchor = i === 0 ? 'start' : (i === n ? 'end' : (centrado ? 'middle' : (aLaDerecha ? 'start' : 'end')));
+      const x = centrado ? px(i) : (i === 0 || (i !== n && aLaDerecha) ? px(i) + 4 : px(i) - 4);
       return `<text x="${x}" y="${py(v) + dy}" text-anchor="${anchor}" class="pa-svg-valor" fill="${color}">${escHtml(etiquetaPunto(v))}</text>`;
     };
     const valores = [];
@@ -278,8 +288,12 @@
       // a esa misma altura (el arranque y el cierre de estas curvas siempre
       // caen justo en un extremo) — repetirlo ahí sólo lo encima.
       const enExtremo = v => v < 1e-6 || v > 1 - 1e-6;
-      if (!enExtremo(acum[i])) valores.push(valorPunto(i, acum[i], COLOR_ACUM, -6));
-      if (!enExtremo(rem[i])) valores.push(valorPunto(i, rem[i], COLOR_REMANENTE, 12));
+      // La serie que va más arriba en ese punto lleva el valor encima y la
+      // otra debajo: con acumulado siempre arriba, pasado el cruce las dos
+      // etiquetas caen en el hueco entre las líneas y se pisan.
+      const acumArriba = acum[i] >= rem[i];
+      if (!enExtremo(acum[i])) valores.push(valorPunto(i, acum[i], COLOR_ACUM, acumArriba ? -6 : 12, acum));
+      if (!enExtremo(rem[i])) valores.push(valorPunto(i, rem[i], COLOR_REMANENTE, acumArriba ? 12 : -6, rem));
     }
 
     const linea = (vals, color) =>
@@ -450,7 +464,9 @@
 
   window.svgCertificacionPorPeriodo = function (d, opts) {
     const o = Object.assign({ W: 960, H: 260, hover: false, unidad: 'Semana', fmtMonto: window.fmtARS }, opts);
-    const m = { top: 18, right: 20, bottom: 40, left: 92 };
+    // top: lugar para el monto encima de la barra más alta — si no, queda
+    // adentro de la barra, del mismo color, y no se ve.
+    const m = { top: 30, right: 20, bottom: 40, left: 92 };
     const pw = o.W - m.left - m.right;
     const ph = o.H - m.top - m.bottom;
     const n = d.n;
@@ -470,6 +486,9 @@
     // amontonarían.
     const paso = n > 20 ? Math.ceil(n / 12) : 1;
 
+    // Los montos van después de todas las barras: uno más ancho que su barra
+    // no puede quedar tapado por la barra vecina, dibujada después.
+    const montos = [];
     const r = 4;
     const barras = d.parcialMonto.map((v, i) => {
       const x = m.left + i * anchoSlot + (anchoSlot - anchoBarra) / 2;
@@ -480,11 +499,9 @@
       const path = `M${x},${m.top + ph} L${x},${y + rr} Q${x},${y} ${x + rr},${y} L${x + anchoBarra - rr},${y} Q${x + anchoBarra},${y} ${x + anchoBarra},${y + rr} L${x + anchoBarra},${m.top + ph} Z`;
       const barra = `<path d="${path}" fill="${COLOR_ACUM}" class="pa-barra"${o.hover ? ` data-i="${i}"` : ''}/>`;
       const mostrarValor = paso === 1 || (i + 1) % paso === 0 || i === n - 1;
-      const valor = mostrarValor
-        ? `<text x="${x + anchoBarra / 2}" y="${Math.max(m.top + 8, y - 6)}" text-anchor="middle" class="pa-svg-valor" fill="${COLOR_ACUM}">${escHtml(o.fmtMonto(v))}</text>`
-        : '';
-      return barra + valor;
-    }).join('');
+      if (mostrarValor) montos.push(`<text x="${x + anchoBarra / 2}" y="${y - 6}" text-anchor="middle" class="pa-svg-valor" fill="${COLOR_ACUM}">${escHtml(o.fmtMonto(v))}</text>`);
+      return barra;
+    }).join('') + montos.join('');
 
     const ticks = [];
     for (let i = 0; i < n; i++) {
