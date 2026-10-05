@@ -256,10 +256,19 @@ function unidadFormulaAGuardar(formula, unidadCelda) {
     0 = no depende del switch: el rendimiento (que siempre es por jornada), un
         costo total, los subtotales, y cualquier celda de otra pantalla. */
 function gradoDeTiempoRef(id) {
+  // Una línea de Materiales (material o auxiliar) no se mide en tiempo: su
+  // cantidad y su costo unitario no cambian con el switch.
+  const m = /^ap:linea:(.+):(cantidad|costoUnit)$/.exec(id);
+  if (m && !esLineaPorTiempo(lineas[m[1]])) return 0;
   if (/^ap:(linea|mo):.+:cantidad$/.test(id)) return 1;
   if (/^ap:(linea|mo):.+:costoUnit$/.test(id)) return -1;
   if (id === 'ap:costoDiarioEquipos' || id === 'ap:costoDiarioMO') return -1;
   return 0;
+}
+
+// Sólo Equipos y Mano de Obra se cargan en horas o jornadas.
+function esLineaPorTiempo(linea) {
+  return !!linea && (linea.tipo === 'equipo' || linea.tipo === 'manoDeObra');
 }
 
 // Cómo se muestra y se edita la cantidad de UNA línea con el switch donde
@@ -271,6 +280,9 @@ function gradoDeTiempoRef(id) {
 // queda anclada a su unidad original y se avisa, que es preferible a
 // convertirla mal en silencio.
 function vistaDeCantidad(linea) {
+  // Materiales y auxiliares no tienen unidad de tiempo: su fórmula se lee
+  // igual con el switch en Horas o en Jornadas ('jornada' = sin conversión).
+  if (linea && !esLineaPorTiempo(linea)) return { formula: linea.cantidadFormula || null, unidad: 'jornada', anclada: false };
   const uFormula = unidadFormulaDe(linea);
   const destino = unidadAP();
   const formula = linea && linea.cantidadFormula;
