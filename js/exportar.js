@@ -1118,7 +1118,7 @@ function renderDocumento() {
   $('btn-imprimir').disabled = false;
   $('btn-excel').disabled = false;
   $('export-aviso').textContent = 'En el diálogo de impresión: A4, márgenes por defecto y "Gráficos de fondo" activado.';
-  doc.innerHTML = seccionesDisponibles()
+  doc.innerHTML = seccionesOrdenadas()
     .map(s => {
       const clases = ['doc-seccion'];
       if (s.apaisada) {
@@ -1259,6 +1259,85 @@ function guardarSecciones() {
   try { localStorage.setItem(SECCIONES_GUARDADAS_KEY, JSON.stringify(incluidas)); } catch (_) {}
 }
 
+// Orden de las secciones en el documento: también se recuerda en el
+// navegador. Es una lista de ids de todas las secciones (tildadas o no);
+// las que falten en lo guardado — una sección nueva — van al final.
+const ORDEN_GUARDADO_KEY = 'vimeco-exportar-orden';
+let orden = SECCIONES.map(s => s.id);
+function cargarOrden() {
+  let guardado = [];
+  try { guardado = JSON.parse(localStorage.getItem(ORDEN_GUARDADO_KEY) || '[]') || []; } catch (_) {}
+  const ids = SECCIONES.map(s => s.id);
+  const validos = Array.isArray(guardado) ? guardado.filter((id, i) => ids.includes(id) && guardado.indexOf(id) === i) : [];
+  orden = validos.concat(ids.filter(id => !validos.includes(id)));
+}
+function guardarOrden() {
+  try { localStorage.setItem(ORDEN_GUARDADO_KEY, JSON.stringify(orden)); } catch (_) {}
+}
+const seccionesOrdenadas = () => seccionesDisponibles().sort((a, b) => orden.indexOf(a.id) - orden.indexOf(b.id));
+
+// Tira con las secciones tildadas en el orden en que salen, para
+// reordenarlas arrastrando. Con pointer events (no drag & drop de HTML) para
+// que ande igual con mouse y con el dedo.
+function tiraOrden() {
+  const tildadas = seccionesOrdenadas().filter(s => incluidas[s.id]);
+  if (tildadas.length < 2) return '';
+  return `
+    <div class="exp-grupo">
+      <div class="exp-grupo-titulo">Orden en el documento<span class="exp-grupo-cuenta">arrastrá para reordenar</span></div>
+      <div class="exp-orden" id="exp-orden">${tildadas.map((s, i) => `
+        <span class="exp-orden-chip" data-seccion="${s.id}">
+          <span class="exp-orden-num">${i + 1}</span>${escHtml(s.label)}
+          <svg class="exp-orden-grip" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="6" r="1.4"/><circle cx="15" cy="6" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="9" cy="18" r="1.4"/><circle cx="15" cy="18" r="1.4"/></svg>
+        </span>`).join('')}
+      </div>
+    </div>`;
+}
+
+function engancharTiraOrden() {
+  const tira = $('exp-orden');
+  if (!tira) return;
+  tira.querySelectorAll('.exp-orden-chip').forEach(chip => {
+    chip.addEventListener('pointerdown', e => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      chip.classList.add('arrastrando');
+      const mover = ev => {
+        // El chip bajo el puntero (salteando el que se arrastra): si el
+        // puntero pasó su mitad, el arrastrado va después; si no, antes.
+        const otros = [...tira.querySelectorAll('.exp-orden-chip:not(.arrastrando)')];
+        const destino = otros.find(o => {
+          const r = o.getBoundingClientRect();
+          return ev.clientY >= r.top && ev.clientY <= r.bottom && ev.clientX >= r.left && ev.clientX <= r.right;
+        });
+        if (!destino) return;
+        const r = destino.getBoundingClientRect();
+        const despues = ev.clientX > r.left + r.width / 2;
+        tira.insertBefore(chip, despues ? destino.nextSibling : destino);
+        tira.querySelectorAll('.exp-orden-num').forEach((n, i) => { n.textContent = i + 1; });
+      };
+      const soltar = () => {
+        document.removeEventListener('pointermove', mover);
+        document.removeEventListener('pointerup', soltar);
+        document.removeEventListener('pointercancel', soltar);
+        chip.classList.remove('arrastrando');
+        // Las tildadas ocupan los mismos lugares del orden global que antes,
+        // ahora en la secuencia nueva; las no tildadas no se mueven.
+        const nuevas = [...tira.querySelectorAll('.exp-orden-chip')].map(c => c.dataset.seccion);
+        const tildadas = new Set(nuevas);
+        const nuevo = orden.map(id => (tildadas.has(id) ? nuevas.shift() : id));
+        if (nuevo.join() === orden.join()) return;
+        orden = nuevo;
+        guardarOrden();
+        renderDocumento();
+      };
+      document.addEventListener('pointermove', mover);
+      document.addEventListener('pointerup', soltar);
+      document.addEventListener('pointercancel', soltar);
+    });
+  });
+}
+
 // Cada sección es una tarjeta seleccionable; las opciones propias (hoja del
 // Plan, detalle de Insumos) van adentro de la tarjeta, debajo del nombre.
 function tarjetaSeccion(s) {
@@ -1291,7 +1370,8 @@ function renderSecciones() {
         <div class="exp-grupo-titulo">${titulo}<span class="exp-grupo-cuenta">${n} de ${lista.length}</span></div>
         <div class="exp-grilla">${lista.map(tarjetaSeccion).join('')}</div>
       </div>`;
-  }).join('');
+  }).join('') + tiraOrden();
+  engancharTiraOrden();
 
   $('exportar-secciones').querySelectorAll('.exp-tile-input').forEach(chk => {
     chk.addEventListener('change', () => {
@@ -1453,6 +1533,7 @@ async function loadAll() {
       window.gruposRubroDesdePresupuesto(modelo), planConfig, planData.distItems, planData.distRubros);
   }
   config = { notas: null, logo: null, hojaPlan: 'A3', hojaPlanOrientacion: 'horizontal', hojaPlanAjustar: false, insumosDesglose: false, insumosCosto: true, ...(exportData || {}) };
+  cargarOrden();
   const guardadas = seccionesGuardadas();
   SECCIONES.forEach(s => {
     incluidas[s.id] = typeof guardadas[s.id] === 'boolean' ? guardadas[s.id] : !SECCIONES_INTERNAS.includes(s.id);

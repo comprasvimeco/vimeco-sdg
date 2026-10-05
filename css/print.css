@@ -324,6 +324,22 @@
 .exp-tile.on .exp-tile-check { background: var(--primary-light); border-color: var(--primary-light); }
 .exp-tile.on .exp-tile-check svg { opacity: 1; transform: scale(1); }
 .exp-tile-input:focus-visible + .exp-tile-check { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+/* Tira del orden: chips arrastrables con el número de lugar en el documento. */
+.exp-orden { display: flex; flex-wrap: wrap; gap: .45rem; }
+.exp-orden-chip {
+  display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .5rem .35rem .4rem;
+  border: 1.5px solid var(--gray-200); border-radius: 999px; background: var(--white);
+  font-size: .82rem; font-weight: 500; color: var(--gray-700);
+  cursor: grab; user-select: none; touch-action: none;
+  transition: box-shadow .15s, border-color .15s;
+}
+.exp-orden-chip:hover { border-color: var(--primary-light); box-shadow: var(--shadow-sm); }
+.exp-orden-chip.arrastrando { cursor: grabbing; border-color: var(--primary-light); box-shadow: var(--shadow); opacity: .85; }
+.exp-orden-num {
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+  border-radius: 50%; background: var(--primary-light); color: var(--white); font-size: .7rem; font-weight: 700;
+}
+.exp-orden-grip { width: 14px; height: 14px; fill: var(--gray-400); }
 .exp-tile-opciones { padding: 0 .75rem .65rem calc(.75rem + 18px + .6rem); }
 #export-notas { font-family: inherit; }
 .exportar-acciones { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
