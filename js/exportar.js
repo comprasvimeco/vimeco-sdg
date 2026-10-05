@@ -33,10 +33,13 @@ const SECCIONES = [
   { id: 'plan',        label: 'Plan de trabajos', render: seccionPlanTrabajos, apaisada: true },
   { id: 'remanentes',  label: 'Cuadro de Remanentes', render: seccionRemanentes, apaisada: true },
   { id: 'gantt',       label: 'Diagrama de Gantt', render: seccionGantt },
-  { id: 'avance',      label: 'Curva de avance', render: seccionCurvaAvance },
+  // Cada curva va sola en una A4 horizontal (hoja fija, no la elegible del
+  // cronograma); las certificaciones, en vertical aparte.
+  { id: 'avance',      label: 'Curva de avance', render: seccionCurvaAvance, hoja: 'a4-h' },
   // id 'curvas' por compatibilidad: era la sección que juntaba las dos curvas,
   // y así se conserva si estaba tildada.
-  { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas },
+  { id: 'curvas',      label: 'Curva de inversión', render: seccionCurvas, hoja: 'a4-h' },
+  { id: 'certificaciones', label: 'Certificaciones por período', render: seccionCertificaciones },
   { id: 'cargafija',   label: 'Carga Fija', render: seccionCargaFija },
   { id: 'gastosfijos', label: 'Gastos fijos de la obra', render: seccionGastosFijos },
   { id: 'equipos',     label: 'Amortización de equipos', render: seccionEquipos },
@@ -917,6 +920,10 @@ function seccionGantt() {
     ${dibujos.join('')}`;
 }
 
+// Alto del dibujo de cada curva en su A4 horizontal: lo más alto que entra en
+// la misma hoja junto con el membrete y el cuadro de datos.
+const ALTO_CURVA_HOJA = 380;
+
 function seccionCurvaAvance() {
   if (!hayPlanCargado()) return `${membrete('Curva de avance')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
   const unidad = window.nombreUnidadPlan(planConfig);
@@ -931,27 +938,13 @@ function seccionCurvaAvance() {
     </table>
 
     <h3 class="doc-grafico-titulo">Plan de avance — acumulado y remanente</h3>
-    <div class="doc-grafico">${window.svgPlanAvance(plan, { unidad })}</div>`;
+    <div class="doc-grafico">${window.svgPlanAvance(plan, { unidad, H: ALTO_CURVA_HOJA })}</div>`;
 }
 
 function seccionCurvas() {
   if (!hayPlanCargado()) return `${membrete('Curva de inversión')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
   const unidad = window.nombreUnidadPlan(planConfig);
   const ultimoAcum = plan.acumPct.length ? plan.acumPct[plan.acumPct.length - 1] : 0;
-
-  const filas = [];
-  for (let i = 0; i < plan.n; i++) {
-    const { nro, fecha } = etiquetaPeriodoDoc(i);
-    filas.push(`
-      <tr>
-        <td class="doc-centro">${nro}${fecha ? ` (${fecha})` : ''}</td>
-        <td class="doc-num">${docPct(plan.parcialPct[i])}</td>
-        <td class="doc-num">${docPct(plan.acumPct[i])}</td>
-        <td class="doc-num">${docARS(plan.parcialMonto[i])}</td>
-        <td class="doc-num">${docARS(plan.acumMonto[i])}</td>
-        <td class="doc-num">${docARS(plan.remanenteMonto[i])}</td>
-      </tr>`);
-  }
 
   return `
     ${membrete('Curva de inversión')}
@@ -967,12 +960,32 @@ function seccionCurvas() {
     </table>
 
     <h3 class="doc-grafico-titulo">Curva de inversión — acumulado y remanente</h3>
-    <div class="doc-grafico">${window.svgCurvaInversion(plan, { unidad, fmtMonto: docARS })}</div>
+    <div class="doc-grafico">${window.svgCurvaInversion(plan, { unidad, fmtMonto: docARS, H: ALTO_CURVA_HOJA })}</div>`;
+}
 
+function seccionCertificaciones() {
+  if (!hayPlanCargado()) return `${membrete('Certificaciones por período')}<p class="doc-centro">Esta obra todavía no tiene plan de avance cargado.</p>`;
+  const unidad = window.nombreUnidadPlan(planConfig);
+
+  const filas = [];
+  for (let i = 0; i < plan.n; i++) {
+    const { nro, fecha } = etiquetaPeriodoDoc(i);
+    filas.push(`
+      <tr>
+        <td class="doc-centro">${nro}${fecha ? ` (${fecha})` : ''}</td>
+        <td class="doc-num">${docPct(plan.parcialPct[i])}</td>
+        <td class="doc-num">${docPct(plan.acumPct[i])}</td>
+        <td class="doc-num">${docARS(plan.parcialMonto[i])}</td>
+        <td class="doc-num">${docARS(plan.acumMonto[i])}</td>
+        <td class="doc-num">${docARS(Math.abs(plan.remanenteMonto[i]) < 0.005 ? 0 : plan.remanenteMonto[i])}</td>
+      </tr>`);
+  }
+
+  return `
+    ${membrete('Certificaciones por período')}
     <h3 class="doc-grafico-titulo">Certificación por ${escHtml(unidad.toLowerCase())}</h3>
     <div class="doc-grafico">${window.svgCertificacionPorPeriodo(plan, { unidad, fmtMonto: docARS })}</div>
 
-    <h3 class="doc-grafico-titulo">Certificaciones por período</h3>
     <table class="doc-tabla">
       <thead>
         <tr>
@@ -1164,6 +1177,7 @@ function renderDocumento() {
         clases.push('doc-seccion-apaisada', `doc-seccion-hoja-${hojaPlanElegida().toLowerCase()}-${orientCorta}`);
         if (SECCIONES_AJUSTABLES.includes(s.id) && config.hojaPlanAjustar) clases.push('doc-plan-ajustar');
       }
+      if (s.hoja) clases.push('doc-seccion-apaisada', `doc-seccion-hoja-${s.hoja}`);
       if (!incluidas[s.id]) clases.push('oculta');
       return `<section class="${clases.join(' ')}" data-seccion="${s.id}">${incluidas[s.id] ? s.render() : ''}</section>`;
     })
