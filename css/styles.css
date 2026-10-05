@@ -143,8 +143,10 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .ap-terciario-bar { background: var(--white); border-bottom: 1px solid var(--gray-200); box-shadow: 0 2px 8px -4px rgba(26,58,92,.12); position: sticky; top: calc(var(--header-h, 60px) + var(--subtabs-h, 0px)); z-index: 98; }
 .ap-terciario-row { max-width: 1320px; margin: 0 auto; padding: .4rem 1.5rem; display: flex; align-items: center; gap: .5rem; }
 .ap-terciario-row .btn-icon { flex-shrink: 0; }
-.ap-terciario { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .25rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; -ms-overflow-style: none; }
-.ap-terciario::-webkit-scrollbar { display: none; }
+.ap-terciario { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: .25rem; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: var(--gray-300) transparent; padding-bottom: 2px; }
+.ap-terciario::-webkit-scrollbar { height: 6px; }
+.ap-terciario::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
+.ap-terciario::-webkit-scrollbar-track { background: transparent; }
 .ap-terciario-chip { flex-shrink: 0; font-size: .8rem; font-weight: 600; color: var(--gray-600); text-decoration: none; padding: .25rem .6rem; border-radius: 999px; white-space: nowrap; transition: background .15s, color .15s; }
 .ap-terciario-chip:hover { background: var(--gray-100); color: var(--primary); }
 .ap-terciario-chip.active { background: var(--primary); color: var(--white); }

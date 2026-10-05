@@ -2438,6 +2438,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btn-ap-prev').addEventListener('click', () => irAApVecino(-1));
   $('btn-ap-next').addEventListener('click', () => irAApVecino(1));
 
+  // Tira de números: la ruedita del mouse la corre para los costados (sin
+  // esto, en la compu sólo se podía mover arrastrando la barra de scroll).
+  $('ap-terciario-chips').addEventListener('wheel', (e) => {
+    const el = e.currentTarget;
+    if (el.scrollWidth <= el.clientWidth || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+    e.preventDefault();
+    el.scrollLeft += e.deltaY;
+  }, { passive: false });
+
   // Título fijo: se muestra cuando el de la tarjeta quedó tapado por la barra.
   const actualizarTituloFijo = () => {
     const bar = $('ap-terciario-bar');
