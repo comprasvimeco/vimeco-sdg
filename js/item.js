@@ -26,6 +26,13 @@ const modoDefault = !itemKey && !keyLinea && !!obraParam;
 // Presupuesto abre los A.P. con fórmulas vivas en un iframe oculto
 // (?refrescar=1) para dejarlos al día — ver refrescarParaPresupuesto().
 const modoRefrescar = params.get('refrescar') === '1';
+// Y en ese modo las lecturas salen de la pantalla que lo abrió, que pide cada
+// nodo una sola vez por pasada en vez de una vez por A.P. (ver leerCompartido
+// en js/refrescoAPs.js). Viajan como texto: así cada A.P. arma sus propios
+// objetos y ninguno toca los de otro.
+if (modoRefrescar && window.parent !== window && window.parent.__refrescoLeer) {
+  window._fbGet = async path => JSON.parse(await window.parent.__refrescoLeer(path));
+}
 
 let item = null;
 let versionesObra = {};    // { obraKey: { rendimiento, rendimientoFormula, lineas } }
@@ -1155,6 +1162,8 @@ function activarVersion(key) {
   // Notas del AP: módulo aparte (js/postits.js), no toca lineas/rendimiento ni
   // el motor de cálculo. Se reinicia cada vez que cambia la obra activa.
   if (window._postitsInit) window._postitsInit($('postits-grid'), { itemKey, basePath: basePath() });
+  // Oculto en un iframe sólo para recalcular: nadie lo mira, no escucha.
+  if (modoRefrescar) return;
   detenerListenerVersion = window._fbListen(basePath(), snap => {
     if (activeVersion !== key) return;
     aplicarSnapshotRemoto(snap);

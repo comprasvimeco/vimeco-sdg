@@ -88,6 +88,24 @@
     };
   }
 
+  /* Cada A.P. oculto es una página entera que, sola, volvería a bajar todas
+     las obras, materiales, equipos e ítems: con decenas de A.P. eso era casi
+     todo el tiempo de espera. Mientras dura una pasada, sus lecturas pasan por
+     acá (ver modoRefrescar en item.js) y cada nodo se pide una sola vez.
+     No cambia el resultado: dentro de una pasada los A.P. ya trabajaban en
+     paralelo sin ver lo que guardaban los otros, cada pasada nueva vuelve a
+     leer todo, y se termina recién con una pasada que no cambió nada. */
+  let lecturas = null;   // Map path → Promise<texto JSON>, sólo durante el refresco
+  window.__refrescoLeer = function (path) {
+    if (!lecturas) return _fbGet(path).then(v => JSON.stringify(v ?? null));
+    if (!lecturas.has(path)) {
+      const p = _fbGet(path).then(v => JSON.stringify(v ?? null));
+      p.catch(() => { if (lecturas && lecturas.get(path) === p) lecturas.delete(path); });
+      lecturas.set(path, p);
+    }
+    return lecturas.get(path);
+  };
+
   window.refrescarAPsConFormulasVivas = async function (obraKey) {
     if (hecho) return;
     hecho = true;
@@ -99,7 +117,15 @@
     const keys = apsConFormulasVivas(obraKey, computo, auxiliares, items);
     if (!keys.length) return;
     const tarjeta = armarTarjeta(keys.length);
+    // La primera pasada arranca con lo que se acaba de leer; las siguientes
+    // vuelven a pedir todo, para ver lo que escribió la anterior.
+    lecturas = new Map([
+      [`/obras/${obraKey}/computo.json`, Promise.resolve(JSON.stringify(computo))],
+      [`/obras/${obraKey}/auxiliares.json`, Promise.resolve(JSON.stringify(auxiliares))],
+      ['/items.json', Promise.resolve(JSON.stringify(items))],
+    ]);
     for (let ronda = 1; ronda <= 3; ronda++) {
+      if (ronda > 1) lecturas = new Map();
       if (tarjeta) tarjeta.ronda(ronda);
       let hechos = 0;
       let cambio = false;
@@ -116,5 +142,6 @@
       await Promise.all([trabajar(), trabajar(), trabajar()]);
       if (!cambio) break;
     }
+    lecturas = null;
   };
 })();
