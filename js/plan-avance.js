@@ -307,8 +307,8 @@ function renderTabla(d) {
     <col data-col="cant" style="width:${anchoCol('cant')}px">
     <col data-col="precio" style="width:${anchoCol('precio')}px">
     <col data-col="incid" style="width:${anchoCol('incid')}px">
-    <col data-col="suma" style="width:${anchoCol('suma')}px">
     ${colsPeriodo.join('')}
+    <col data-col="suma" style="width:${anchoCol('suma')}px">
   </colgroup>`;
 
   const head = `
@@ -319,8 +319,8 @@ function renderTabla(d) {
         ${th('cant', 'pa-col-num', 'Cant.')}
         ${th('precio', 'pa-col-monto', 'Precio')}
         ${th('incid', 'pa-col-num', 'Incid.')}
-        ${th('suma', 'pa-col-num', 'Σ')}
         ${thPeriodos.join('')}
+        ${th('suma', 'pa-col-num pa-col-suma', 'Σ')}
       </tr>
     </thead>`;
 
@@ -344,8 +344,8 @@ function renderTabla(d) {
         <td class="pa-col-num"></td>
         <td class="pa-col-monto"${attrCalc(g.precioTotal)}>${fmtARS(g.precioTotal)}</td>
         <td class="pa-col-num"${attrCalc(g.incidencia * 100)}>${fmtPct(g.incidencia)}</td>
-        <td class="pa-col-num ${claseSuma}"${attrCalc(g.sumaRubro * 100)}>${fmtPct(g.sumaRubro)}</td>
         ${celdasRubro.join('')}
+        <td class="pa-col-num pa-col-suma ${claseSuma}"${attrCalc(g.sumaRubro * 100)}>${fmtPct(g.sumaRubro)}</td>
       </tr>`;
 
     const filasItems = g.lineas.map(x => {
@@ -369,25 +369,25 @@ function renderTabla(d) {
           <td class="pa-col-num"${attrCalc(x.cantidad)}>${fmtCantGrilla(x.cantidad)}</td>
           <td class="pa-col-monto"${attrCalc(x.precioTotal)}>${fmtARS(x.precioTotal)}</td>
           <td class="pa-col-num"${attrCalc(x.incidencia * 100)}>${fmtPct(x.incidencia)}</td>
-          <td class="pa-col-num ${modoRubros ? 'pa-derivada' : filaSumaClase(x.suma)}"${attrCalc(x.suma * 100)}>${fmtPct(x.suma)}</td>
           ${celdas.join('')}
+          <td class="pa-col-num pa-col-suma ${modoRubros ? 'pa-derivada' : filaSumaClase(x.suma)}"${attrCalc(x.suma * 100)}>${fmtPct(x.suma)}</td>
         </tr>`;
 
       const extra = [];
       if (verObra) {
         const c = [];
         for (let i = 0; i < n; i++) c.push(celdaDerivada(x.pctObra[i] ? fmtPct(x.pctObra[i]) : '', 'pa-derivada', x.pctObra[i] * 100));
-        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% en Obra</td><td colspan="5"></td>${c.join('')}</tr>`);
+        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">% en Obra</td><td colspan="4"></td>${c.join('')}<td class="pa-col-suma"></td></tr>`);
       }
       if (verCant) {
         const c = [];
         for (let i = 0; i < n; i++) c.push(celdaDerivada(fmtCantGrilla(x.pctCant[i]), 'pa-derivada', x.pctCant[i]));
-        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Cantidad</td><td colspan="5"></td>${c.join('')}</tr>`);
+        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Cantidad</td><td colspan="4"></td>${c.join('')}<td class="pa-col-suma"></td></tr>`);
       }
       if (verMonto) {
         const c = [];
         for (let i = 0; i < n; i++) c.push(celdaDerivada(x.pctMonto[i] ? fmtARS(x.pctMonto[i]) : '', 'pa-derivada', x.pctMonto[i]));
-        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Monto</td><td colspan="5"></td>${c.join('')}</tr>`);
+        extra.push(`<tr class="pa-fila-sub"><td class="pa-col-nombre pa-sub-label">Monto</td><td colspan="4"></td>${c.join('')}<td class="pa-col-suma"></td></tr>`);
       }
       return principal + extra.join('');
     }).join('');
@@ -399,7 +399,7 @@ function renderTabla(d) {
   // celda: en las filas de % es el número que se ve (25, no 0,25).
   const filaTotal = (label, valores, clase, formato, aNumero) => {
     const celdas = valores.map(v => `<td class="pa-celda ${clase}"${attrCalc(aNumero(v))}>${formato(v)}</td>`).join('');
-    return `<tr class="pa-fila-total"><td class="pa-col-nombre pa-total-label">${escHtml(label)}</td><td colspan="5"></td>${celdas}</tr>`;
+    return `<tr class="pa-fila-total"><td class="pa-col-nombre pa-total-label">${escHtml(label)}</td><td colspan="4"></td>${celdas}<td class="pa-col-suma"></td></tr>`;
   };
   const comoPct = v => window.roundLimpio(v * 100);
   const comoMonto = v => limpiarCero(v);
@@ -808,7 +808,16 @@ function engancharTabla() {
     // sus coordenadas (row, p).
     e.target.blur();
     const destino = wrap.querySelector(`.pa-input[data-row="${CSS.escape(destinoRow)}"][data-p="${destinoP}"]`);
-    if (destino) destino.focus();
+    if (!destino) return;
+    destino.focus();
+    // El navegador da la celda por visible aunque quede tapada por las
+    // columnas fijas (nombre a la izquierda, Σ a la derecha), así que yendo
+    // hacia la izquierda no scrolleaba nunca: se corre a mano lo que falte.
+    const celda = destino.closest('td').getBoundingClientRect();
+    const fijaIzq = wrap.querySelector('thead .pa-col-nombre').getBoundingClientRect().right;
+    const fijaDer = wrap.querySelector('thead .pa-col-suma').getBoundingClientRect().left;
+    if (celda.left < fijaIzq) wrap.scrollLeft -= fijaIzq - celda.left;
+    else if (celda.right > fijaDer) wrap.scrollLeft += celda.right - fijaDer;
   });
 
   wrap.addEventListener('click', e => {

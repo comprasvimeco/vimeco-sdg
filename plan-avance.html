@@ -51,6 +51,10 @@
        y sin esto se pierde de vista qué ítem se está cargando. */
     .pa-tabla .pa-col-nombre { position: sticky; left: 0; z-index: 2; text-overflow: ellipsis; box-shadow: 1px 0 0 var(--gray-200); }
     .pa-tabla thead .pa-col-nombre { z-index: 4; }
+    /* Σ va al final y fija a la derecha: se ve si la fila llega a 100% mientras
+       se carga cualquier período, sin volver al principio. */
+    .pa-tabla .pa-col-suma { position: sticky; right: 0; z-index: 2; box-shadow: -1px 0 0 var(--gray-200); }
+    .pa-tabla thead .pa-col-suma { z-index: 4; }
     .pa-col-un { color: var(--gray-500); }
     .pa-col-num { text-align: right; }
     .pa-col-monto { text-align: right; }
