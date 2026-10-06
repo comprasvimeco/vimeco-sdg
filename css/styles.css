@@ -255,6 +255,44 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .obra-grupo-header { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .5rem .2rem; cursor: pointer; font-weight: 600; color: var(--gray-700); border-bottom: 1px solid var(--glass-border); margin-bottom: .6rem; }
 .obra-grupo-header .icon-chevron { display: inline-flex; transition: transform .15s ease; }
 .obra-grupo-header .icon-chevron.is-colapsado { transform: rotate(180deg); }
+.obra-grupo-cant { margin-left: .35rem; font-size: .8rem; font-weight: 500; color: var(--gray-400); }
+
+/* Tarjetas de obras.html, en grilla. Clase propia (no .item-card, que usan
+   otras pantallas). El borde izquierdo lleva el color del estado. Toda la
+   tarjeta es clickeable (abre CyP); los anexos van adentro, plegables. */
+.obras-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: .8rem; align-items: start; }
+.obra-card { position: relative; display: flex; flex-direction: column; gap: .7rem; padding: .9rem 1rem .8rem 1.15rem; background: var(--glass-bg-strong); border: 1px solid var(--glass-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); cursor: pointer; overflow: hidden; transition: transform .2s var(--ease-spring), box-shadow .2s, border-color .2s; }
+.obra-card::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--gray-300); }
+.obra-card--cerrada::before   { background: var(--warning); }
+.obra-card--ejecucion::before { background: var(--primary-light); }
+.obra-card--terminada::before { background: var(--success); }
+.obra-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-glass); border-color: rgba(37,87,167,.3); }
+.obra-card.is-atenuada > .obra-card-head, .obra-card.is-atenuada > .obra-card-foot { opacity: .55; }
+.obra-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: .5rem; }
+.obra-card-info { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.obra-card-title { font-weight: 600; color: var(--gray-900); line-height: 1.3; }
+.obra-card-meta { font-size: .8rem; color: var(--gray-500); }
+.obra-card-foot { display: flex; align-items: center; gap: .5rem; }
+.obra-card-foot .btn-computo-obra { margin-left: auto; }
+.obra-card-menu { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px; background: none; color: var(--gray-400); cursor: pointer; }
+.obra-card-menu .icon { width: 18px; height: 18px; }
+.obra-card-menu:hover { background: var(--gray-100); color: var(--gray-700); }
+.obra-card-anexos-toggle { display: inline-flex; align-items: center; gap: .25rem; padding: .15rem .5rem; border: 1px solid var(--gray-200); border-radius: 999px; background: var(--white); font-size: .72rem; font-weight: 600; color: var(--primary); cursor: pointer; }
+.obra-card-anexos-toggle:hover { border-color: var(--primary-light); }
+.obra-card-anexos-toggle .icon { width: 13px; height: 13px; transition: transform .15s ease; }
+.obra-card-anexos-toggle.is-abierta .icon { transform: rotate(180deg); }
+.obra-anexos { display: flex; flex-direction: column; margin: 0 -.4rem; padding-top: .35rem; border-top: 1px solid var(--gray-200); }
+.obra-anexo { display: flex; align-items: center; gap: .5rem; padding: .3rem .4rem; border-radius: 6px; font-size: .85rem; }
+.obra-anexo:hover { background: rgba(37,87,167,.07); }
+.obra-anexo-nombre { display: flex; align-items: center; gap: .35rem; flex: 1; min-width: 0; color: var(--gray-700); }
+.obra-anexo-nombre > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.obra-anexo-nombre .icon { width: 14px; height: 14px; flex-shrink: 0; color: var(--gray-400); }
+.obra-anexo .obra-card-menu { width: 24px; height: 24px; }
+/* Menú ⋯: uno solo, en <body> con position:fixed (lo posiciona js/obras.js). */
+.obra-menu { position: fixed; z-index: 1200; min-width: 170px; padding: .3rem; background: var(--white); border: 1px solid var(--gray-200); border-radius: var(--radius); box-shadow: var(--shadow-lg); }
+.obra-menu button { display: flex; align-items: center; gap: .5rem; width: 100%; padding: .45rem .55rem; border: none; border-radius: 4px; background: none; font-size: .85rem; color: var(--gray-700); text-align: left; cursor: pointer; }
+.obra-menu button:hover { background: var(--gray-100); }
+.obra-menu .icon { width: 15px; height: 15px; color: var(--gray-500); }
 
 /* Switch de dos o más opciones excluyentes (versión de obra, familia de mano
    de obra): botones chicos, el activo en btn-primary, el resto en

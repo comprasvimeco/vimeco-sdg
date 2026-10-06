@@ -20,12 +20,23 @@ const FILTROS_ESTADO = [
   { value: 'terminada', label: ESTADOS.terminada.label },
 ];
 const KEY_GRUPOS_COLAPSADOS = 'obras_grupos_colapsados';
+const KEY_ANEXOS_ABIERTOS = 'obras_anexos_abiertos';
 
 let allObras = [];
 let editingKey = null;
 let duplicandoKey = null;
 let estadoActivo = 'todas';
 let gruposColapsados = new Set();
+let anexosAbiertos = new Set();
+
+function cargarAnexosAbiertos() {
+  try { anexosAbiertos = new Set(JSON.parse(localStorage.getItem(KEY_ANEXOS_ABIERTOS) || '[]')); }
+  catch (_) { anexosAbiertos = new Set(); }
+}
+
+function guardarAnexosAbiertos() {
+  try { localStorage.setItem(KEY_ANEXOS_ABIERTOS, JSON.stringify([...anexosAbiertos])); } catch (_) {}
+}
 
 function cargarGruposColapsados() {
   try {
@@ -67,47 +78,105 @@ function agruparPorAnio(list) {
   });
 }
 
-function renderObraCard(o) {
+// Una obra con `padreKey` es anexo de esa obra principal: se lista adentro de
+// su tarjeta y va en el grupo de año de la principal. Es sólo orden visual,
+// cada presupuesto sigue siendo independiente. Un solo nivel: un anexo no
+// tiene anexos. Si la principal ya no existe, el anexo se muestra suelto.
+const esAnexo = o => !!(o.padreKey && allObras.some(p => p.key === o.padreKey && !p.padreKey));
+const anexosDe = key => allObras.filter(o => o.padreKey === key);
+
+function renderAnexo(o) {
   const estado = ESTADOS[o.estado] || ESTADOS.preparacion;
-  const meta = o.ubicacion || '';
   return `
-    <div class="item-card" data-key="${escHtml(o.key)}">
-      <div class="item-card-info">
-        <span class="item-card-title">${escHtml(o.nombre)}</span>
-        ${meta ? `<span class="item-card-meta">${escHtml(meta)}</span>` : ''}
-        <div class="item-card-badges">
-          <span class="u-badge u-badge-neutro">${o.anio || 'Sin año'}</span>
-          <span class="u-badge ${estado.badge}">${estado.label}</span>
-        </div>
-      </div>
-      <div class="item-card-actions">
-        <button class="btn btn-sm btn-outline btn-edit-obra">Editar</button>
-        <button class="btn btn-sm btn-outline btn-duplicar-obra">Duplicar</button>
-        <button class="btn btn-sm btn-outline btn-datos-obra">Datos</button>
-        <button class="btn btn-sm btn-primary btn-computo-obra">CyP</button>
-      </div>
+    <div class="obra-anexo" data-key="${escHtml(o.key)}" title="Abrir Cómputo y Presupuesto">
+      <span class="obra-anexo-nombre">${icSvg('subnivel')}<span>${escHtml(o.nombre)}</span></span>
+      <span class="u-badge ${estado.badge}">${estado.label}</span>
+      <button class="obra-card-menu" aria-label="Más acciones" title="Más acciones">${icSvg('dots')}</button>
     </div>`;
 }
 
-function renderObras(list) {
+function renderObraCard({ obra: o, anexos, atenuada, abierta }) {
+  const estado = ESTADOS[o.estado] || ESTADOS.preparacion;
+  const total = anexosDe(o.key).length;
+  return `
+    <div class="obra-card obra-card--${escHtml(o.estado || 'preparacion')} ${atenuada ? 'is-atenuada' : ''}" data-key="${escHtml(o.key)}" title="Abrir Cómputo y Presupuesto">
+      <div class="obra-card-head">
+        <div class="obra-card-info">
+          <span class="obra-card-title">${escHtml(o.nombre)}</span>
+          ${o.ubicacion ? `<span class="obra-card-meta">${escHtml(o.ubicacion)}</span>` : ''}
+        </div>
+        <button class="obra-card-menu" aria-label="Más acciones" title="Más acciones">${icSvg('dots')}</button>
+      </div>
+      <div class="obra-card-foot">
+        <span class="u-badge ${estado.badge}">${estado.label}</span>
+        ${anexos.length ? `
+          <button class="obra-card-anexos-toggle ${abierta ? 'is-abierta' : ''}" title="${abierta ? 'Ocultar' : 'Ver'} anexos">
+            ${anexos.length < total ? `${anexos.length} de ${total}` : total} anexo${total === 1 ? '' : 's'} ${icSvg('arrowDown')}
+          </button>` : ''}
+        <button class="btn btn-sm btn-primary btn-computo-obra">CyP</button>
+      </div>
+      ${anexos.length && abierta ? `<div class="obra-anexos">${anexos.map(renderAnexo).join('')}</div>` : ''}
+    </div>`;
+}
+
+// Menú ⋯ de una tarjeta o de un anexo. Uno solo, montado en <body> con
+// position:fixed, así ninguna tarjeta lo recorta.
+function cerrarMenuObra() {
+  const m = $('obra-menu');
+  if (m) m.remove();
+}
+
+function abrirMenuObra(btn, obra) {
+  const yaAbierto = $('obra-menu') && $('obra-menu').dataset.key === obra.key;
+  cerrarMenuObra();
+  if (yaAbierto) return;
+  const menu = document.createElement('div');
+  menu.id = 'obra-menu';
+  menu.className = 'obra-menu';
+  menu.dataset.key = obra.key;
+  menu.innerHTML = `
+    <button data-accion="editar">${icSvg('edit')}Editar</button>
+    <button data-accion="duplicar">${icSvg('copy')}Duplicar</button>
+    <button data-accion="datos">${icSvg('file')}Datos</button>
+    ${esAnexo(obra) ? '' : `<button data-accion="anexo">${icSvg('plus')}Agregar anexo</button>`}`;
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  const left = Math.max(8, Math.min(r.right - menu.offsetWidth, window.innerWidth - menu.offsetWidth - 8));
+  const top = r.bottom + 4 + menu.offsetHeight > window.innerHeight ? r.top - menu.offsetHeight - 4 : r.bottom + 4;
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  menu.addEventListener('click', e => {
+    const b = e.target.closest('button[data-accion]');
+    if (!b) return;
+    cerrarMenuObra();
+    if (b.dataset.accion === 'editar') openEditModal(obra);
+    else if (b.dataset.accion === 'duplicar') openDuplicarModal(obra);
+    else if (b.dataset.accion === 'datos') window.location.href = 'datos-obra.html?obra=' + encodeURIComponent(obra.key);
+    else if (b.dataset.accion === 'anexo') openAddModal(obra.key);
+  });
+}
+
+function renderObras(entradas) {
   const container = $('obras-list');
-  if (!list.length) {
+  cerrarMenuObra();
+  if (!entradas.length) {
     container.innerHTML = '<div class="list-empty">No hay obras que coincidan con la búsqueda.</div>';
     return;
   }
 
-  const grupos = agruparPorAnio(list);
-  container.innerHTML = grupos.map(([anioKey, obrasDelGrupo]) => {
+  const grupos = agruparPorAnio(entradas.map(e => ({ ...e, anio: e.obra.anio })));
+  container.innerHTML = grupos.map(([anioKey, delGrupo]) => {
     const colapsado = gruposColapsados.has(anioKey);
     const titulo = anioKey === 'sin-anio' ? 'Sin año' : anioKey;
+    const cant = delGrupo.reduce((n, e) => n + (e.atenuada ? 0 : 1) + e.anexos.length, 0);
     return `
       <div class="obra-grupo" data-anio="${escHtml(anioKey)}">
         <div class="obra-grupo-header">
-          <span>${titulo} · ${obrasDelGrupo.length} obra${obrasDelGrupo.length === 1 ? '' : 's'}</span>
+          <span>${titulo} <span class="obra-grupo-cant">${cant} obra${cant === 1 ? '' : 's'}</span></span>
           <span class="icon-chevron ${colapsado ? 'is-colapsado' : ''}">${icSvg('arrowUp')}</span>
         </div>
-        <div class="obra-grupo-body list-container ${colapsado ? 'hidden' : ''}">
-          ${obrasDelGrupo.map(renderObraCard).join('')}
+        <div class="obra-grupo-body obras-grid ${colapsado ? 'hidden' : ''}">
+          ${delGrupo.map(renderObraCard).join('')}
         </div>
       </div>`;
   }).join('');
@@ -118,29 +187,59 @@ function renderObras(list) {
       if (gruposColapsados.has(anioKey)) gruposColapsados.delete(anioKey);
       else gruposColapsados.add(anioKey);
       guardarGruposColapsados();
-      renderObras(list);
-    });
-  });
-
-  container.querySelectorAll('.item-card').forEach(card => {
-    const key = card.dataset.key;
-    const obra = allObras.find(o => o.key === key);
-    card.querySelector('.btn-edit-obra').addEventListener('click', () => openEditModal(obra));
-    card.querySelector('.btn-duplicar-obra').addEventListener('click', () => openDuplicarModal(obra));
-    card.querySelector('.btn-datos-obra').addEventListener('click', () => {
-      window.location.href = 'datos-obra.html?obra=' + encodeURIComponent(obra.key);
-    });
-    card.querySelector('.btn-computo-obra').addEventListener('click', () => {
-      window.location.href = 'computo.html?obra=' + encodeURIComponent(obra.key);
+      renderObras(entradas);
     });
   });
 }
 
+// Click en cualquier parte de una tarjeta o de un anexo abre su CyP (con
+// Ctrl/Cmd, en otra pestaña); los botones de adentro hacen lo suyo.
+function onClickLista(e) {
+  const el = e.target.closest('[data-key]');
+  if (!el || el.closest('.obra-grupo-header')) return;
+  const obra = allObras.find(o => o.key === el.dataset.key);
+  if (!obra) return;
+  const menuBtn = e.target.closest('.obra-card-menu');
+  if (menuBtn) {
+    e.stopPropagation();
+    abrirMenuObra(menuBtn, obra);
+    return;
+  }
+  if (e.target.closest('.obra-card-anexos-toggle')) {
+    if (anexosAbiertos.has(obra.key)) anexosAbiertos.delete(obra.key);
+    else anexosAbiertos.add(obra.key);
+    guardarAnexosAbiertos();
+    applyFilter();
+    return;
+  }
+  const url = 'computo.html?obra=' + encodeURIComponent(obra.key);
+  if (e.ctrlKey || e.metaKey) window.open(url, '_blank');
+  else window.location.href = url;
+}
+
+// Cada entrada es una obra principal con los anexos que se muestran. Si hay
+// filtro y sólo coincide un anexo, la principal aparece atenuada, como
+// contexto, con ese anexo a la vista.
 function applyFilter() {
+  const query = $('obras-search').value;
+  const filtroActivo = estadoActivo !== 'todas' || !!window.normBusqueda(query);
   const delEstado = allObras.filter(o => estadoActivo === 'todas' || o.estado === estadoActivo);
-  const filtered = window.buscarSimilares(delEstado, $('obras-search').value,
-    o => `${o.nombre || ''} ${o.ubicacion || ''}`).lista;
-  renderObras(filtered);
+  const coinciden = new Set(window.buscarSimilares(delEstado, query,
+    o => `${o.nombre || ''} ${o.ubicacion || ''}`).lista.map(o => o.key));
+
+  const entradas = [];
+  allObras.filter(o => !esAnexo(o)).forEach(obra => {
+    const todos = anexosDe(obra.key);
+    const anexos = filtroActivo ? todos.filter(a => coinciden.has(a.key)) : todos;
+    const coincide = coinciden.has(obra.key);
+    if (!coincide && !anexos.length) return;
+    entradas.push({
+      obra, anexos,
+      atenuada: !coincide,
+      abierta: anexosAbiertos.has(obra.key) || (filtroActivo && anexos.length > 0),
+    });
+  });
+  renderObras(entradas);
 }
 
 async function loadObras() {
@@ -155,15 +254,34 @@ async function loadObras() {
   }
 }
 
-function openAddModal() {
+// "Anexo de": sólo obras principales y nunca la propia. Una obra que ya
+// tiene anexos no puede pasar a ser anexo (un solo nivel).
+function llenarSelectPadre(propiaKey, padreKey) {
+  const sel = $('obra-padre');
+  const nota = $('obra-padre-nota');
+  const opciones = allObras
+    .filter(o => !esAnexo(o) && o.key !== propiaKey)
+    .sort((a, b) => (a.nombre || '').localeCompare(b.nombre || '', 'es'));
+  sel.innerHTML = '<option value="">— Ninguna (obra principal) —</option>' +
+    opciones.map(o => `<option value="${escHtml(o.key)}">${escHtml(o.nombre)}</option>`).join('');
+  sel.value = opciones.some(o => o.key === padreKey) ? padreKey : '';
+  const propios = propiaKey ? anexosDe(propiaKey).length : 0;
+  sel.disabled = propios > 0;
+  nota.textContent = propios ? `Tiene ${propios} anexo${propios === 1 ? '' : 's'}: no puede ser anexo de otra obra.` : '';
+  nota.classList.toggle('hidden', !propios);
+}
+
+function openAddModal(padreKey) {
+  const padre = typeof padreKey === 'string' && allObras.find(o => o.key === padreKey);
   editingKey = null;
   duplicandoKey = null;
-  $('modal-obra-title').textContent = 'Agregar obra';
+  $('modal-obra-title').textContent = padre ? 'Agregar anexo' : 'Agregar obra';
   $('modal-obra-error').classList.add('hidden');
   $('obra-nombre').value = '';
-  $('obra-ubicacion').value = '';
-  $('obra-anio').value = new Date().getFullYear();
+  $('obra-ubicacion').value = padre ? padre.ubicacion || '' : '';
+  $('obra-anio').value = padre && padre.anio ? padre.anio : new Date().getFullYear();
   $('obra-estado').value = 'preparacion';
+  llenarSelectPadre(null, padre ? padre.key : '');
   $('modal-obra').classList.remove('hidden');
   setTimeout(() => $('obra-nombre').focus(), 50);
 }
@@ -177,6 +295,7 @@ function openEditModal(obra) {
   $('obra-ubicacion').value = obra.ubicacion || '';
   $('obra-anio').value = obra.anio || '';
   $('obra-estado').value = obra.estado || 'preparacion';
+  llenarSelectPadre(obra.key, obra.padreKey);
   $('modal-obra').classList.remove('hidden');
   setTimeout(() => $('obra-nombre').focus(), 50);
 }
@@ -190,6 +309,7 @@ function openDuplicarModal(obra) {
   $('obra-ubicacion').value = obra.ubicacion || '';
   $('obra-anio').value = obra.anio || '';
   $('obra-estado').value = obra.estado || 'preparacion';
+  llenarSelectPadre(null, obra.padreKey);
   $('modal-obra').classList.remove('hidden');
   setTimeout(() => { $('obra-nombre').focus(); $('obra-nombre').select(); }, 50);
 }
@@ -259,6 +379,7 @@ async function saveObraModal() {
   const ubicacion = $('obra-ubicacion').value.trim();
   const anio      = $('obra-anio').value ? parseInt($('obra-anio').value, 10) : null;
   const estado    = $('obra-estado').value;
+  const padreKey  = $('obra-padre').value || null;
   const errEl     = $('modal-obra-error');
 
   if (!nombre) {
@@ -273,14 +394,14 @@ async function saveObraModal() {
 
   try {
     if (editingKey) {
-      await _fbPatch(`/obras/${editingKey}.json`, { nombre, ubicacion, anio, estado });
+      await _fbPatch(`/obras/${editingKey}.json`, { nombre, ubicacion, anio, estado, padreKey });
     } else {
       const key = nombre.toLowerCase()
         .normalize('NFD').replace(/[̀-ͯ]/g, '')
         .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
         + '_' + Date.now();
-      if (duplicandoKey) await duplicarObra(duplicandoKey, key, { nombre, ubicacion, anio, estado });
-      else await _fbPut(`/obras/${key}.json`, { nombre, ubicacion, anio, estado, creadaEn: Date.now() });
+      if (duplicandoKey) await duplicarObra(duplicandoKey, key, { nombre, ubicacion, anio, estado, padreKey });
+      else await _fbPut(`/obras/${key}.json`, { nombre, ubicacion, anio, estado, padreKey, creadaEn: Date.now() });
     }
     $('modal-obra').classList.add('hidden');
     showToast(editingKey ? 'Obra actualizada.' : duplicandoKey ? 'Obra duplicada.' : 'Obra creada.');
@@ -296,8 +417,14 @@ async function saveObraModal() {
 
 document.addEventListener('DOMContentLoaded', () => {
   cargarGruposColapsados();
+  cargarAnexosAbiertos();
   renderFiltroEstado();
-  $('btn-add-obra').addEventListener('click', openAddModal);
+  $('btn-add-obra').addEventListener('click', () => openAddModal());
+  $('obras-list').addEventListener('click', onClickLista);
+  document.addEventListener('click', e => { if (!e.target.closest('#obra-menu')) cerrarMenuObra(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') cerrarMenuObra(); });
+  window.addEventListener('scroll', cerrarMenuObra, { passive: true });
+  window.addEventListener('resize', cerrarMenuObra);
   $('modal-obra-close').addEventListener('click',  () => $('modal-obra').classList.add('hidden'));
   $('modal-obra-cancel').addEventListener('click', () => $('modal-obra').classList.add('hidden'));
   $('modal-obra-save').addEventListener('click', saveObraModal);
