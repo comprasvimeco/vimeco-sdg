@@ -13,12 +13,21 @@
      ahí borraría los hijos anidados (incidente del 2026-08-11).
    - Precios viejos sin `proveedorKey`: su key se deduce del nombre del
      proveedor, así entran a la comparativa sin migrar nada.
+   - /materiales/{k}/proveedores/_general/{provKey}: la "lista general",
+     precios de proveedores sin obra (listas de precios cargadas desde
+     Materiales). Ahí nunca hay elegido ni va a precios/: no entran en ningún
+     costo, ni como vigente. Sirven para traerlos a una obra a mano.
 
    Las funciones que escriben NO agrupan el undo por su cuenta: las llama
    cada pantalla adentro de su propio window.undoAgrupar (anidar dos grupos
    cerraría el de afuera). Raíces null siempre: /materiales es compartido. */
 
 (function () {
+  const GENERAL = window.PRECIOS_GENERAL = '_general';
+
+  window.nombreFuentePrecio = (obraKey, obrasMap) =>
+    obraKey === GENERAL ? 'Lista general' : ((obrasMap && obrasMap[obraKey]) || obraKey);
+
   window.provKeyDe = function (nombre) {
     const slug = window.normBusqueda(nombre).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
     return slug || 'sin-proveedor';
@@ -85,6 +94,16 @@
     const base = pathMaterial(material, obraKey);
     const key = window.provKeyDe(precioData.proveedor);
     const anterior = opts.provKeyAnterior || null;
+    if (obraKey === GENERAL) {
+      const datos = limpio(precioData);
+      await _fbPut(pathProveedor(material, obraKey, key), datos);
+      setProveedorLocal(material, obraKey, key, datos);
+      if (anterior && anterior !== key) {
+        await _fbDel(pathProveedor(material, obraKey, anterior));
+        setProveedorLocal(material, obraKey, anterior, null);
+      }
+      return { provKey: key, elegido: false, general: true };
+    }
     const elegido = (material.precios || {})[obraKey];
     const eKey = elegidoKeyDe(elegido);
     const datos = limpio(precioData);
@@ -135,6 +154,7 @@
 
   // Pasa a usar en la obra el precio de otro proveedor de la comparativa.
   window.elegirProveedorPrecio = async function (material, obraKey, provKey) {
+    if (obraKey === GENERAL) return;
     const base = pathMaterial(material, obraKey);
     const target = (((material.proveedores || {})[obraKey]) || {})[provKey];
     if (!target) return;
@@ -201,12 +221,12 @@
       sublabel: [
         p.precioARS != null ? fmtARSFijo(p.precioARS) : (p.precioUSD != null ? fmtUSD(p.precioUSD) : null),
         p.fecha ? fmtFechaCorta(p.fecha) : 'sin fecha',
-        (obrasMap && obrasMap[p.obraKey]) || p.obraKey,
+        window.nombreFuentePrecio(p.obraKey, obrasMap),
       ].filter(Boolean).join(' · '),
     }));
     hintEl.textContent = filas.length
-      ? 'Los de otras obras, del más reciente al más viejo. Al elegir uno queda cargado en esta obra como el proveedor que usa.'
-      : 'Este material no tiene proveedores cargados en otras obras.';
+      ? 'Los de otras obras y de la lista general, del más reciente al más viejo. Al elegir uno queda cargado en esta obra como el proveedor que usa.'
+      : 'Este material no tiene proveedores cargados en otras obras ni en la lista general.';
     return createSearchableSelect(container, {
       options,
       value: null,
@@ -233,9 +253,10 @@
       return `<span class="${pct < 0 ? 'cmp-baja' : 'cmp-sube'}">${pct > 0 ? '+' : ''}${fmtPct(pct)}</span>`;
     };
     const ro = !!opts.soloLectura;
+    const general = obraKey === GENERAL; // sin elegido: no entra en ningún costo
     const cuerpo = filas.map(f => `
       <tr data-prov="${escHtml(f.provKey)}" class="${f.provKey === opts.editandoKey ? 'cmp-editando' : ''}">
-        <td><input type="radio" name="cmp-elegido" class="cmp-elegir" ${f.elegido ? 'checked' : ''} ${ro ? 'disabled' : ''} title="Usar este precio en la obra"></td>
+        ${general ? '' : `<td><input type="radio" name="cmp-elegido" class="cmp-elegir" ${f.elegido ? 'checked' : ''} ${ro ? 'disabled' : ''} title="Usar este precio en la obra"></td>`}
         <td class="cmp-prov">${f.proveedor ? escHtml(f.proveedor) : vacio}${f.precioARS != null && f.precioARS === minimo ? ' <span class="cmp-tag">más barato</span>' : ''}</td>
         <td>${f.fecha ? fmtFechaCorta(f.fecha) : vacio}</td>
         <td class="num">${f.precioARS != null ? fmtARSFijo(f.precioARS) : vacio}</td>
@@ -246,14 +267,14 @@
       </tr>`).join('');
     container.innerHTML = `
       <div class="cmp-head">
-        <label>Proveedores en esta obra</label>
+        <label>${general ? 'Proveedores en la lista general' : 'Proveedores en esta obra'}</label>
         ${ro ? '' : '<button type="button" class="btn btn-sm btn-outline cmp-nuevo">+ Otro proveedor</button>'}
       </div>
       <div class="cmp-wrap"><table class="cmp-tabla">
-        <thead><tr><th title="Elegido: el que usa la obra">Usa</th><th>Proveedor</th><th>Fecha</th><th class="num">Precio $</th><th class="num">Cotiz.</th><th class="num">USD</th><th class="num">vs. elegido</th><th></th></tr></thead>
+        <thead><tr>${general ? '' : '<th title="Elegido: el que usa la obra">Usa</th>'}<th>Proveedor</th><th>Fecha</th><th class="num">Precio $</th><th class="num">Cotiz.</th><th class="num">USD</th><th class="num">vs. elegido</th><th></th></tr></thead>
         <tbody>${cuerpo}</tbody>
       </table></div>
-      <span class="form-hint">Tocá una fila para ver o editar sus datos abajo. El tildado es el que se usa en el costo.</span>`;
+      <span class="form-hint">Tocá una fila para ver o editar sus datos abajo. ${general ? 'Son precios de referencia: no entran en ningún costo hasta traerlos a una obra.' : 'El tildado es el que se usa en el costo.'}</span>`;
 
     const nuevo = container.querySelector('.cmp-nuevo');
     if (nuevo) nuevo.addEventListener('click', () => opts.onNuevo && opts.onNuevo());
@@ -264,7 +285,7 @@
         opts.onEditar && opts.onEditar(fila);
       });
       const radio = tr.querySelector('.cmp-elegir');
-      radio.addEventListener('change', () => { if (!fila.elegido) opts.onElegir && opts.onElegir(fila.provKey); });
+      if (radio) radio.addEventListener('change', () => { if (!fila.elegido) opts.onElegir && opts.onElegir(fila.provKey); });
       const del = tr.querySelector('.cmp-del');
       if (del) del.addEventListener('click', () => opts.onEliminar && opts.onEliminar(fila.provKey));
     });

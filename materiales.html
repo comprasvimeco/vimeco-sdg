@@ -29,6 +29,26 @@
     .mat-tabla .mat-acciones { text-align: right; }
     .mat-tabla .mat-alt { font-size: .68rem; color: var(--gray-400); margin-left: .3rem; }
     .mat-tabla tr.mat-fila-alt td { color: var(--gray-500); }
+    .cotiz-linea { border: 1px solid var(--gray-200); border-radius: var(--radius); padding: .65rem .75rem; margin-bottom: .6rem; }
+    .cotiz-linea-top { display: flex; align-items: center; gap: .75rem; margin-bottom: .5rem; }
+    .cotiz-linea-detectado { flex: 1 1 auto; font-size: .8rem; color: var(--gray-500); font-style: italic; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cotiz-linea-aplicar { display: flex; align-items: center; gap: .3rem; font-size: .8rem; color: var(--gray-600); white-space: nowrap; flex-shrink: 0; }
+    .cotiz-linea-del { background: none; border: none; color: var(--danger); cursor: pointer; padding: .2rem; flex-shrink: 0; }
+    .cotiz-linea .cl-material { margin-bottom: .5rem; }
+    .cotiz-file-nombre { font-size: .85rem; color: var(--gray-500); }
+    .cotiz-file-nombre.tiene-archivo { color: var(--gray-800); font-weight: 600; }
+    .cotiz-ia-loading { display: flex; align-items: center; justify-content: center; gap: .75rem; padding: 1.75rem 0; color: var(--gray-600); font-size: .9rem; }
+    .cotiz-ia-spinner { width: 20px; height: 20px; border: 2.5px solid var(--gray-200); border-top-color: var(--primary); border-radius: 50%; animation: cotiz-spin .8s linear infinite; flex-shrink: 0; }
+    @keyframes cotiz-spin { to { transform: rotate(360deg); } }
+    .cotiz-precio-label { display: block; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--gray-400); margin-bottom: .2rem; }
+    .cotiz-linea.tiene-error { border-color: var(--danger); }
+    .cotiz-material-nuevo { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin-bottom: .5rem; }
+    .cotiz-material-nuevo .cl-nuevo-nombre { flex: 1 1 160px; min-width: 0; }
+    .cotiz-material-nuevo .cl-nuevo-unidad { flex: 0 0 90px; width: 90px; }
+    .cotiz-chip-nuevo { flex-shrink: 0; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--warning, #b26a00); background: rgba(178,106,0,.1); border-radius: 999px; padding: .18rem .5rem; }
+    .cotiz-link-btn { flex-shrink: 0; background: none; border: none; padding: 0 .2rem; font-size: .78rem; color: var(--primary); cursor: pointer; text-decoration: underline; }
+    .cotiz-envase-hint { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; font-size: .78rem; color: var(--gray-600); margin-top: .5rem; }
+    .cotiz-envase-input { width: 55px; padding: .25rem .4rem; border: 1px solid var(--gray-300); border-radius: var(--radius); font-size: .78rem; }
   </style>
 </head>
 <body>
@@ -46,7 +66,11 @@
   <main class="app-main">
     <div class="list-toolbar">
       <span class="list-toolbar-title">Catálogo de materiales</span>
-      <button class="btn btn-primary btn-sm" id="btn-add-material">+ Agregar material</button>
+      <div class="flex items-center gap-2">
+        <button class="btn btn-outline btn-sm" id="btn-ia-lista" title="Leer una lista de precios de un proveedor (PDF o foto) con IA">Cargar lista con IA</button>
+        <button class="btn btn-primary btn-sm" id="btn-add-material">+ Agregar material</button>
+      </div>
+      <input type="file" id="ia-lista-input" class="hidden" accept=".pdf,.jpg,.jpeg,.png">
     </div>
     <div class="mat-filtros">
       <input type="text" id="materiales-search" class="form-control" placeholder="Buscar material o proveedor...">
@@ -97,7 +121,7 @@
         <div class="form-group u-mb-0">
           <label>Fuente (obra)</label>
           <div class="linea-select-container" id="material-fuente-container"></div>
-          <span class="form-hint">Obras que ya tienen un precio cargado para este material — elegí una para verlo/editarlo, o cualquier otra para cargar el primero.</span>
+          <span class="form-hint">Obras que ya tienen un precio cargado para este material — elegí una para verlo/editarlo, o cualquier otra para cargar el primero. En la lista general (sin obra) van precios de referencia que no entran en ningún costo.</span>
         </div>
         <div id="material-comparativa" class="mep-comparativa"></div>
 
@@ -106,6 +130,73 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" id="modal-material-cancel">Cancelar</button>
         <button class="btn btn-primary" id="modal-material-save">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: lista de precios con IA (js/cotizaciones-ia.js) -->
+  <div class="modal-overlay hidden" id="modal-cotizacion">
+    <div class="modal modal--lg">
+      <div class="modal-header">
+        <span class="modal-title" id="cotiz-modal-title">Extraer precios con IA</span>
+        <button class="modal-close" id="cotiz-modal-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div id="cotiz-paso-revision">
+          <span class="cotiz-file-nombre tiene-archivo" id="cotiz-file-nombre" style="display:block;margin-bottom:.75rem;"></span>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="cotiz-proveedor">Proveedor</label>
+              <input type="text" id="cotiz-proveedor" class="form-control" placeholder="Opcional">
+            </div>
+            <div class="form-group">
+              <label for="cotiz-fecha">Fecha del presupuesto</label>
+              <input type="date" id="cotiz-fecha" class="form-control">
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="cotiz-obra">Asignar a obra</label>
+            <select id="cotiz-obra" class="form-control"></select>
+            <span class="form-hint">Sin obra, los precios quedan en la lista general: de referencia, no entran en ningún costo hasta traerlos a una obra.</span>
+          </div>
+          <div id="cotiz-ia-loading" class="cotiz-ia-loading hidden">
+            <span class="cotiz-ia-spinner"></span>
+            <span>Leyendo el presupuesto con IA…</span>
+          </div>
+          <div id="cotiz-extraccion-hint" class="form-hint hidden" style="display:block;margin-bottom:.75rem;"></div>
+          <div id="cotiz-lineas-lista"></div>
+          <button class="btn btn-sm btn-outline" id="btn-cotiz-add-linea" type="button">+ Agregar línea manual</button>
+          <div id="cotiz-revision-error" class="alert alert-error hidden" style="margin-top:.75rem;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cotiz-modal-cancel">Cancelar</button>
+        <button class="btn btn-primary hidden" id="cotiz-modal-confirmar">Aplicar precios</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: alta rápida de material (desde la revisión de una cotización) -->
+  <div class="modal-overlay hidden" id="modal-cotiz-quick-material">
+    <div class="modal modal--sm">
+      <div class="modal-header">
+        <span class="modal-title">Nuevo material</span>
+        <button class="modal-close" id="cqm-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="cqm-nombre">Nombre *</label>
+          <input type="text" id="cqm-nombre" class="form-control" placeholder="Ej: Cemento Portland x50kg">
+        </div>
+        <div class="form-group u-mb-0">
+          <label for="cqm-unidad">Unidad *</label>
+          <input type="text" id="cqm-unidad" class="form-control" placeholder="Ej: kg, m3, u">
+        </div>
+        <div id="cqm-error" class="alert alert-error hidden"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="cqm-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="cqm-save">Guardar</button>
       </div>
     </div>
   </div>
@@ -143,5 +234,6 @@
   <script src="js/firebase.js"></script>
   <script src="js/undo.js"></script>
   <script src="js/materiales.js"></script>
+  <script src="js/cotizaciones-ia.js"></script>
 </body>
 </html>

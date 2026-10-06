@@ -123,6 +123,7 @@
   // El archivo puede estar todavía en memoria (recién subido en esta sesión);
   // si no, se baja de Cloudinary para poder mandárselo a Gemini.
   async function obtenerArchivo() {
+    if (state.cotizacion.file) return state.cotizacion.file; // lista de precios desde Materiales: no se guarda
     const enSesion = window.cotizFilesEnSesion && window.cotizFilesEnSesion[state.cotizacionKey];
     if (enSesion) return enSesion;
     const url = state.cotizacion.archivoUrl;
@@ -310,7 +311,8 @@
           + (nuevos ? ` ${nuevos === 1 ? '1 material no está' : `${nuevos} materiales no están`} en la biblioteca: se ${nuevos === 1 ? 'va' : 'van'} a crear al aplicar los precios.` : '')
         : 'No se detectó ninguna línea automáticamente — cargalas a mano.';
     } else {
-      hintEl.textContent = 'No se pudo leer el presupuesto con IA (sin conexión, sin cuota o formato ilegible) — el archivo sigue guardado; podés cargar los materiales a mano o cerrar y reintentar más tarde.';
+      hintEl.textContent = 'No se pudo leer el presupuesto con IA (sin conexión, sin cuota o formato ilegible)'
+        + (state.cotizacionKey ? ' — el archivo sigue guardado' : '') + '; podés cargar los materiales a mano o cerrar y reintentar más tarde.';
     }
 
     if (!state.lineas.length) agregarLineaManual();
@@ -589,6 +591,11 @@
     // Sin líneas válidas no hay nada que aplicar, pero el archivo ya está
     // guardado: se conservan proveedor y fecha y se cierra sin trabar al
     // usuario (antes esto era un callejón sin salida que perdía el archivo).
+    if (!aLineas.length && !cotizacionKey) {
+      errEl.textContent = 'Ninguna línea tiene material y precio: no hay nada para aplicar.';
+      errEl.classList.remove('hidden');
+      return;
+    }
     if (!aLineas.length) {
       btn.disabled = true;
       btn.textContent = 'Guardando…';
@@ -613,6 +620,11 @@
 
     btn.disabled = true;
     btn.textContent = 'Guardando…';
+
+    // Desde Materiales la obra es opcional: sin obra, los precios van a la
+    // lista general, que no entra en ningún costo (js/preciosMaterial.js).
+    const obraSel = document.getElementById('cotiz-obra');
+    const obraKey = state.obraKey || (obraSel && obraSel.value) || window.PRECIOS_GENERAL;
 
     const fallos = [];
     // Los materiales nuevos se crean recién acá, con el dólar ya resuelto:
@@ -656,10 +668,10 @@
         // pasa a ser el precio que usa la obra si el proveedor es nuevo en la
         // comparativa o si es el mismo que el elegido.
         const material = state.allMateriales.find(m => m.key === l.materialKey) || { key: l.materialKey };
-        await window.guardarPrecioProveedor(material, state.obraKey, {
+        await window.guardarPrecioProveedor(material, obraKey, {
           precioUSD: l.precioUSD, precioARS: l.precioARS,
           precioFormula: l.precioFormula, precioFormulaMoneda: l.precioFormulaMoneda,
-          proveedor, fecha, cotizacionUsada, origenCotizacionKey: cotizacionKey,
+          proveedor, fecha, cotizacionUsada, origenCotizacionKey: cotizacionKey || null,
         });
       } catch (_) {
         fallos.push(l.materialNombre);
@@ -668,7 +680,7 @@
 
     // PATCH y no PUT: el registro ya existe (lo creó la subida) y tiene los
     // datos del archivo, que no hay que pisar.
-    try {
+    if (cotizacionKey) try {
       await _fbPatch(`/obras/${state.obraKey}/cotizaciones/${cotizacionKey}.json`, {
         proveedor, fecha,
         lineasAplicadas: aLineas.filter(l => l.materialKey).map(l => ({ materialKey: l.materialKey, materialNombre: l.materialNombre, precioUSD: l.precioUSD, precioARS: l.precioARS })),

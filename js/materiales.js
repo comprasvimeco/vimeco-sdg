@@ -55,8 +55,9 @@ function filasDe(materiales) {
       const usd = p.precioUSD != null ? p.precioUSD : (ars != null && cot ? ars / cot : null);
       filas.push({
         material: m, obraKey, provKey: p.provKey, nombre: m.nombre, unidad: m.unidad || '',
-        proveedor: (p.proveedor || '').trim(), fecha: p.fecha || '', obra: obrasMap[obraKey] || obraKey,
+        proveedor: (p.proveedor || '').trim(), fecha: p.fecha || '', obra: window.nombreFuentePrecio(obraKey, obrasMap),
         ars, cot, usd, elegido: p.elegido, nProv: p.nProv, vigente: p.elegido && def && def.obraKey === obraKey,
+        general: obraKey === window.PRECIOS_GENERAL,
       });
     });
   });
@@ -91,7 +92,7 @@ function renderMateriales(filas) {
     `<th data-col="${c.col}"${c.num ? ' class="num"' : ''}>${c.label}${flecha(c.col)}</th>`).join('')}<th class="mat-sin-orden"></th></tr></thead>`;
   const vacio = '<span class="mat-vacio">—</span>';
   const cuerpo = filas.map((f, i) => `
-    <tr data-i="${i}"${f.obraKey && !f.elegido ? ' class="mat-fila-alt"' : ''}>
+    <tr data-i="${i}"${f.obraKey && !f.elegido && !f.general ? ' class="mat-fila-alt"' : ''}>
       <td class="mat-nombre">${escHtml(f.nombre)}</td>
       <td>${escHtml(f.unidad)}</td>
       <td>${f.proveedor ? escHtml(f.proveedor) : vacio}</td>
@@ -99,7 +100,7 @@ function renderMateriales(filas) {
       <td>${f.obraKey ? escHtml(f.obra)
         + (f.elegido && f.nProv > 1 ? '<span class="mat-vigente" title="Hay varios proveedores en esta obra: este es el que entra en el costo">elegido</span>' : '')
         + (f.vigente ? '<span class="mat-vigente" title="Es el precio más reciente: el que se usa en obras sin precio propio">vigente</span>' : '')
-        + (!f.elegido ? '<span class="mat-alt" title="Otro proveedor cargado para esta obra: no entra en el costo">alternativa</span>' : '') : '<span class="mat-vacio">Sin precio cargado</span>'}</td>
+        + (!f.elegido && !f.general ? '<span class="mat-alt" title="Otro proveedor cargado para esta obra: no entra en el costo">alternativa</span>' : '') : '<span class="mat-vacio">Sin precio cargado</span>'}</td>
       <td class="num">${f.ars != null ? fmtARSFijo(f.ars) : vacio}</td>
       <td class="num">${f.cot != null ? fmtARSFijo(f.cot) : vacio}</td>
       <td class="num">${f.usd != null ? fmtUSD(f.usd) : vacio}</td>
@@ -134,7 +135,8 @@ function renderOpcionesFiltros() {
   };
   const conPrecio = new Set(filas.filter(f => f.obraKey).map(f => f.obraKey));
   llenar($('materiales-filtro-obra'), 'Todas las obras',
-    allObras.filter(o => conPrecio.has(o.key)).map(o => [o.key, o.nombre]));
+    [...(conPrecio.has(window.PRECIOS_GENERAL) ? [[window.PRECIOS_GENERAL, 'Lista general (sin obra)']] : []),
+      ...allObras.filter(o => conPrecio.has(o.key)).map(o => [o.key, o.nombre])]);
   const provs = new Map();
   filas.forEach(f => { if (f.proveedor && !provs.has(f.proveedor.toLowerCase())) provs.set(f.proveedor.toLowerCase(), f.proveedor); });
   llenar($('materiales-filtro-proveedor'), 'Todos los proveedores',
@@ -239,6 +241,7 @@ function renderFuenteSelect(material, obraKey) {
       : 'Sin precio cargado';
     return { value: o.key, label: o.nombre, sublabel };
   });
+  options.unshift({ value: window.PRECIOS_GENERAL, label: 'Lista general (sin obra)', sublabel: 'Precios de referencia: no entran en ningún costo' });
   fuenteSelect = createSearchableSelect($('material-fuente-container'), {
     options,
     value: inicial,
@@ -340,7 +343,8 @@ async function saveMaterialModal() {
       if (precioData) res = await window.guardarPrecioProveedor(material, obraKey, precioData, { provKeyAnterior: editingKey ? provKeyEditando : null });
     });
     $('modal-material').classList.add('hidden');
-    showToast(res && !res.elegido ? 'Proveedor sumado a la comparativa. La obra sigue usando el elegido.'
+    showToast(res && res.general ? 'Precio guardado en la lista general.'
+      : res && !res.elegido ?'Proveedor sumado a la comparativa. La obra sigue usando el elegido.'
       : (editingKey ? 'Material actualizado.' : 'Material creado.'));
     await loadMateriales();
   } catch (_) {
@@ -350,6 +354,23 @@ async function saveMaterialModal() {
     saveBtn.disabled = false;
     saveBtn.textContent = 'Guardar';
   }
+}
+
+// Lista de precios de un proveedor leída con IA (js/cotizaciones-ia.js): el
+// archivo no se guarda, y los precios van a la lista general o a la obra que
+// se elija en el modal.
+function abrirListaIA(file) {
+  if (!/\.(pdf|jpe?g|png)$/i.test(file.name)) {
+    showToast('La IA lee PDF, JPG o PNG.', 'error');
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('El archivo es demasiado grande (máx. 10MB).', 'error');
+    return;
+  }
+  $('cotiz-obra').innerHTML = '<option value="">Ninguna (lista general)</option>' +
+    allObras.map(o => `<option value="${escHtml(o.key)}">${escHtml(o.nombre)}</option>`).join('');
+  window.openCotizacionModal(null, null, { archivoNombre: file.name, archivoTipo: file.type, file }, loadMateriales);
 }
 
 async function deleteMaterial(material) {
@@ -372,6 +393,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   attachDualPrecioInputs({ usdInput: $('material-precio-usd'), arsInput: $('material-precio-ars'), notaEl: $('material-precio-nota') });
 
   $('btn-add-material').addEventListener('click', openAddModal);
+  $('btn-ia-lista').addEventListener('click', () => $('ia-lista-input').click());
+  $('ia-lista-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (file) abrirListaIA(file);
+  });
   $('modal-material-close').addEventListener('click',  () => $('modal-material').classList.add('hidden'));
   $('modal-material-cancel').addEventListener('click', () => $('modal-material').classList.add('hidden'));
   $('modal-material-save').addEventListener('click', saveMaterialModal);
