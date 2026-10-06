@@ -507,7 +507,13 @@ async function saveEditarPrecioModal() {
    global); para editar la tasa/reparaciones/lubricantes/combustible de ESTA
    obra hay que ir a Equipos de la obra (paramsEquipos, por obra). */
 function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
-  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${escHtml(cuenta)}</span></span><span>${fmtARS(valor)}${unidad}</span></div>`;
+  return `<div class="ap-resumen-row"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${resaltarParams(escHtml(cuenta))}</span></span><span class="desglose-valor">${fmtARS(valor)}${unidad}</span></div>`;
+}
+
+// Los números de la cuenta (importes, %, horas) van marcados para poder
+// resaltarlos por CSS; el texto que los une queda en gris.
+function resaltarParams(html) {
+  return html.replace(/(US\$\s?|\$\s?)?\d[\d.,]*%?/g, m => `<span class="desglose-param">${m}</span>`);
 }
 
 function openDetalleEquipoModal(equipo) {
@@ -521,6 +527,8 @@ function openDetalleEquipoModal(equipo) {
     const jornada = modeloIns.paramsMO.jornadaHoras;
     const paramsEquipos = modeloIns.paramsEquipos;
     cont.innerHTML = [
+      filaDesglose('Costo actual', `Costo en dólares × cotización de la obra`,
+        `${fmtUSD(equipo.costoUSD)} × ${fmtARS(d.venta)}`, d.costoActual, ''),
       filaDesglose('Amortización', `Costo actual × jornada ÷ vida útil`,
         `${fmtARS(d.costoActual)} × ${fmtNum(jornada)} ÷ ${fmtNum(equipo.vidaUtil)}`, d.amortizacionDia),
       filaDesglose('Intereses', `Costo actual × tasa ÷ 2 ÷ uso anual × jornada`,
@@ -531,7 +539,7 @@ function openDetalleEquipoModal(equipo) {
         `${fmtNum(equipo.consumoCombustibleLtsPorHp)} × ${fmtNum(equipo.potencia)} × ${fmtNum(jornada)} × ${fmtARS(paramsEquipos.precioCombustibleLitro)}`, d.combustibleDia),
       filaDesglose('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`,
         `${paramsEquipos.lubricantesPct}% de ${fmtARS(d.combustibleDia)}`, d.lubricantesDia),
-      `<div class="ap-resumen-row total"><span>Costo diario del equipo</span><span>${fmtARS(d.costoDiarioTotal)}/día</span></div>`,
+      `<div class="ap-resumen-row total"><span>Costo diario del equipo</span><span class="desglose-valor">${fmtARS(d.costoDiarioTotal)}/día</span></div>`,
     ].join('');
   }
   $('modal-equipo-detalle').classList.remove('hidden');

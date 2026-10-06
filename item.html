@@ -44,6 +44,14 @@
     .ap-toggle-title.expandido .ap-chevron { transform: rotate(90deg); }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+    /* Desglose del costo diario de un equipo: secciones separadas, importes en pastillas */
+    #ed-desglose .ap-resumen-row { align-items: center; gap: 1rem; padding: .65rem 0; border-top: 1px solid var(--gray-200); }
+    #ed-desglose .ap-resumen-row:first-child { border-top: 0; padding-top: 0; }
+    #ed-desglose .ap-resumen-row:nth-child(2) { border-top: 2px solid var(--gray-200); }
+    #ed-desglose .desglose-param { color: var(--primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+    #ed-desglose .desglose-valor { flex-shrink: 0; padding: .25rem .7rem; border-radius: 999px; background: var(--gray-100); border: 1px solid var(--gray-200); font-family: var(--font-num); font-weight: 600; color: var(--gray-700); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    #ed-desglose .ap-resumen-row.total { border-top: 2px solid var(--gray-200); margin-top: .2rem; padding-top: .8rem; }
+    #ed-desglose .ap-resumen-row.total .desglose-valor { padding: .4rem .9rem; background: var(--primary); border-color: var(--primary); color: var(--white); font-weight: 700; }
     /* Mismos colores que la columna "Dif." de Presupuesto: arriba del oficial en rojo, abajo en verde. */
     .ap-dif-oficial { font-weight: 600; }
     .ap-dif-oficial.dif-pos { color: var(--danger); }
@@ -437,7 +445,7 @@
 
   <!-- Modal: Desglose del costo diario de un equipo (sólo lectura) -->
   <div class="modal-overlay hidden" id="modal-equipo-detalle">
-    <div class="modal modal--sm">
+    <div class="modal">
       <div class="modal-header">
         <span class="modal-title">Costo diario del equipo</span>
         <button class="modal-close" id="modal-ed-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
