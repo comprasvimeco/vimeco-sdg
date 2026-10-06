@@ -44,23 +44,25 @@
     .ap-toggle-title.expandido .ap-chevron { transform: rotate(90deg); }
     .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
     .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
-    /* Desglose del costo diario de un equipo: secciones separadas, importes en pastillas */
-    #ed-desglose .ap-resumen-row { align-items: center; gap: 1rem; padding: .65rem 0; border-top: 1px solid var(--gray-200); }
-    #ed-desglose .ap-resumen-row:first-child { border-top: 0; padding-top: 0; }
-    #ed-desglose .ap-resumen-row:nth-child(2) { border-top: 2px solid var(--gray-200); }
-    #ed-desglose .desglose-param { color: var(--primary); font-weight: 600; font-variant-numeric: tabular-nums; }
-    #ed-desglose .desglose-valor { flex-shrink: 0; padding: .25rem .7rem; border-radius: 999px; background: var(--gray-100); border: 1px solid var(--gray-200); font-family: var(--font-num); font-weight: 600; color: var(--gray-700); font-variant-numeric: tabular-nums; white-space: nowrap; }
-    #ed-desglose .ap-resumen-row.total { border-top: 2px solid var(--gray-200); margin-top: .2rem; padding-top: .8rem; }
-    #ed-desglose .ap-resumen-row.total .desglose-valor { padding: .4rem .9rem; background: var(--primary); border-color: var(--primary); color: var(--white); font-weight: 700; }
-    #ed-desglose .desglose-ref { display: inline-block; padding: 0 .4rem; border-radius: 999px; font-weight: 600; font-variant-numeric: tabular-nums; }
-    #ed-desglose .ap-resumen-row.total .desglose-ref { margin: .1rem 0; }
-    #ed-desglose .ap-resumen-row.total .text-muted { font-weight: 400; color: var(--gray-500); }
-    #ed-desglose .eq-c1 { background: #eef0f7; border-color: #d9dcea; color: #3f4a73; }
-    #ed-desglose .eq-c2 { background: #edf3f7; border-color: #d6e3ec; color: #2f5a75; }
-    #ed-desglose .eq-c3 { background: #f6f2ea; border-color: #e8ddc9; color: #6e5a33; }
-    #ed-desglose .eq-c4 { background: #f6eeee; border-color: #e8d6d6; color: #7a4146; }
-    #ed-desglose .eq-c5 { background: #edf4f0; border-color: #d4e5db; color: #36624b; }
-    #ed-desglose .eq-c6 { background: #f2eff6; border-color: #e0d9ea; color: #5b4a78; }
+    /* Desgloses de equipo y de mano de obra: secciones separadas, importes en pastillas */
+    .desglose-color .ap-resumen-row { align-items: center; gap: 1rem; padding: .65rem 0; border-top: 1px solid var(--gray-200); }
+    .desglose-color .ap-resumen-row:first-child { border-top: 0; padding-top: 0; }
+    .desglose-color .ap-resumen-row:nth-child(2) { border-top: 2px solid var(--gray-200); }
+    .desglose-color .desglose-param { color: var(--primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .desglose-color .desglose-valor { flex-shrink: 0; padding: .25rem .7rem; border-radius: 999px; background: var(--gray-100); border: 1px solid var(--gray-200); font-family: var(--font-num); font-weight: 600; color: var(--gray-700); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .desglose-color .ap-resumen-row.total { border-top: 2px solid var(--gray-200); margin-top: .2rem; padding-top: .8rem; }
+    .desglose-color .ap-resumen-row.total .desglose-valor { padding: .4rem .9rem; background: var(--primary); border-color: var(--primary); color: var(--white); font-weight: 700; }
+    .desglose-color .desglose-ref { display: inline-block; padding: 0 .4rem; border-radius: 999px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .desglose-color .ap-resumen-row.total .desglose-ref { margin: .1rem 0; }
+    .desglose-color .ap-resumen-row.total .text-muted { font-weight: 400; color: var(--gray-500); }
+    .desglose-color .eq-c1 { background: #eef0f7; border-color: #d9dcea; color: #3f4a73; }
+    .desglose-color .eq-c2 { background: #edf3f7; border-color: #d6e3ec; color: #2f5a75; }
+    .desglose-color .eq-c3 { background: #f6f2ea; border-color: #e8ddc9; color: #6e5a33; }
+    .desglose-color .eq-c4 { background: #f6eeee; border-color: #e8d6d6; color: #7a4146; }
+    .desglose-color .eq-c5 { background: #edf4f0; border-color: #d4e5db; color: #36624b; }
+    .desglose-color .eq-c6 { background: #f2eff6; border-color: #e0d9ea; color: #5b4a78; }
+    .desglose-color .eq-c7 { background: #eef4f4; border-color: #d5e4e4; color: #3b6363; }
+    .desglose-color .ap-resumen-row.subtotal { border-top: 2px solid var(--gray-200); }
     /* Mismos colores que la columna "Dif." de Presupuesto: arriba del oficial en rojo, abajo en verde. */
     .ap-dif-oficial { font-weight: 600; }
     .ap-dif-oficial.dif-pos { color: var(--danger); }
@@ -461,7 +463,7 @@
       </div>
       <div class="modal-body">
         <p style="font-weight:600; margin-bottom:.75rem;" id="ed-equipo-nombre"></p>
-        <div id="ed-desglose"></div>
+        <div id="ed-desglose" class="desglose-color"></div>
         <p class="form-hint" style="margin-top:.75rem;">Para editar potencia, vida útil, uso anual o costo de este equipo, andá a <a href="equipos.html" id="ed-link-equipos" target="_blank" rel="noopener">Equipos</a>. Para editar la tasa de interés, % de reparaciones, % de lubricantes o el precio del combustible de esta obra, andá a <a href="#" id="ed-link-params" target="_blank" rel="noopener">Equipos de la obra</a>.</p>
       </div>
       <div class="modal-footer">
@@ -472,13 +474,13 @@
 
   <!-- Modal: Detalle del costo de una categoría de Mano de Obra (sólo lectura) -->
   <div class="modal-overlay hidden" id="modal-mano-de-obra-detalle">
-    <div class="modal modal--sm">
+    <div class="modal">
       <div class="modal-header">
         <span class="modal-title" id="mor-nombre">Mano de obra</span>
         <button class="modal-close" id="modal-mor-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
       </div>
       <div class="modal-body">
-        <div id="mor-desglose"></div>
+        <div id="mor-desglose" class="desglose-color"></div>
         <p class="form-hint" style="margin-top:.75rem;">Para editar el básico, el extra, el no remunerativo o la fecha de esta categoría, andá a <a href="#" id="mor-link-editar" target="_blank" rel="noopener">Mano de Obra de la obra</a>.</p>
       </div>
       <div class="modal-footer">

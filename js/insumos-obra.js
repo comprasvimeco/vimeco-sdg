@@ -515,13 +515,13 @@ function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
 function resaltarParams(html) {
   return html.replace(/(US\$\s?|\$\s?)?\d[\d.,]*%?/g, m => `<span class="desglose-param">${m}</span>`);
 }
-// Fila del desglose de equipo: la pastilla lleva el color de la sección, y
+// Fila de los desgloses de equipo y de mano de obra: la pastilla lleva el color de la sección, y
 // cuando ese importe se usa en la cuenta de otra sección aparece con el mismo
 // color — así se sigue a ojo de dónde sale cada número.
-function filaEquipo(label, formula, cuentaHtml, valor, color, unidad = '/día', extraClase = '') {
-  return `<div class="ap-resumen-row ${extraClase}"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${cuentaHtml}</span></span><span class="desglose-valor ${color}">${fmtARS(valor)}${unidad}</span></div>`;
+function filaColor(label, formula, cuentaHtml, valor, color, unidad = '/día', extraClase = '') {
+  return `<div class="ap-resumen-row ${extraClase}"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span>${cuentaHtml ? `<br><span class="text-muted" style="font-size:.7rem;">${cuentaHtml}</span>` : ""}</span><span class="desglose-valor ${color}">${fmtARS(valor)}${unidad}</span></div>`;
 }
-function refEquipo(valor, color) {
+function refColor(valor, color) {
   return `<span class="desglose-ref ${color}">${fmtARS(valor)}</span>`;
 }
 
@@ -538,21 +538,21 @@ function openDetalleEquipoModal(equipo) {
     const paramsEquipos = modeloIns.paramsEquipos;
     const p = t => resaltarParams(escHtml(t));
     cont.innerHTML = [
-      filaEquipo('Costo actual', `Costo en dólares × cotización de la obra`,
+      filaColor('Costo actual', `Costo en dólares × cotización de la obra`,
         p(`${fmtUSD(equipo.costoUSD)} × ${fmtARS(d.venta)}`), d.costoActual, 'eq-c1', ''),
-      filaEquipo('Amortización', `Costo actual × jornada ÷ vida útil`,
-        `${refEquipo(d.costoActual, 'eq-c1')} ${p(`× ${fmtNum(jornada)} ÷ ${fmtNum(equipo.vidaUtil)}`)}`, d.amortizacionDia, 'eq-c2'),
-      filaEquipo('Intereses', `Costo actual × tasa ÷ 2 ÷ uso anual × jornada`,
-        `${refEquipo(d.costoActual, 'eq-c1')} ${p(`× ${paramsEquipos.tasaInteresPct}% ÷ 2 ÷ ${fmtNum(equipo.usoAnual)} × ${fmtNum(jornada)}`)}`, d.interesesDia, 'eq-c3'),
-      filaEquipo('Reparaciones y Repuestos', `${paramsEquipos.reparacionesPct}% de Amortización`,
-        `${p(`${paramsEquipos.reparacionesPct}% de`)} ${refEquipo(d.amortizacionDia, 'eq-c2')}`, d.reparacionesDia, 'eq-c4'),
-      filaEquipo('Combustibles', `Consumo × potencia × jornada × precio`,
+      filaColor('Amortización', `Costo actual × jornada ÷ vida útil`,
+        `${refColor(d.costoActual, 'eq-c1')} ${p(`× ${fmtNum(jornada)} ÷ ${fmtNum(equipo.vidaUtil)}`)}`, d.amortizacionDia, 'eq-c2'),
+      filaColor('Intereses', `Costo actual × tasa ÷ 2 ÷ uso anual × jornada`,
+        `${refColor(d.costoActual, 'eq-c1')} ${p(`× ${paramsEquipos.tasaInteresPct}% ÷ 2 ÷ ${fmtNum(equipo.usoAnual)} × ${fmtNum(jornada)}`)}`, d.interesesDia, 'eq-c3'),
+      filaColor('Reparaciones y Repuestos', `${paramsEquipos.reparacionesPct}% de Amortización`,
+        `${p(`${paramsEquipos.reparacionesPct}% de`)} ${refColor(d.amortizacionDia, 'eq-c2')}`, d.reparacionesDia, 'eq-c4'),
+      filaColor('Combustibles', `Consumo × potencia × jornada × precio`,
         p(`${fmtNum(equipo.consumoCombustibleLtsPorHp)} × ${fmtNum(equipo.potencia)} × ${fmtNum(jornada)} × ${fmtARS(paramsEquipos.precioCombustibleLitro)}`), d.combustibleDia, 'eq-c5'),
-      filaEquipo('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`,
-        `${p(`${paramsEquipos.lubricantesPct}% de`)} ${refEquipo(d.combustibleDia, 'eq-c5')}`, d.lubricantesDia, 'eq-c6'),
-      filaEquipo('Costo diario del equipo', `Amortización + Intereses + Reparaciones + Combustibles + Lubricantes`,
+      filaColor('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`,
+        `${p(`${paramsEquipos.lubricantesPct}% de`)} ${refColor(d.combustibleDia, 'eq-c5')}`, d.lubricantesDia, 'eq-c6'),
+      filaColor('Costo diario del equipo', `Amortización + Intereses + Reparaciones + Combustibles + Lubricantes`,
         [[d.amortizacionDia, 'eq-c2'], [d.interesesDia, 'eq-c3'], [d.reparacionesDia, 'eq-c4'], [d.combustibleDia, 'eq-c5'], [d.lubricantesDia, 'eq-c6']]
-          .map(([v, c]) => refEquipo(v, c)).join(' + '), d.costoDiarioTotal, '', '/día', 'total'),
+          .map(([v, c]) => refColor(v, c)).join(' + '), d.costoDiarioTotal, '', '/día', 'total'),
     ].join('');
   }
   $('modal-equipo-detalle').classList.remove('hidden');
@@ -573,27 +573,33 @@ function openDetalleRolModal(rol) {
   } else {
     const paramsMO = modeloIns.paramsMO;
     const c = window.calcCostoManoDeObra(rol, paramsMO);
+    const p = t => resaltarParams(escHtml(t));
     const filas = [
-      filaDesglose('Con Asistencia', `Básico × (1 + Asistencia%)`,
-        `${fmtARS(rol.basico)} × (1 + ${paramsMO.asistenciaPct}%)`, c.conAsistencia, '/hs'),
-      filaDesglose('Con Cargas Sociales', `Con Asistencia × (1 + Cargas%)`,
-        `${fmtARS(c.conAsistencia)} × (1 + ${paramsMO.cargasPct}%)`, c.conCargas, '/hs'),
+      filaColor('Básico', 'Básico horario de la categoría en esta obra', '', rol.basico, 'eq-c1', '/hs'),
+      filaColor('Con Asistencia', `Básico × (1 + Asistencia%)`,
+        `${refColor(rol.basico, 'eq-c1')} ${p(`× (1 + ${paramsMO.asistenciaPct}%)`)}`, c.conAsistencia, 'eq-c2', '/hs'),
+      filaColor('Con Cargas Sociales', `Con Asistencia × (1 + Cargas%)`,
+        `${refColor(c.conAsistencia, 'eq-c2')} ${p(`× (1 + ${paramsMO.cargasPct}%)`)}`, c.conCargas, 'eq-c3', '/hs'),
     ];
+    const sumandos = [['Con Cargas', c.conCargas, 'eq-c3']];
     if (rol.extraPct) {
-      filas.push(filaDesglose('Extra (aparte, sin cargas)', `Básico × Extra%`,
-        `${fmtARS(rol.basico)} × ${rol.extraPct}%`, c.extraPorHora, '/hs'));
+      filas.push(filaColor('Extra (aparte, sin cargas)', `Básico × Extra%`,
+        `${refColor(rol.basico, 'eq-c1')} ${p(`× ${rol.extraPct}%`)}`, c.extraPorHora, 'eq-c4', '/hs'));
+      sumandos.push(['Extra', c.extraPorHora, 'eq-c4']);
     }
     if (rol.noRemunerativoMensual) {
-      filas.push(filaDesglose('No remunerativo (prorrateado)', `No remunerativo ÷ (días/mes × jornada)`,
-        `${fmtARS(rol.noRemunerativoMensual)} ÷ (${fmtNum(paramsMO.diasMes)} × ${fmtNum(paramsMO.jornadaHoras)})`, c.comidaPorHora, '/hs'));
+      filas.push(filaColor('No remunerativo (prorrateado)', `No remunerativo ÷ (días/mes × jornada)`,
+        p(`${fmtARS(rol.noRemunerativoMensual)} ÷ (${fmtNum(paramsMO.diasMes)} × ${fmtNum(paramsMO.jornadaHoras)})`), c.comidaPorHora, 'eq-c5', '/hs'));
+      sumandos.push(['No remunerativo', c.comidaPorHora, 'eq-c5']);
     }
-    filas.push(`<div class="ap-resumen-row total"><span>Costo horario</span><span>${fmtARS(c.costoHorario)}/hs</span></div>`);
+    filas.push(filaColor('Costo horario', sumandos.map(s => s[0]).join(' + '),
+      sumandos.map(([, v, col]) => refColor(v, col)).join(' + '), c.costoHorario, 'eq-c6', '/hs', 'subtotal'));
     if (paramsMO.comidaActivo) {
-      filas.push(filaDesglose(`Costo horario × jornada`, `Costo horario × jornada`,
-        `${fmtARS(c.costoHorario)} × ${fmtNum(paramsMO.jornadaHoras)}`, c.costoHorario * paramsMO.jornadaHoras, '/día'));
-      filas.push(filaDesglose('Comida (fija por día)', 'Monto fijo de la obra', fmtARS(c.comidaDia), c.comidaDia, '/día'));
+      filas.push(filaColor('Comida (fija por día)', 'Monto fijo de la obra', '', c.comidaDia, 'eq-c7'));
     }
-    filas.push(`<div class="ap-resumen-row total"><span>Jornal (${fmtNum(paramsMO.jornadaHoras)}hs)</span><span>${fmtARS(c.costoJornal)}/día</span></div>`);
+    filas.push(filaColor(`Jornal (${fmtNum(paramsMO.jornadaHoras)}hs)`, `Costo horario × jornada${paramsMO.comidaActivo ? ' + Comida' : ''}`,
+      `${refColor(c.costoHorario, 'eq-c6')} ${p(`× ${fmtNum(paramsMO.jornadaHoras)}`)}${paramsMO.comidaActivo ? ` + ${refColor(c.comidaDia, 'eq-c7')}` : ''}`,
+      c.costoJornal, '', '/día', 'total'));
     cont.innerHTML = filas.join('');
   }
   $('modal-mano-de-obra-editar').classList.remove('hidden');
