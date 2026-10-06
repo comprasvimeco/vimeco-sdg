@@ -243,14 +243,14 @@ window.showConfirm = function (title, msg) {
   });
 };
 
-/* Modo lectura / edición de una obra. En Ejecución o Terminada el default es
+/* Modo lectura / edición de una obra. En Cerrada, Ejecución o Terminada el default es
    siempre lectura (aunque se confirme editar, es un desbloqueo temporal de
    esta carga de página, nunca se persiste); en Preparación es un candado
    manual guardado en obra.soloLectura, que sí queda entre sesiones.
    window._soloLectura es lo que consultan los guards de guardado de cada
    pantalla (ver guardBloqueoObra). */
 window.obraEsSoloLectura = function (obra) {
-  const forzadaLectura = obra.estado === 'ejecucion' || obra.estado === 'terminada';
+  const forzadaLectura = ['cerrada', 'ejecucion', 'terminada'].includes(obra.estado);
   return forzadaLectura || !!obra.soloLectura;
 };
 
@@ -281,7 +281,7 @@ window.setModoObra = function (obraKey, obra, onChange) {
     return;
   }
 
-  const forzadaLectura = obra.estado === 'ejecucion' || obra.estado === 'terminada';
+  const forzadaLectura = ['cerrada', 'ejecucion', 'terminada'].includes(obra.estado);
   window._soloLectura = forzadaLectura || !!obra.soloLectura;
 
   const btn = document.getElementById('header-modo');
@@ -305,7 +305,7 @@ window.setModoObra = function (obraKey, obra, onChange) {
   btn.onclick = async () => {
     if (window._soloLectura) {
       if (forzadaLectura) {
-        const label = obra.estado === 'terminada' ? 'terminada' : 'en ejecución';
+        const label = { cerrada: 'cerrada', terminada: 'terminada' }[obra.estado] || 'en ejecución';
         const ok = await showConfirm('Pasar a modo edición',
           `Esta obra está ${label}. ¿Confirmás editar igual? Al volver a entrar queda en modo lectura de nuevo.`);
         if (!ok) return;

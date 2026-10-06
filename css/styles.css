@@ -214,6 +214,7 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .u-badge-inactivo { background: #fee2e2; color: #991b1b; }
 .u-badge-neutro   { background: var(--gray-200); color: var(--gray-600); }
 .u-badge-info     { background: #dbeafe; color: #1e40af; }
+.u-badge-aviso    { background: #fef3c7; color: #92400e; }
 
 /* ===== MENU CARDS (dashboard) ===== */
 .menu-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }

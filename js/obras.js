@@ -8,12 +8,14 @@ const $ = id => document.getElementById(id);
 
 const ESTADOS = {
   preparacion: { label: 'En preparación', badge: 'u-badge-neutro' },
+  cerrada:     { label: 'Cerrada',        badge: 'u-badge-aviso' },
   ejecucion:   { label: 'En ejecución',   badge: 'u-badge-info' },
   terminada:   { label: 'Terminada',      badge: 'u-badge-activo' },
 };
 const FILTROS_ESTADO = [
   { value: 'todas', label: 'Todas' },
   { value: 'preparacion', label: ESTADOS.preparacion.label },
+  { value: 'cerrada', label: ESTADOS.cerrada.label },
   { value: 'ejecucion', label: ESTADOS.ejecucion.label },
   { value: 'terminada', label: ESTADOS.terminada.label },
 ];

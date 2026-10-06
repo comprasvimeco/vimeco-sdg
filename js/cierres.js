@@ -233,6 +233,17 @@ async function confirmarRestaurar() {
   await loadAll();
 }
 
+/* Marcar una versión como presentada cierra la obra: pasa de En preparación a
+   Cerrada, y con eso queda en modo lectura. Sólo avanza desde Preparación —
+   una obra ya en ejecución o terminada no vuelve atrás por esto. */
+async function cerrarObraSiPresentada(enviada) {
+  if (!enviada || (modeloVivo.obra.estado || 'preparacion') !== 'preparacion') return;
+  await _fbPatch(`/obras/${obraKey}.json`, { estado: 'cerrada' });
+  modeloVivo.obra.estado = 'cerrada';
+  obraBloqueada = window.obraEsSoloLectura(modeloVivo.obra);
+  showToast('La obra pasó a estado Cerrada.', 'success');
+}
+
 /* Editar cómo se nombra una versión: nombre, notas y si es la que se presentó.
    Los datos guardados y sus números no se tocan — para eso está el lápiz y no
    un botón más grande.
@@ -261,6 +272,7 @@ async function confirmarEditar() {
       notas: $('editar-notas').value.trim() || null,
       enviada: $('editar-presentada').checked,
     });
+    await cerrarObraSiPresentada($('editar-presentada').checked);
   } catch (_) {
     toast('Error al guardar los datos de la versión.', 'error');
     return;
@@ -350,6 +362,11 @@ async function confirmarCierre() {
 
   cerrarModalCerrar();
   showToast('Versión guardada.', 'success');
+  try {
+    await cerrarObraSiPresentada($('cierre-presentada').checked);
+  } catch (_) {
+    toast('La versión se guardó, pero no se pudo pasar la obra a Cerrada.', 'error');
+  }
   await cargarLista();
   renderCierres();
 }
