@@ -653,8 +653,8 @@
       if (!l.materialKey) continue; // no se pudo crear el material: ya está en `fallos`
       try {
         // Se suma a la comparativa de proveedores de la obra (js/preciosMaterial.js):
-        // pasa a ser el precio que usa la obra sólo si no tenía ninguno o si
-        // es el mismo proveedor que el elegido.
+        // pasa a ser el precio que usa la obra si el proveedor es nuevo en la
+        // comparativa o si es el mismo que el elegido.
         const material = state.allMateriales.find(m => m.key === l.materialKey) || { key: l.materialKey };
         await window.guardarPrecioProveedor(material, state.obraKey, {
           precioUSD: l.precioUSD, precioARS: l.precioARS,

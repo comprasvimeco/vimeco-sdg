@@ -74,8 +74,10 @@
   };
 
   // Guarda el precio de un proveedor en la comparativa de la obra. Pasa a
-  // ser el que usa la obra si no había ninguno elegido, si es el mismo
-  // proveedor que el elegido, o si se pide con opts.elegir.
+  // ser el que usa la obra si es un proveedor nuevo en la comparativa (el
+  // último que se agrega queda elegido), si es el mismo proveedor que el
+  // elegido, o si se pide con opts.elegir. Editar una alternativa que ya
+  // estaba no la elige.
   // opts.provKeyAnterior: la key de la fila que se estaba editando, por si
   // se le cambió el nombre al proveedor (cambia la key: se borra la vieja).
   window.guardarPrecioProveedor = async function (material, obraKey, precioData, opts) {
@@ -88,7 +90,8 @@
     const datos = limpio(precioData);
     const enProveedores = k => !!(((material.proveedores || {})[obraKey]) || {})[k];
 
-    const esElegido = !elegido || key === eKey || (anterior && anterior === eKey) || opts.elegir;
+    const esNuevo = !anterior && key !== eKey && !enProveedores(key);
+    const esElegido = !elegido || esNuevo || key === eKey || (anterior && anterior === eKey) || opts.elegir;
     if (esElegido) {
       // Si se elige uno nuevo por encima de otro proveedor, el anterior no se
       // pierde: baja a la comparativa.
