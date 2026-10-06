@@ -356,7 +356,7 @@ async function loadAll() {
    Mismo modal y misma lógica que el editor inline de item.js (AP) — ver
    [[project_rediseno_fuentes_precios]]: el precio es por obra-fuente, sin
    historial. Acá la obra activa es siempre la de esta pantalla (obraKey);
-   el desplegable "Fuente" sólo sirve para consultar el precio de otra obra,
+   el desplegable "Traer proveedor" carga en ESTA obra uno de otra obra, y
    guardar siempre pisa el precio de ESTA obra. */
 let editingPrecioMaterialKey = null;
 let mepFuenteSelect = null;
@@ -417,28 +417,21 @@ function fillMepPrecioFields(p) {
   $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
 }
 
+// Traer un proveedor de otra obra lo carga en esta como el que usa, en el
+// momento (sin pasar por Guardar), igual que elegir uno de la comparativa.
+function montarTraerProveedorMep(mat) {
+  return window.montarTraerProveedor($('mep-fuente-container'), $('mep-fuente-hint'), mat, obraKey, obrasMap, async p => {
+    mepProvKeyEditando = p.provKey;
+    await escribirComparativaMep(mat, 'el proveedor traído de otra obra', () => window.guardarPrecioProveedor(mat, obraKey, p, { elegir: true }));
+    mepFuenteSelect = montarTraerProveedorMep(mat);
+  });
+}
+
 function openEditarPrecioModal(mat) {
   editingPrecioMaterialKey = mat.key;
   $('mep-nombre').value = mat.nombre || '';
   $('mep-unidad').value = mat.unidad || '';
-
-  const obraActivaNombre = obrasMap[obraKey] || obraKey;
-  $('mep-fuente-hint').textContent = `Guardar siempre actualiza el precio de esta obra (${obraActivaNombre}) — elegí otra obra acá sólo para consultar su precio.`;
-
-  const obraKeysConPrecio = Object.keys(mat.precios || {});
-  const options = obraKeysConPrecio.map(k => ({
-    value: k, label: obrasMap[k] || k,
-    sublabel: k === obraKey ? 'esta obra' : undefined,
-  }));
-  if (!options.find(o => o.value === obraKey)) {
-    options.unshift({ value: obraKey, label: obraActivaNombre, sublabel: 'esta obra · sin precio todavía' });
-  }
-  mepFuenteSelect = createSearchableSelect($('mep-fuente-container'), {
-    options,
-    value: obraKey,
-    placeholder: 'Buscar obra…',
-    onChange: v => loadMepPrecioFields(mat, v),
-  });
+  mepFuenteSelect = montarTraerProveedorMep(mat);
   loadMepPrecioFields(mat, obraKey);
   const ro = !!window._soloLectura;
   ['mep-nombre', 'mep-unidad', 'mep-precio-usd', 'mep-precio-ars', 'mep-proveedor', 'mep-fecha'].forEach(id => { $(id).disabled = ro; });

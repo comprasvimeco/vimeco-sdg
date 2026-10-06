@@ -117,6 +117,22 @@
     return { provKey: key, elegido: !!esElegido };
   };
 
+  // Los proveedores de un material en las OTRAS obras (elegidos y
+  // alternativas), uno por proveedor con su precio más reciente, del más
+  // reciente al más viejo. Los sin nombre de proveedor quedan afuera.
+  window.proveedoresDeOtrasObras = function (material, obraKey) {
+    const porKey = {};
+    const sumar = (p, oKey, provKey) => {
+      if (!p || !p.proveedor || oKey === obraKey) return;
+      const prev = porKey[provKey];
+      if (!prev || (p.fecha || '') > (prev.fecha || '')) porKey[provKey] = { ...p, provKey, obraKey: oKey };
+    };
+    Object.entries(material.precios || {}).forEach(([oKey, p]) => sumar(p, oKey, elegidoKeyDe(p)));
+    Object.entries(material.proveedores || {}).forEach(([oKey, provs]) =>
+      Object.entries(provs || {}).forEach(([provKey, p]) => sumar(p, oKey, provKey)));
+    return Object.values(porKey).sort((a, b) => (b.fecha || '').localeCompare(a.fecha || ''));
+  };
+
   // Pasa a usar en la obra el precio de otro proveedor de la comparativa.
   window.elegirProveedorPrecio = async function (material, obraKey, provKey) {
     const base = pathMaterial(material, obraKey);
@@ -173,6 +189,32 @@
       `de ${(obrasMap && obrasMap[def.obraKey]) || def.obraKey}`,
     ].filter(Boolean);
     return `Esta obra no tiene precio propio: usa el vigente — ${partes.join(' · ')}.`;
+  };
+
+  // Desplegable "Traer proveedor" de la ficha de precio: elegir uno lo carga
+  // en la obra como el que usa (onTraer recibe la fila de proveedoresDeOtrasObras).
+  window.montarTraerProveedor = function (container, hintEl, material, obraKey, obrasMap, onTraer) {
+    const filas = window.proveedoresDeOtrasObras(material, obraKey);
+    const options = filas.map(p => ({
+      value: p.provKey,
+      label: p.proveedor,
+      sublabel: [
+        p.precioARS != null ? fmtARSFijo(p.precioARS) : (p.precioUSD != null ? fmtUSD(p.precioUSD) : null),
+        p.fecha ? fmtFechaCorta(p.fecha) : 'sin fecha',
+        (obrasMap && obrasMap[p.obraKey]) || p.obraKey,
+      ].filter(Boolean).join(' · '),
+    }));
+    hintEl.textContent = filas.length
+      ? 'Los de otras obras, del más reciente al más viejo. Al elegir uno queda cargado en esta obra como el proveedor que usa.'
+      : 'Este material no tiene proveedores cargados en otras obras.';
+    return createSearchableSelect(container, {
+      options,
+      value: null,
+      placeholder: filas.length ? 'Buscar proveedor…' : 'Sin proveedores en otras obras',
+      optionLayout: 'stacked',
+      disabled: !filas.length || !!window._soloLectura,
+      onChange: v => { const p = filas.find(f => f.provKey === v); if (p) onTraer(p); },
+    });
   };
 
   // Tabla de la comparativa dentro de una ficha de precio.

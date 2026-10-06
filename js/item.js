@@ -2197,31 +2197,22 @@ function fillMepPrecioFields(p) {
   $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
 }
 
-// Fuente acá es sólo para CONSULTAR el precio de otra obra como referencia —
-// Guardar siempre escribe el precio de la obra activa (activeVersion), sin
-// importar qué obra esté mostrando el desplegable en ese momento.
+// Traer un proveedor de otra obra lo carga en la obra activa como el que
+// usa, en el momento (sin pasar por Guardar), igual que elegir uno de la
+// comparativa. Guardar siempre escribe el precio de la obra activa.
+function montarTraerProveedorMep(mat) {
+  return window.montarTraerProveedor($('mep-fuente-container'), $('mep-fuente-hint'), mat, activeVersion, obrasMap, async p => {
+    mepProvKeyEditando = p.provKey;
+    await escribirComparativaMep(mat, 'el proveedor traído de otra obra', () => window.guardarPrecioProveedor(mat, activeVersion, p, { elegir: true }));
+    mepFuenteSelect = montarTraerProveedorMep(mat);
+  });
+}
+
 function openEditarPrecioModal(mat) {
   editingPrecioMaterialKey = mat.key;
   $('mep-nombre').value = mat.nombre || '';
   $('mep-unidad').value = mat.unidad || '';
-
-  const obraActivaNombre = obrasMap[activeVersion] || activeVersion;
-  $('mep-fuente-hint').textContent = `Guardar siempre actualiza el precio de la obra activa (${obraActivaNombre}) — elegí otra obra acá sólo para consultar su precio.`;
-
-  const obraKeysConPrecio = Object.keys(mat.precios || {});
-  const options = obraKeysConPrecio.map(k => ({
-    value: k, label: obrasMap[k] || k,
-    sublabel: k === activeVersion ? 'obra activa' : undefined,
-  }));
-  if (!options.find(o => o.value === activeVersion)) {
-    options.unshift({ value: activeVersion, label: obraActivaNombre, sublabel: 'obra activa · sin precio todavía' });
-  }
-  mepFuenteSelect = createSearchableSelect($('mep-fuente-container'), {
-    options,
-    value: activeVersion,
-    placeholder: 'Buscar obra…',
-    onChange: v => loadMepPrecioFields(mat, v),
-  });
+  mepFuenteSelect = montarTraerProveedorMep(mat);
   loadMepPrecioFields(mat, activeVersion);
   const ro = !!window._soloLectura;
   ['mep-nombre', 'mep-unidad', 'mep-precio-usd', 'mep-precio-ars', 'mep-proveedor', 'mep-fecha'].forEach(id => { $(id).disabled = ro; });
