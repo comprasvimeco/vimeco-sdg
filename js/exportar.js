@@ -1048,7 +1048,7 @@ function seccionCargaFija() {
   return `
     ${membrete('Carga Fija')}
     ${bloqueK}
-    <p class="doc-notas">La Carga Fija se aplica al costo unitario de cada ítem para obtener su precio unitario. Cada impuesto se calcula sobre el subtotal con gasto financiero.</p>`;
+    <p class="doc-notas">La Carga Fija se aplica al costo unitario de cada ítem para obtener su precio unitario.</p>`;
 }
 
 /* Gastos fijos de la obra: el desglose concepto por concepto, con montos.
