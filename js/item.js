@@ -2297,6 +2297,16 @@ function filaDesglose(label, formula, cuenta, valor, unidad = '/día') {
 function resaltarParams(html) {
   return html.replace(/(US\$\s?|\$\s?)?\d[\d.,]*%?/g, m => `<span class="desglose-param">${m}</span>`);
 }
+// Fila del desglose de equipo: la pastilla lleva el color de la sección, y
+// cuando ese importe se usa en la cuenta de otra sección aparece con el mismo
+// color — así se sigue a ojo de dónde sale cada número.
+function filaEquipo(label, formula, cuentaHtml, valor, color, unidad = '/día', extraClase = '') {
+  return `<div class="ap-resumen-row ${extraClase}"><span>${escHtml(label)}<br><span class="text-muted" style="font-size:.75rem;">${escHtml(formula)}</span><br><span class="text-muted" style="font-size:.7rem;">${cuentaHtml}</span></span><span class="desglose-valor ${color}">${fmtARS(valor)}${unidad}</span></div>`;
+}
+function refEquipo(valor, color) {
+  return `<span class="desglose-ref ${color}">${fmtARS(valor)}</span>`;
+}
+
 
 // Consultas que se abren desde este A.P. (el A.P. de un auxiliar-insumo, el
 // catálogo de Equipos, Equipos de la obra): en una ventana chica y centrada, no en pestaña, para
@@ -2318,20 +2328,23 @@ function openDetalleEquipoModal(equipo) {
     cont.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Faltan datos de costo para este equipo (costo, vida útil o uso anual), o no se pudo obtener la cotización del dólar.</p>';
   } else {
     const jornada = paramsMO.jornadaHoras;
+    const p = t => resaltarParams(escHtml(t));
     cont.innerHTML = [
-      filaDesglose('Costo actual', `Costo en dólares × cotización de la obra`,
-        `${fmtUSD(equipo.costoUSD)} × ${fmtARS(d.venta)}`, d.costoActual, ''),
-      filaDesglose('Amortización', `Costo actual × jornada ÷ vida útil`,
-        `${fmtARS(d.costoActual)} × ${fmtNum(jornada)} ÷ ${fmtNum(equipo.vidaUtil)}`, d.amortizacionDia),
-      filaDesglose('Intereses', `Costo actual × tasa ÷ 2 ÷ uso anual × jornada`,
-        `${fmtARS(d.costoActual)} × ${paramsEquipos.tasaInteresPct}% ÷ 2 ÷ ${fmtNum(equipo.usoAnual)} × ${fmtNum(jornada)}`, d.interesesDia),
-      filaDesglose('Reparaciones y Repuestos', `${paramsEquipos.reparacionesPct}% de Amortización`,
-        `${paramsEquipos.reparacionesPct}% de ${fmtARS(d.amortizacionDia)}`, d.reparacionesDia),
-      filaDesglose('Combustibles', `Consumo × potencia × jornada × precio`,
-        `${fmtNum(equipo.consumoCombustibleLtsPorHp)} × ${fmtNum(equipo.potencia)} × ${fmtNum(jornada)} × ${fmtARS(paramsEquipos.precioCombustibleLitro)}`, d.combustibleDia),
-      filaDesglose('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`,
-        `${paramsEquipos.lubricantesPct}% de ${fmtARS(d.combustibleDia)}`, d.lubricantesDia),
-      `<div class="ap-resumen-row total"><span>Costo diario del equipo</span><span class="desglose-valor">${fmtARS(d.costoDiarioTotal)}/día</span></div>`,
+      filaEquipo('Costo actual', `Costo en dólares × cotización de la obra`,
+        p(`${fmtUSD(equipo.costoUSD)} × ${fmtARS(d.venta)}`), d.costoActual, 'eq-c1', ''),
+      filaEquipo('Amortización', `Costo actual × jornada ÷ vida útil`,
+        `${refEquipo(d.costoActual, 'eq-c1')} ${p(`× ${fmtNum(jornada)} ÷ ${fmtNum(equipo.vidaUtil)}`)}`, d.amortizacionDia, 'eq-c2'),
+      filaEquipo('Intereses', `Costo actual × tasa ÷ 2 ÷ uso anual × jornada`,
+        `${refEquipo(d.costoActual, 'eq-c1')} ${p(`× ${paramsEquipos.tasaInteresPct}% ÷ 2 ÷ ${fmtNum(equipo.usoAnual)} × ${fmtNum(jornada)}`)}`, d.interesesDia, 'eq-c3'),
+      filaEquipo('Reparaciones y Repuestos', `${paramsEquipos.reparacionesPct}% de Amortización`,
+        `${p(`${paramsEquipos.reparacionesPct}% de`)} ${refEquipo(d.amortizacionDia, 'eq-c2')}`, d.reparacionesDia, 'eq-c4'),
+      filaEquipo('Combustibles', `Consumo × potencia × jornada × precio`,
+        p(`${fmtNum(equipo.consumoCombustibleLtsPorHp)} × ${fmtNum(equipo.potencia)} × ${fmtNum(jornada)} × ${fmtARS(paramsEquipos.precioCombustibleLitro)}`), d.combustibleDia, 'eq-c5'),
+      filaEquipo('Lubricantes', `${paramsEquipos.lubricantesPct}% de Combustibles`,
+        `${p(`${paramsEquipos.lubricantesPct}% de`)} ${refEquipo(d.combustibleDia, 'eq-c5')}`, d.lubricantesDia, 'eq-c6'),
+      filaEquipo('Costo diario del equipo', `Amortización + Intereses + Reparaciones + Combustibles + Lubricantes`,
+        [[d.amortizacionDia, 'eq-c2'], [d.interesesDia, 'eq-c3'], [d.reparacionesDia, 'eq-c4'], [d.combustibleDia, 'eq-c5'], [d.lubricantesDia, 'eq-c6']]
+          .map(([v, c]) => refEquipo(v, c)).join(' + '), d.costoDiarioTotal, '', '/día', 'total'),
     ].join('');
   }
   $('modal-equipo-detalle').classList.remove('hidden');
