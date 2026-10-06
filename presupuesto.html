@@ -54,7 +54,9 @@
     .resumen-total-label { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gray-500); }
     .resumen-total-valor { font-family: var(--font-num); font-size: 2rem; font-weight: 800; color: var(--primary); line-height: 1.15; font-variant-numeric: tabular-nums; }
     .resumen-pills { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .6rem; }
-    #comparacion-oficial .resumen-pills { justify-content: flex-end; }
+    #resumen { order: 2; margin-left: auto; text-align: right; }
+    #resumen .resumen-pills { justify-content: flex-end; }
+    .resumen-hint { order: 3; }
     .resumen-pill { display: inline-flex; align-items: baseline; gap: .4rem; padding: .3rem .7rem; border-radius: 999px; background: var(--gray-100); border: 1px solid var(--gray-200); font-size: .8rem; color: var(--gray-500); white-space: nowrap; }
     .resumen-pill b { font-family: var(--font-num); font-weight: 600; color: var(--gray-700); font-variant-numeric: tabular-nums; }
     .resumen-pill.dif-pos { background: #fee2e2; border-color: #fecaca; }
@@ -64,7 +66,8 @@
     .resumen-hint { flex-basis: 100%; margin: 0; font-size: .72rem; color: var(--gray-400); }
     @media (max-width: 700px) {
       .resumen-total-valor { font-size: 1.5rem; }
-      #comparacion-oficial .resumen-pills { justify-content: flex-start; }
+      #resumen { order: 0; margin-left: 0; text-align: left; }
+      #resumen .resumen-pills { justify-content: flex-start; }
       .resumen-pill { white-space: normal; }
     }
 
