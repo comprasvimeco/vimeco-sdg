@@ -118,7 +118,8 @@ function renderObraCard({ obra: o, anexos, atenuada, abierta }) {
           <button class="obra-card-anexos-toggle ${abierta ? 'is-abierta' : ''}" title="${abierta ? 'Ocultar' : 'Ver'} anexos">
             ${anexos.length < total ? `${anexos.length} de ${total}` : total} anexo${total === 1 ? '' : 's'} ${icSvg('arrowDown')}
           </button>` : ''}
-        <button class="obras-pill-cyp btn-computo-obra">CyP ${icSvg('chevR')}</button>
+        <button class="obras-pill-accion obras-pill-datos">Datos</button>
+        <button class="obras-pill-accion obras-pill-cyp btn-computo-obra">CyP ${icSvg('chevR')}</button>
       </div>
       ${anexos.length && abierta ? `<div class="obra-anexos">${anexos.map(renderAnexo).join('')}</div>` : ''}
     </div>`;
@@ -142,7 +143,6 @@ function abrirMenuObra(btn, obra) {
   menu.innerHTML = `
     <button data-accion="editar">${icSvg('edit')}Editar</button>
     <button data-accion="duplicar">${icSvg('copy')}Duplicar</button>
-    <button data-accion="datos">${icSvg('file')}Datos</button>
     ${esAnexo(obra) ? '' : `<button data-accion="anexo">${icSvg('plus')}Agregar anexo</button>`}`;
   document.body.appendChild(menu);
   const r = btn.getBoundingClientRect();
@@ -156,7 +156,6 @@ function abrirMenuObra(btn, obra) {
     cerrarMenuObra();
     if (b.dataset.accion === 'editar') openEditModal(obra);
     else if (b.dataset.accion === 'duplicar') openDuplicarModal(obra);
-    else if (b.dataset.accion === 'datos') window.location.href = 'datos-obra.html?obra=' + encodeURIComponent(obra.key);
     else if (b.dataset.accion === 'anexo') openAddModal(obra.key);
   });
 }
@@ -217,7 +216,8 @@ function onClickLista(e) {
     applyFilter();
     return;
   }
-  const url = 'computo.html?obra=' + encodeURIComponent(obra.key);
+  const pagina = e.target.closest('.obras-pill-datos') ? 'datos-obra.html' : 'computo.html';
+  const url = pagina + '?obra=' + encodeURIComponent(obra.key);
   if (e.ctrlKey || e.metaKey) window.open(url, '_blank');
   else window.location.href = url;
 }
