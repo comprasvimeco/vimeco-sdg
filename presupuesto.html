@@ -49,8 +49,24 @@
     .presupuesto-linea-dif { text-align: right; white-space: nowrap; font-weight: 600; }
     .presupuesto-linea-dif.dif-pos { color: var(--danger); }
     .presupuesto-linea-dif.dif-neg { color: var(--success); }
-    .ap-resumen-row { display: flex; justify-content: space-between; padding: .3rem 0; font-size: .9rem; color: var(--gray-600); }
-    .ap-resumen-row.total { font-size: 1.05rem; font-weight: 700; color: var(--primary); border-top: 1px solid var(--gray-200); padding-top: .6rem; margin-top: .4rem; }
+    /* ===== Resumen: el total manda, el resto va en pastillas ===== */
+    .resumen-presupuesto { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem 2rem; }
+    .resumen-total-label { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--gray-500); }
+    .resumen-total-valor { font-family: var(--font-num); font-size: 2rem; font-weight: 800; color: var(--primary); line-height: 1.15; font-variant-numeric: tabular-nums; }
+    .resumen-pills { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .6rem; }
+    #comparacion-oficial .resumen-pills { justify-content: flex-end; }
+    .resumen-pill { display: inline-flex; align-items: baseline; gap: .4rem; padding: .3rem .7rem; border-radius: 999px; background: var(--gray-100); border: 1px solid var(--gray-200); font-size: .8rem; color: var(--gray-500); white-space: nowrap; }
+    .resumen-pill b { font-family: var(--font-num); font-weight: 600; color: var(--gray-700); font-variant-numeric: tabular-nums; }
+    .resumen-pill.dif-pos { background: #fee2e2; border-color: #fecaca; }
+    .resumen-pill.dif-pos b { color: #991b1b; }
+    .resumen-pill.dif-neg { background: #dcfce7; border-color: #bbf7d0; }
+    .resumen-pill.dif-neg b { color: #166534; }
+    .resumen-hint { flex-basis: 100%; margin: 0; font-size: .72rem; color: var(--gray-400); }
+    @media (max-width: 700px) {
+      .resumen-total-valor { font-size: 1.5rem; }
+      #comparacion-oficial .resumen-pills { justify-content: flex-start; }
+      .resumen-pill { white-space: normal; }
+    }
 
     /* ===== MOBILE: mismas grillas de ancho fijo que Cómputo -- se reacomodan
        en varias filas por ítem/rubro, misma info, sin tocar el HTML/JS. ===== */
@@ -117,13 +133,11 @@
     </div>
 
     <div class="card">
-      <div class="card-header"><span class="card-title">Resumen</span></div>
-      <div class="card-body" id="resumen"></div>
-    </div>
-
-    <div class="card" id="card-comparacion-oficial">
-      <div class="card-header"><span class="card-title">Comparación con el presupuesto oficial</span> <span class="u-badge u-badge-info">Uso interno</span></div>
-      <div class="card-body" id="comparacion-oficial"></div>
+      <div class="card-body resumen-presupuesto">
+        <div id="resumen"></div>
+        <div id="comparacion-oficial"></div>
+        <p class="resumen-hint" id="resumen-hint"></p>
+      </div>
     </div>
   </main>
   <div id="main-loading" class="app-main"><div class="list-loading">Cargando presupuesto…</div></div>

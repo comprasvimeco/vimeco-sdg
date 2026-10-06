@@ -124,10 +124,14 @@ function renderComparacionOficial() {
   const diferencia = modelo.total - oficial;
   const diferenciaPct = oficial ? diferencia / oficial : null;
 
+  // Por encima del oficial en rojo, por debajo en verde: mismo criterio que la columna Dif. % por ítem.
+  const claseDif = diferencia > 0 ? ' dif-pos' : diferencia < 0 ? ' dif-neg' : '';
   cmp.innerHTML = `
-    <div class="ap-resumen-row"><span>Presupuesto oficial</span><span${calcAttrs(oficial, 'presupuesto:oficial', 'Presupuesto oficial')}>${fmtARS(oficial)}</span></div>
-    <div class="ap-resumen-row"><span>Total del Presupuesto (propio)</span><span${calcAttrs(modelo.total, 'presupuesto:totalPropio', 'Total del Presupuesto (propio)')}>${fmtARS(modelo.total)}</span></div>
-    <div class="ap-resumen-row total"><span>Diferencia</span><span${calcAttrs(diferencia, 'presupuesto:diferenciaOficial', 'Diferencia con el presupuesto oficial')}>${fmtARS(diferencia)} (${fmtPct(diferenciaPct)})</span></div>`;
+    <div class="resumen-pills">
+      <span class="u-badge u-badge-info">Uso interno</span>
+      <span class="resumen-pill">Presupuesto oficial <b${calcAttrs(oficial, 'presupuesto:oficial', 'Presupuesto oficial')}>${fmtARS(oficial)}</b></span>
+      <span class="resumen-pill${claseDif}">Diferencia <b${calcAttrs(diferencia, 'presupuesto:diferenciaOficial', 'Diferencia con el presupuesto oficial')}>${fmtARS(diferencia)} (${fmtPct(diferenciaPct)})</b></span>
+    </div>`;
 }
 
 function renderTodo() {
@@ -139,6 +143,7 @@ function renderTodo() {
     container.innerHTML = '<p class="text-muted" style="font-size:.85rem;">Esta obra todavía no tiene ítems cargados en el Cómputo — no se puede calcular el Presupuesto hasta que haya un costo de obra sobre el cual aplicar la Carga Fija.</p>';
     resumen.innerHTML = '';
     cmp.innerHTML = '';
+    $('resumen-hint').textContent = '';
     return;
   }
 
@@ -179,12 +184,15 @@ function renderTodo() {
   if (mostrarOficial) engancharInputsOficial(container);
 
   resumen.innerHTML = `
-    <div class="ap-resumen-row"><span>Costo total del Cómputo</span><span${calcAttrs(modelo.costoComputo, 'presupuesto:costoComputo', 'Costo total del Cómputo')}>${fmtARS(modelo.costoComputo)}</span></div>
-    <div class="ap-resumen-row"><span>Carga Fija</span><span${calcAttrs(modelo.k, 'presupuesto:k', 'Carga Fija')}>${fmtK(modelo.k)}</span></div>
-    <div class="ap-resumen-row total"><span>Total del Presupuesto</span><span${calcAttrs(modelo.total, 'presupuesto:total', 'Total del Presupuesto')}>${fmtARS(modelo.total)}</span></div>
-    <p class="form-hint" style="margin-top:.5rem;">${cierreKey
-      ? 'Estos números salen de los datos congelados al cerrar: no los mueve ningún cambio posterior, ni de esta obra ni del catálogo.'
-      : 'La Carga Fija se recalcula en vivo a partir de su pantalla — no se cachea.'}</p>`;
+    <div class="resumen-total-label">Total del Presupuesto</div>
+    <div class="resumen-total-valor"${calcAttrs(modelo.total, 'presupuesto:total', 'Total del Presupuesto')}>${fmtARS(modelo.total)}</div>
+    <div class="resumen-pills">
+      <span class="resumen-pill">Costo del Cómputo <b${calcAttrs(modelo.costoComputo, 'presupuesto:costoComputo', 'Costo total del Cómputo')}>${fmtARS(modelo.costoComputo)}</b></span>
+      <span class="resumen-pill">× Carga Fija <b${calcAttrs(modelo.k, 'presupuesto:k', 'Carga Fija')}>${fmtK(modelo.k)}</b></span>
+    </div>`;
+  $('resumen-hint').textContent = cierreKey
+    ? 'Estos números salen de los datos congelados al cerrar: no los mueve ningún cambio posterior, ni de esta obra ni del catálogo.'
+    : 'La Carga Fija se recalcula en vivo a partir de su pantalla — no se cachea.';
 
   renderComparacionOficial();
 }
