@@ -25,11 +25,14 @@
   <main class="app-main">
     <div class="list-toolbar">
       <span class="list-toolbar-title">Obras del sistema</span>
-      <button class="btn btn-primary btn-sm" id="btn-add-obra">+ Agregar obra</button>
+      <button class="btn btn-primary btn-sm obras-btn-agregar" id="btn-add-obra">+ Agregar obra</button>
     </div>
     <div class="obras-filtros">
-      <input type="text" id="obras-search" class="form-control" placeholder="Buscar obra...">
-      <div id="obras-estado-filtro" class="version-tabs"></div>
+      <label class="obras-search-wrap">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="obras-search" class="form-control" placeholder="Buscar obra o ubicación…">
+      </label>
+      <div id="obras-estado-filtro" class="obras-pills"></div>
     </div>
     <div id="obras-list" class="obras-grupos">
       <div class="list-loading">Cargando obras…</div>

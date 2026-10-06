@@ -246,8 +246,25 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
    list-toolbar. La búsqueda tiene ancho propio; los chips reutilizan
    .version-tabs pero sin su margin-top (acá van al lado, no debajo). */
 .obras-filtros { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-.obras-filtros #obras-search { max-width: 260px; flex: 1 1 200px; }
-.obras-filtros .version-tabs { margin-top: 0; }
+.obras-search-wrap { position: relative; display: flex; align-items: center; max-width: 300px; flex: 1 1 220px; margin: 0; }
+.obras-search-wrap .icon { position: absolute; left: .85rem; width: 16px; height: 16px; color: var(--gray-400); }
+.obras-search-wrap #obras-search { padding-left: 2.3rem; border-radius: 999px; }
+.obras-btn-agregar { border-radius: 999px; padding-inline: 1rem; }
+
+/* Pastillas de estado: punto del color del estado (el del borde de la
+   tarjeta) y cantidad. La activa se rellena con el azul de la app. */
+.obras-pills { display: flex; gap: .4rem; flex-wrap: wrap; }
+.obras-pill { --dot: var(--gray-400); display: inline-flex; align-items: center; gap: .4rem; padding: .32rem .75rem; border: 1px solid var(--gray-200); border-radius: 999px; background: var(--glass-bg-strong); font-size: .8rem; font-weight: 600; color: var(--gray-600); cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
+.obras-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--dot); }
+.obras-pill--todas::before { display: none; }
+.obras-pill--cerrada   { --dot: var(--warning); }
+.obras-pill--ejecucion { --dot: var(--primary-light); }
+.obras-pill--terminada { --dot: var(--success); }
+.obras-pill:hover { border-color: var(--primary-light); color: var(--primary); }
+.obras-pill.is-activa { background: var(--primary); border-color: var(--primary); color: var(--white); }
+.obras-pill.is-activa::before { box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
+.obras-pill-cant { min-width: 1.3rem; padding: 0 .35rem; border-radius: 999px; background: var(--gray-100); font-size: .7rem; color: var(--gray-500); text-align: center; }
+.obras-pill.is-activa .obras-pill-cant { background: rgba(255,255,255,.2); color: var(--white); }
 
 /* Secciones plegables por año en obras.html. El body reusa .list-container
    para las .item-card de adentro, sin cambiar su estructura. */
@@ -274,6 +291,9 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .obra-card-meta { font-size: .8rem; color: var(--gray-500); }
 .obra-card-foot { display: flex; align-items: center; gap: .5rem; }
 .obra-card-foot .btn-computo-obra { margin-left: auto; }
+.obras-pill-cyp { display: inline-flex; align-items: center; gap: .15rem; padding: .25rem .5rem .25rem .8rem; border: none; border-radius: 999px; background: var(--grad-header); font-size: .78rem; font-weight: 700; color: var(--white); cursor: pointer; box-shadow: 0 2px 6px -2px rgba(26,58,92,.4); transition: transform .15s var(--ease-spring); }
+.obras-pill-cyp .icon { width: 14px; height: 14px; transition: transform .15s var(--ease-spring); }
+.obra-card:hover .obras-pill-cyp .icon { transform: translateX(2px); }
 .obra-card-menu { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: none; border-radius: 6px; background: none; color: var(--gray-400); cursor: pointer; }
 .obra-card-menu .icon { width: 18px; height: 18px; }
 .obra-card-menu:hover { background: var(--gray-100); color: var(--gray-700); }

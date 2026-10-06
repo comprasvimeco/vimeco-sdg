@@ -51,8 +51,13 @@ function guardarGruposColapsados() {
 
 function renderFiltroEstado() {
   const wrap = $('obras-estado-filtro');
-  wrap.innerHTML = FILTROS_ESTADO.map(f => `
-    <button class="btn btn-sm ${f.value === estadoActivo ? 'btn-primary' : 'btn-outline'} btn-filtro-estado" data-estado="${f.value}">${f.label}</button>`).join('');
+  // Pastillas con punto del color del estado (el mismo del borde de la
+  // tarjeta) y cuántas obras hay en cada uno.
+  wrap.innerHTML = FILTROS_ESTADO.map(f => {
+    const cant = f.value === 'todas' ? allObras.length : allObras.filter(o => (o.estado || 'preparacion') === f.value).length;
+    return `
+    <button class="obras-pill obras-pill--${f.value} ${f.value === estadoActivo ? 'is-activa' : ''} btn-filtro-estado" data-estado="${f.value}">${f.label}${allObras.length ? ` <span class="obras-pill-cant">${cant}</span>` : ''}</button>`;
+  }).join('');
   wrap.querySelectorAll('.btn-filtro-estado').forEach(btn => {
     btn.addEventListener('click', () => {
       estadoActivo = btn.dataset.estado;
@@ -113,7 +118,7 @@ function renderObraCard({ obra: o, anexos, atenuada, abierta }) {
           <button class="obra-card-anexos-toggle ${abierta ? 'is-abierta' : ''}" title="${abierta ? 'Ocultar' : 'Ver'} anexos">
             ${anexos.length < total ? `${anexos.length} de ${total}` : total} anexo${total === 1 ? '' : 's'} ${icSvg('arrowDown')}
           </button>` : ''}
-        <button class="btn btn-sm btn-primary btn-computo-obra">CyP</button>
+        <button class="obras-pill-cyp btn-computo-obra">CyP ${icSvg('chevR')}</button>
       </div>
       ${anexos.length && abierta ? `<div class="obra-anexos">${anexos.map(renderAnexo).join('')}</div>` : ''}
     </div>`;
@@ -223,7 +228,7 @@ function onClickLista(e) {
 function applyFilter() {
   const query = $('obras-search').value;
   const filtroActivo = estadoActivo !== 'todas' || !!window.normBusqueda(query);
-  const delEstado = allObras.filter(o => estadoActivo === 'todas' || o.estado === estadoActivo);
+  const delEstado = allObras.filter(o => estadoActivo === 'todas' || (o.estado || 'preparacion') === estadoActivo);
   const coinciden = new Set(window.buscarSimilares(delEstado, query,
     o => `${o.nombre || ''} ${o.ubicacion || ''}`).lista.map(o => o.key));
 
@@ -248,6 +253,7 @@ async function loadObras() {
     const data = await _fbGet('/obras.json');
     allObras = Object.entries(data || {}).map(([key, o]) => ({ key, ...o }))
       .sort((a, b) => (b.creadaEn || 0) - (a.creadaEn || 0));
+    renderFiltroEstado();
     applyFilter();
   } catch (_) {
     $('obras-list').innerHTML = '<div class="list-empty">Error al cargar obras.</div>';
