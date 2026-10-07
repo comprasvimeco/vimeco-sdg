@@ -580,4 +580,35 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .cmp-del { border: none; background: none; color: var(--gray-400); font-size: 1rem; line-height: 1; cursor: pointer; padding: 0 .2rem; }
 .cmp-del:hover { color: var(--danger); }
 .mep-comparativa:not(:empty) { margin: .75rem 0; }
+
+/* ===== Básicos UOCRA por mes (js/manoDeObra.js) =====
+   Un <tbody> por mes: fila del básico y, si ese mes lo hay, fila del no
+   remunerativo debajo, con el mes ocupando las dos. */
+.uocra-wrap { overflow-x: auto; background: var(--glass-bg-strong); border: 1px solid var(--gray-200); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); }
+.uocra-tabla { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.uocra-tabla th, .uocra-tabla td { padding: .55rem .9rem; white-space: nowrap; text-align: left; }
+.uocra-tabla thead th { font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--gray-500); border-bottom: 2px solid var(--gray-200); }
+.uocra-tabla .num { text-align: right; font-variant-numeric: tabular-nums; }
+.uocra-tabla tbody.uocra-mes { cursor: pointer; border-top: 1px solid var(--gray-200); }
+.uocra-tabla tbody.uocra-mes:first-of-type { border-top: none; }
+.uocra-tabla tbody.uocra-mes:hover td { background: #eef3fa; }
+.uocra-tabla .uocra-mes-nombre { font-weight: 600; color: var(--primary-dark); vertical-align: middle; text-transform: capitalize; }
+.uocra-tabla .uocra-concepto { color: var(--gray-500); font-size: .75rem; }
+.uocra-tabla .uocra-concepto small { color: var(--gray-400); margin-left: .25rem; }
+.uocra-tabla tr.uocra-norem td { padding-top: 0; color: var(--gray-600); font-size: .8rem; }
+.uocra-tabla tr.uocra-norem .uocra-concepto { font-size: .72rem; }
+.uocra-var { display: inline-block; min-width: 3.6rem; margin-left: .5rem; padding: .05rem .4rem; border-radius: 999px; font-size: .68rem; font-weight: 600; text-align: center; color: var(--gray-500); background: var(--gray-100); }
+.uocra-var.sube { color: #b42318; background: #fdecea; }
+.uocra-var.baja { color: #157f3b; background: #e7f6ec; }
+.uocra-var.vacia { visibility: hidden; }
+.uocra-tabla tbody.uocra-acum td { border-top: 2px solid var(--gray-200); background: var(--gray-100); }
+.uocra-tabla tbody.uocra-acum .uocra-mes-nombre { font-size: .8rem; }
+.uocra-tabla .uocra-mes-nombre, .uocra-tabla .uocra-concepto, .uocra-tabla thead th:nth-child(-n+2) { width: 1%; }
+@media (max-width: 640px) {
+  .uocra-tabla th, .uocra-tabla td { padding: .45rem .55rem; }
+  .uocra-tabla .uocra-concepto small { display: none; }
+  /* El mes queda fijo a la izquierda al scrollear de costado. */
+  .uocra-tabla .uocra-mes-nombre, .uocra-tabla thead th:first-child { position: sticky; left: 0; z-index: 1; background: var(--white); box-shadow: 1px 0 0 var(--gray-200); }
+  .uocra-tabla tbody.uocra-acum .uocra-mes-nombre { background: var(--gray-100); }
+}
 .mep-vigente { margin-bottom: .75rem; }

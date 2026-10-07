@@ -24,10 +24,23 @@ const vacio = n => n == null || isNaN(n);
 const variacion = (actual, previo) =>
   (vacio(actual) || vacio(previo) || !previo) ? null : actual / previo - 1;
 
+// Variación como etiqueta al lado del valor. Sin dato se deja el lugar
+// reservado (invisible) para que las cifras sigan alineadas.
 function celdaVar(v) {
-  if (v == null) return '';
-  const cls = v > 0 ? 'cmp-sube' : v < 0 ? 'cmp-baja' : '';
-  return `<div class="${cls}" style="font-size:.68rem;">${v > 0 ? '+' : ''}${fmtPct(v)}</div>`;
+  if (v == null) return '<span class="uocra-var vacia">—</span>';
+  const cls = v > 0.00005 ? ' sube' : v < -0.00005 ? ' baja' : '';
+  return `<span class="uocra-var${cls}">${v > 0 ? '+' : ''}${fmtPct(v)}</span>`;
+}
+
+const tieneNoRem = m => CATS.some(c => !vacio(m[c.key] && m[c.key].noRemunerativoMensual));
+
+// Celdas de una fila (básico o no remunerativo) con su variación contra `ref`.
+function celdasFila(m, ref, campo) {
+  return CATS.map(c => {
+    const v = (m[c.key] || {})[campo];
+    const p = ref ? (ref[c.key] || {})[campo] : null;
+    return `<td class="num">${vacio(v) ? '—' : fmtARS(v)}${celdaVar(variacion(v, p))}</td>`;
+  }).join('');
 }
 
 function renderTabla() {
@@ -37,43 +50,48 @@ function renderTabla() {
     $('uocra-comparar-wrap').classList.add('hidden');
     return;
   }
-  // La columna del no remunerativo aparece sólo si algún mes lo tiene.
-  const hayNoRem = meses.some(m => CATS.some(c => !vacio(m[c.key] && m[c.key].noRemunerativoMensual)));
 
-  const head = CATS.map(c => `<th class="num">${escHtml(c.nombre)}<br><span style="font-weight:400;">Básico $/hs</span></th>`
-    + (hayNoRem ? `<th class="num">${escHtml(c.nombre)}<br><span style="font-weight:400;">No rem. $/mes</span></th>` : '')).join('');
-
-  const filas = meses.map((m, i) => {
+  // Un <tbody> por mes: el básico y, debajo, el no remunerativo si ese mes lo hay.
+  const bloques = meses.map((m, i) => {
     const previo = meses[i + 1];
-    const celdas = CATS.map(c => {
-      const v = m[c.key] || {};
-      const p = (previo && previo[c.key]) || {};
-      return `<td class="num">${vacio(v.basico) ? '—' : fmtARS(v.basico)}${celdaVar(variacion(v.basico, p.basico))}</td>`
-        + (hayNoRem ? `<td class="num">${vacio(v.noRemunerativoMensual) ? '—' : fmtARS(v.noRemunerativoMensual)}${celdaVar(variacion(v.noRemunerativoMensual, p.noRemunerativoMensual))}</td>` : '');
-    }).join('');
-    return `<tr data-mes="${escHtml(m.mes)}" title="Clic para editar"><td>${escHtml(window.fmtMesUocra(m.mes))}</td>${celdas}</tr>`;
+    const noRem = tieneNoRem(m);
+    return `<tbody class="uocra-mes" data-mes="${escHtml(m.mes)}" title="Clic para editar">
+      <tr>
+        <td class="uocra-mes-nombre"${noRem ? ' rowspan="2"' : ''}>${escHtml(window.fmtMesUocra(m.mes))}</td>
+        <td class="uocra-concepto">Básico<small>$/hs</small></td>
+        ${celdasFila(m, previo, 'basico')}
+      </tr>
+      ${noRem ? `<tr class="uocra-norem">
+        <td class="uocra-concepto">No remunerativo<small>$/mes</small></td>
+        ${celdasFila(m, previo, 'noRemunerativoMensual')}
+      </tr>` : ''}
+    </tbody>`;
   }).join('');
 
-  // Acumulado del mes elegido al último cargado.
-  let pie = '';
+  // Acumulado del mes elegido al último cargado. El no remunerativo sólo si
+  // los dos extremos lo tienen.
+  let acum = '';
   const desde = meses.find(m => m.mes === compararDesde);
   if (desde && meses.length > 1 && desde !== meses[0]) {
     const ultimo = meses[0];
-    const celdas = CATS.map(c => {
-      const a = ultimo[c.key] || {};
-      const d = desde[c.key] || {};
-      return `<td class="num">${celdaVar(variacion(a.basico, d.basico)) || '—'}</td>`
-        + (hayNoRem ? `<td class="num">${celdaVar(variacion(a.noRemunerativoMensual, d.noRemunerativoMensual)) || '—'}</td>` : '');
-    }).join('');
-    pie = `<tfoot><tr><td><strong>Acumulado</strong><div class="form-hint" style="margin:0;">${escHtml(window.fmtMesUocra(desde.mes))} → ${escHtml(window.fmtMesUocra(ultimo.mes))}</div></td>${celdas}</tr></tfoot>`;
+    const pcts = campo => CATS.map(c =>
+      `<td class="num">${celdaVar(variacion((ultimo[c.key] || {})[campo], (desde[c.key] || {})[campo]))}</td>`).join('');
+    const noRem = tieneNoRem(ultimo) && tieneNoRem(desde);
+    acum = `<tbody class="uocra-acum">
+      <tr>
+        <td class="uocra-mes-nombre"${noRem ? ' rowspan="2"' : ''}>Acumulado<div class="form-hint" style="margin:0;font-weight:400;text-transform:none;">${escHtml(window.fmtMesUocra(desde.mes))} → ${escHtml(window.fmtMesUocra(ultimo.mes))}</div></td>
+        <td class="uocra-concepto">Básico</td>${pcts('basico')}
+      </tr>
+      ${noRem ? `<tr class="uocra-norem"><td class="uocra-concepto">No remunerativo</td>${pcts('noRemunerativoMensual')}</tr>` : ''}
+    </tbody>`;
   }
 
-  cont.innerHTML = `<div class="cmp-wrap"><table class="cmp-tabla">
-    <thead><tr><th>Mes</th>${head}</tr></thead>
-    <tbody>${filas}</tbody>${pie}
+  cont.innerHTML = `<div class="uocra-wrap"><table class="uocra-tabla">
+    <thead><tr><th>Mes</th><th></th>${CATS.map(c => `<th class="num">${escHtml(c.nombre)}</th>`).join('')}</tr></thead>
+    ${bloques}${acum}
   </table></div>`;
-  cont.querySelectorAll('tbody tr').forEach(tr => {
-    tr.addEventListener('click', () => openModal(meses.find(m => m.mes === tr.dataset.mes)));
+  cont.querySelectorAll('tbody.uocra-mes').forEach(tb => {
+    tb.addEventListener('click', () => openModal(meses.find(m => m.mes === tb.dataset.mes)));
   });
 }
 
