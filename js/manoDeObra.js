@@ -1,268 +1,221 @@
-/* VIMECO S.A. — Sistema de Gestión — Mano de Obra
-   Desglose: Básico ($/hs) -> + Asistencia perfecta (%) -> + Cargas Sociales/ART (%)
-   -> + Comida no remunerativa (mensual / (días·8)) = Costo horario -> x8 = Jornal.
-   Asistencia perfecta, Cargas Sociales y días laborables son parámetros generales
-   (un solo valor para todos los roles, como el dólar). */
+/* VIMECO S.A. — Sistema de Gestión — Mano de Obra UOCRA
+   Tabla general con los básicos UOCRA de cada mes, una sola zona, en
+   /config/uocra/{YYYY-MM}: { oficial_especializado|oficial|ayudante:
+   { basico ($/hs), noRemunerativoMensual ($/mes, o null si ese mes no hubo) },
+   cargadoEn }. Las categorías son window.CATEGORIAS_UOCRA (calcCostos.js).
+
+   Es sólo referencia: cada obra elige su mes base en Mano de Obra
+   (mano-de-obra-obra.js) y ahí se COPIAN los valores a sus roles fijos. Cargar
+   o corregir un mes acá no mueve ninguna obra.
+
+   (Esta pantalla antes era la Mano de Obra global, de cuando los roles no eran
+   por obra. Esos datos viejos — /manoDeObra y /config/manoDeObra — quedan en la
+   base sin tocar; equipos-obra.js sigue leyendo la jornada de /config/manoDeObra.) */
 
 const $ = id => document.getElementById(id);
+const CATS = window.CATEGORIAS_UOCRA;
 
-const fmtFecha = iso => {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-');
-  return `${d}/${m}/${y}`;
-};
+// [{ mes: 'YYYY-MM', ...nodo }] del más nuevo al más viejo.
+let meses = [];
+let editingMes = null;
+let compararDesde = null;
 
-let allRoles = [];
-let editingKey = null;
-let params = { asistenciaPct: 20, cargasPct: 100, diasMes: 22, jornadaHoras: 8 };
+const vacio = n => n == null || isNaN(n);
+const variacion = (actual, previo) =>
+  (vacio(actual) || vacio(previo) || !previo) ? null : actual / previo - 1;
 
-function calcCosto(basico, noRemunerativoMensual, extraPct) {
-  return window.calcCostoManoDeObra({ basico, extraPct, noRemunerativoMensual }, params);
+function celdaVar(v) {
+  if (v == null) return '';
+  const cls = v > 0 ? 'cmp-sube' : v < 0 ? 'cmp-baja' : '';
+  return `<div class="${cls}" style="font-size:.68rem;">${v > 0 ? '+' : ''}${fmtPct(v)}</div>`;
 }
 
-async function loadParams() {
-  try {
-    const data = await _fbGet('/config/manoDeObra.json');
-    if (data) params = { ...params, ...data };
-  } catch (_) {}
-  $('param-asistencia').value = params.asistenciaPct;
-  $('param-cargas').value = params.cargasPct;
-  $('param-dias').value = params.diasMes;
-  $('param-jornada').value = params.jornadaHoras;
-}
-
-async function saveParams() {
-  const asistenciaPct = parseFloat($('param-asistencia').value.replace(',', '.'));
-  const cargasPct      = parseFloat($('param-cargas').value.replace(',', '.'));
-  const diasMes         = parseFloat($('param-dias').value.replace(',', '.'));
-  const jornadaHoras    = parseFloat($('param-jornada').value.replace(',', '.'));
-  if ([asistenciaPct, cargasPct, diasMes, jornadaHoras].some(n => isNaN(n) || n < 0)) return;
-  params = { asistenciaPct, cargasPct, diasMes, jornadaHoras };
-  try {
-    await _fbPut('/config/manoDeObra.json', params);
-    applyFilter();
-  } catch (_) {
-    showToast('Error al guardar los parámetros.', 'error');
-  }
-}
-
-function renderRoles(list) {
-  const container = $('mo-list');
-  if (!list.length) {
-    container.innerHTML = '<div class="list-empty">No hay roles cargados todavía.</div>';
+function renderTabla() {
+  const cont = $('uocra-tabla');
+  if (!meses.length) {
+    cont.innerHTML = '<div class="list-empty">No hay meses cargados todavía.</div>';
+    $('uocra-comparar-wrap').classList.add('hidden');
     return;
   }
-  container.innerHTML = list.map(r => {
-    let meta;
-    if (r.basico) {
-      const c = calcCosto(r.basico, r.noRemunerativoMensual, r.extraPct);
-      meta = [
-        `Básico ${fmtARS(r.basico)}/hs`,
-        r.extraPct ? `+${r.extraPct}% extra` : '',
-        `Costo horario ${fmtARS(c.costoHorario)}/hs`,
-        `Jornal (${params.jornadaHoras}hs) ${fmtARS(c.costoJornal)}`,
-        r.fecha ? fmtFecha(r.fecha) : ''
-      ].filter(Boolean).join(' · ');
-    } else {
-      meta = 'Sin datos de costo cargados';
-    }
-    return `
-      <div class="item-card" data-key="${escHtml(r.key)}">
-        <div class="item-card-info">
-          <span class="item-card-title">${escHtml(r.nombre)}</span>
-          <span class="item-card-meta">${escHtml(meta)}</span>
-        </div>
-        <div class="item-card-actions">
-          <button class="btn btn-sm btn-outline btn-edit-rol">Editar</button>
-          <button class="btn btn-sm btn-danger btn-del-rol">Eliminar</button>
-        </div>
-      </div>`;
+  // La columna del no remunerativo aparece sólo si algún mes lo tiene.
+  const hayNoRem = meses.some(m => CATS.some(c => !vacio(m[c.key] && m[c.key].noRemunerativoMensual)));
+
+  const head = CATS.map(c => `<th class="num">${escHtml(c.nombre)}<br><span style="font-weight:400;">Básico $/hs</span></th>`
+    + (hayNoRem ? `<th class="num">${escHtml(c.nombre)}<br><span style="font-weight:400;">No rem. $/mes</span></th>` : '')).join('');
+
+  const filas = meses.map((m, i) => {
+    const previo = meses[i + 1];
+    const celdas = CATS.map(c => {
+      const v = m[c.key] || {};
+      const p = (previo && previo[c.key]) || {};
+      return `<td class="num">${vacio(v.basico) ? '—' : fmtARS(v.basico)}${celdaVar(variacion(v.basico, p.basico))}</td>`
+        + (hayNoRem ? `<td class="num">${vacio(v.noRemunerativoMensual) ? '—' : fmtARS(v.noRemunerativoMensual)}${celdaVar(variacion(v.noRemunerativoMensual, p.noRemunerativoMensual))}</td>` : '');
+    }).join('');
+    return `<tr data-mes="${escHtml(m.mes)}" title="Clic para editar"><td>${escHtml(window.fmtMesUocra(m.mes))}</td>${celdas}</tr>`;
   }).join('');
 
-  container.querySelectorAll('.item-card').forEach(card => {
-    const key = card.dataset.key;
-    const rol = allRoles.find(r => r.key === key);
-    card.querySelector('.btn-edit-rol').addEventListener('click', () => openEditModal(rol));
-    card.querySelector('.btn-del-rol').addEventListener('click', () => deleteRol(rol));
+  // Acumulado del mes elegido al último cargado.
+  let pie = '';
+  const desde = meses.find(m => m.mes === compararDesde);
+  if (desde && meses.length > 1 && desde !== meses[0]) {
+    const ultimo = meses[0];
+    const celdas = CATS.map(c => {
+      const a = ultimo[c.key] || {};
+      const d = desde[c.key] || {};
+      return `<td class="num">${celdaVar(variacion(a.basico, d.basico)) || '—'}</td>`
+        + (hayNoRem ? `<td class="num">${celdaVar(variacion(a.noRemunerativoMensual, d.noRemunerativoMensual)) || '—'}</td>` : '');
+    }).join('');
+    pie = `<tfoot><tr><td><strong>Acumulado</strong><div class="form-hint" style="margin:0;">${escHtml(window.fmtMesUocra(desde.mes))} → ${escHtml(window.fmtMesUocra(ultimo.mes))}</div></td>${celdas}</tr></tfoot>`;
+  }
+
+  cont.innerHTML = `<div class="cmp-wrap"><table class="cmp-tabla">
+    <thead><tr><th>Mes</th>${head}</tr></thead>
+    <tbody>${filas}</tbody>${pie}
+  </table></div>`;
+  cont.querySelectorAll('tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => openModal(meses.find(m => m.mes === tr.dataset.mes)));
   });
 }
 
-function applyFilter() {
-  const filtered = window.buscarSimilares(allRoles, $('mo-search').value, r => r.nombre).lista;
-  renderRoles(filtered);
+function renderComparar() {
+  const wrap = $('uocra-comparar-wrap');
+  const viejos = meses.slice(1);
+  wrap.classList.toggle('hidden', !viejos.length);
+  if (!viejos.length) { compararDesde = null; return; }
+  // Por defecto, desde el más viejo cargado.
+  if (!viejos.some(m => m.mes === compararDesde)) compararDesde = viejos[viejos.length - 1].mes;
+  $('uocra-comparar').innerHTML = viejos.map(m =>
+    `<option value="${escHtml(m.mes)}"${m.mes === compararDesde ? ' selected' : ''}>${escHtml(window.fmtMesUocra(m.mes))}</option>`).join('');
 }
 
-async function loadRoles() {
-  $('mo-list').innerHTML = '<div class="list-loading">Cargando roles…</div>';
+async function loadAll() {
   try {
-    const data = await _fbGet('/manoDeObra.json');
-    allRoles = Object.entries(data || {}).map(([key, r]) => ({ key, ...r }))
-      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
-    applyFilter();
+    const data = await _fbGet('/config/uocra.json');
+    meses = Object.entries(data || {}).map(([mes, m]) => ({ mes, ...m }))
+      .sort((a, b) => b.mes.localeCompare(a.mes));
+    renderComparar();
+    renderTabla();
   } catch (_) {
-    $('mo-list').innerHTML = '<div class="list-empty">Error al cargar roles.</div>';
+    $('uocra-tabla').innerHTML = '<div class="list-empty">Error al cargar los meses.</div>';
   }
 }
 
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function updatePreview() {
-  const basico = parseMoneyString($('rol-basico').value);
-  const extra  = parseFloat($('rol-extra').value.replace(',', '.')) || 0;
-  const noRem  = parseMoneyString($('rol-no-remunerativo').value) || 0;
-  const preview = $('rol-preview');
-  if (isNaN(basico) || basico <= 0) {
-    preview.textContent = 'Completá el básico para ver el costo calculado.';
-    return;
-  }
-  const c = calcCosto(basico, noRem, extra);
-  preview.textContent =
-    `Costo horario: ${fmtARS(c.costoHorario)}/hs · Jornal (${params.jornadaHoras}hs): ${fmtARS(c.costoJornal)}`;
-}
-
-function openAddModal() {
-  editingKey = null;
-  $('modal-rol-title').textContent = 'Agregar rol';
-  $('modal-rol-error').classList.add('hidden');
-  $('rol-nombre').value = '';
-  $('rol-basico').value = '';
-  $('rol-extra').value = '0';
-  $('rol-no-remunerativo').value = '';
-  $('rol-fecha').value = todayIso();
-  ['rol-basico', 'rol-extra', 'rol-no-remunerativo'].forEach(id => setCalcFormula($(id), null));
-  updatePreview();
-  $('modal-rol').classList.remove('hidden');
-  setTimeout(() => $('rol-nombre').focus(), 50);
-}
-
-function openEditModal(rol) {
-  editingKey = rol.key;
-  $('modal-rol-title').textContent = 'Editar rol';
-  $('modal-rol-error').classList.add('hidden');
-  $('rol-nombre').value = rol.nombre || '';
-  $('rol-basico').value = formatMoneyString(rol.basico);
-  $('rol-extra').value = rol.extraPct ?? 0;
-  $('rol-no-remunerativo').value = formatMoneyString(rol.noRemunerativoMensual);
-  $('rol-fecha').value = rol.fecha || todayIso();
-  setCalcFormula($('rol-basico'), rol.basicoFormula);
-  setCalcFormula($('rol-extra'), rol.extraPctFormula);
-  setCalcFormula($('rol-no-remunerativo'), rol.noRemunerativoMensualFormula);
-  updatePreview();
-  $('modal-rol').classList.remove('hidden');
-  setTimeout(() => $('rol-nombre').focus(), 50);
-}
-
-async function saveRolModal() {
-  const nombre = $('rol-nombre').value.trim();
-  const fecha  = $('rol-fecha').value || todayIso();
-  const errEl  = $('modal-rol-error');
-
-  const basicoInput = $('rol-basico');
-  if (basicoInput.value.trim().startsWith('=')) { basicoInput.blur(); updatePreview(); }
-  const basico = parseMoneyString(basicoInput.value);
-
-  const extraInput = $('rol-extra');
-  if (extraInput.value.trim().startsWith('=')) { extraInput.blur(); updatePreview(); }
-  const extraStr = extraInput.value.trim();
-  const extraPct = extraStr ? parseFloat(extraStr.replace(',', '.')) : 0;
-
-  const noRemInput = $('rol-no-remunerativo');
-  if (noRemInput.value.trim().startsWith('=')) { noRemInput.blur(); updatePreview(); }
-  const noRemStr = noRemInput.value.trim();
-  const noRemunerativoMensual = noRemStr ? parseMoneyString(noRemStr) : null;
-
-  if (!nombre) {
-    errEl.textContent = 'El rol es requerido.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  if (isNaN(basico) || basico < 0) {
-    errEl.textContent = 'El básico no es válido.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-  if (isNaN(extraPct) || extraPct < 0) {
-    errEl.textContent = 'El extra sobre básico no es válido.';
-    errEl.classList.remove('hidden');
-    return;
-  }
-
-  const saveBtn = $('modal-rol-save');
-  saveBtn.disabled = true;
-  saveBtn.textContent = 'Guardando…';
-
-  const basicoFormula = getCalcFormula(basicoInput);
-  const extraPctFormula = getCalcFormula(extraInput);
-  const noRemunerativoMensualFormula = getCalcFormula(noRemInput);
-
-  try {
-    const data = {
-      nombre, basico, extraPct, noRemunerativoMensual, fecha,
-      basicoFormula, extraPctFormula, noRemunerativoMensualFormula,
-    };
-    if (editingKey) {
-      await _fbPatch(`/manoDeObra/${editingKey}.json`, data);
-    } else {
-      const key = nombre.toLowerCase()
-        .normalize('NFD').replace(/[̀-ͯ]/g, '')
-        .replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').substring(0, 40)
-        + '_' + Date.now();
-      await _fbPut(`/manoDeObra/${key}.json`, { ...data, creadoEn: Date.now() });
+function openModal(m) {
+  editingMes = m ? m.mes : null;
+  $('modal-mes-title').textContent = m ? 'Editar ' + window.fmtMesUocra(m.mes) : 'Cargar mes';
+  $('modal-mes-error').classList.add('hidden');
+  $('modal-mes-del').classList.toggle('hidden', !m);
+  $('mes-mes').disabled = !!m;
+  if (m) {
+    $('mes-mes').value = m.mes;
+  } else {
+    // Sugerencia: el mes siguiente al último cargado, o el actual.
+    let sug = new Date().toISOString().slice(0, 7);
+    if (meses.length) {
+      const [y, mm] = meses[0].mes.split('-').map(Number);
+      sug = mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}`;
     }
-    $('modal-rol').classList.add('hidden');
-    showToast(editingKey ? 'Rol actualizado.' : 'Rol creado.');
-    await loadRoles();
+    $('mes-mes').value = sug;
+  }
+  // Un mes nuevo arranca con los valores del último, que suelen cambiar poco.
+  const base = m || meses[0] || {};
+  CATS.forEach(c => {
+    const v = base[c.key] || {};
+    $(`mes-${c.key}-basico`).value = formatMoneyString(v.basico);
+    $(`mes-${c.key}-norem`).value = m ? formatMoneyString(v.noRemunerativoMensual) : '';
+  });
+  $('modal-mes').classList.remove('hidden');
+  setTimeout(() => $(`mes-${CATS[0].key}-basico`).focus(), 50);
+}
+
+function cerrarModal() {
+  $('modal-mes').classList.add('hidden');
+}
+
+async function saveModal() {
+  const errEl = $('modal-mes-error');
+  const error = msg => { errEl.textContent = msg; errEl.classList.remove('hidden'); };
+  const mes = $('mes-mes').value;
+  if (!/^\d{4}-\d{2}$/.test(mes)) return error('Elegí el mes.');
+  if (!editingMes && meses.some(m => m.mes === mes)) {
+    return error(`${window.fmtMesUocra(mes)} ya está cargado: editalo desde la tabla.`);
+  }
+
+  const nodo = { cargadoEn: Date.now() };
+  for (const c of CATS) {
+    const bIn = $(`mes-${c.key}-basico`);
+    const nIn = $(`mes-${c.key}-norem`);
+    [bIn, nIn].forEach(el => { if (el.value.trim().startsWith('=')) el.blur(); });
+    const basico = parseMoneyString(bIn.value);
+    if (isNaN(basico) || basico <= 0) return error(`Falta el básico de ${c.nombre}.`);
+    const noRemStr = nIn.value.trim();
+    const noRem = noRemStr ? parseMoneyString(noRemStr) : null;
+    if (noRem != null && (isNaN(noRem) || noRem < 0)) return error(`El no remunerativo de ${c.nombre} no es válido.`);
+    nodo[c.key] = { basico, noRemunerativoMensual: noRem };
+  }
+
+  const btn = $('modal-mes-save');
+  btn.disabled = true;
+  btn.textContent = 'Guardando…';
+  try {
+    // PUT del nodo del mes entero: no tiene hijos que lleguen por otro lado.
+    await _fbPut(`/config/uocra/${mes}.json`, nodo);
+    cerrarModal();
+    showToast(`${window.fmtMesUocra(mes)} guardado.`);
+    await loadAll();
   } catch (_) {
-    errEl.textContent = 'Error al guardar. Intentá de nuevo.';
-    errEl.classList.remove('hidden');
+    error('Error al guardar. Intentá de nuevo.');
   } finally {
-    saveBtn.disabled = false;
-    saveBtn.textContent = 'Guardar';
+    btn.disabled = false;
+    btn.textContent = 'Guardar';
   }
 }
 
-async function deleteRol(rol) {
-  const ok = await showConfirm('Eliminar rol', `¿Eliminar "${rol.nombre}"? Esta acción no se puede deshacer.`);
+async function deleteMes() {
+  const mes = editingMes;
+  if (!mes) return;
+  const ok = await showConfirm('Eliminar mes',
+    `¿Eliminar ${window.fmtMesUocra(mes)}? Las obras que lo usaron como base no cambian: ya tienen los valores copiados.`);
   if (!ok) return;
   try {
-    await _fbDel(`/manoDeObra/${rol.key}.json`);
-    showToast('Rol eliminado.');
-    await loadRoles();
+    await _fbDel(`/config/uocra/${mes}.json`);
+    cerrarModal();
+    showToast(`${window.fmtMesUocra(mes)} eliminado.`);
+    await loadAll();
   } catch (_) {
-    showToast('Error al eliminar el rol.', 'error');
+    showToast('Error al eliminar el mes.', 'error');
   }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  attachCalcInput($('rol-basico'));
-  attachMoneyInput($('rol-basico'));
-  attachCalcInput($('rol-extra'));
-  attachCalcInput($('rol-no-remunerativo'));
-  attachMoneyInput($('rol-no-remunerativo'));
-  ['rol-basico', 'rol-extra', 'rol-no-remunerativo'].forEach(id => {
-    $(id).addEventListener('input', updatePreview);
-    $(id).addEventListener('blur', updatePreview);
-  });
+  $('mes-categorias').innerHTML = CATS.map(c => `
+    <div class="form-row">
+      <div class="form-group">
+        <label for="mes-${c.key}-basico">${escHtml(c.nombre)} · Básico ($/hs) *</label>
+        <input type="text" id="mes-${c.key}-basico" class="form-control">
+      </div>
+      <div class="form-group">
+        <label for="mes-${c.key}-norem">No remunerativo ($/mes)</label>
+        <input type="text" id="mes-${c.key}-norem" class="form-control">
+      </div>
+    </div>`).join('');
+  CATS.forEach(c => ['basico', 'norem'].forEach(campo => {
+    attachCalcInput($(`mes-${c.key}-${campo}`));
+    attachMoneyInput($(`mes-${c.key}-${campo}`));
+  }));
 
-  $('param-asistencia').addEventListener('blur', saveParams);
-  $('param-cargas').addEventListener('blur', saveParams);
-  $('param-dias').addEventListener('blur', saveParams);
-  $('param-jornada').addEventListener('blur', saveParams);
+  $('btn-add-mes').addEventListener('click', () => openModal(null));
+  $('modal-mes-close').addEventListener('click', cerrarModal);
+  $('modal-mes-cancel').addEventListener('click', cerrarModal);
+  $('modal-mes-save').addEventListener('click', saveModal);
+  $('modal-mes-del').addEventListener('click', deleteMes);
+  $('uocra-comparar').addEventListener('change', e => { compararDesde = e.target.value; renderTabla(); });
 
-  $('btn-add-rol').addEventListener('click', openAddModal);
-  $('modal-rol-close').addEventListener('click',  () => $('modal-rol').classList.add('hidden'));
-  $('modal-rol-cancel').addEventListener('click', () => $('modal-rol').classList.add('hidden'));
-  $('modal-rol-save').addEventListener('click', saveRolModal);
-  $('rol-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') saveRolModal(); });
-  $('mo-search').addEventListener('input', applyFilter);
-
-  loadParams().then(loadRoles);
+  loadAll();
 });
 
-window.onDecimalesVista(() => applyFilter());
+window.onDecimalesVista(() => renderTabla());
 
 /* Esta pantalla no escucha la base en tiempo real: después de un Ctrl+Z
    (js/undo.js) vuelve a pedir los datos y se repinta. */
-window.registrarRecargaUndo(async () => { await loadParams(); await loadRoles(); });
+window.registrarRecargaUndo(loadAll);

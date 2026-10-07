@@ -444,6 +444,23 @@ window.ROLES_FIJOS_MO = [
   { key: 'vial_ayudante',              nombre: 'Ayudante Vial',              familia: 'vial' },
 ];
 
+// Las 3 categorías de la tabla UOCRA por mes (/config/uocra/{YYYY-MM}, ver
+// manoDeObra.js). El básico vial es el mismo que el de arquitectura — lo que
+// cambia es el extra, propio de cada rol en la obra —, así que cada categoría
+// alimenta a los dos roles fijos de `roles`.
+window.CATEGORIAS_UOCRA = [
+  { key: 'oficial_especializado', nombre: 'Oficial Especializado', roles: ['arq_oficial_especializado', 'vial_oficial_especializado'] },
+  { key: 'oficial',               nombre: 'Oficial',               roles: ['arq_oficial', 'vial_oficial'] },
+  { key: 'ayudante',              nombre: 'Ayudante',              roles: ['arq_ayudante', 'vial_ayudante'] },
+];
+
+// '2026-09' → 'sep 2026'.
+window.fmtMesUocra = mes => {
+  if (!mes) return '';
+  const [y, m] = mes.split('-');
+  return ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][parseInt(m, 10) - 1] + ' ' + y;
+};
+
 // Un A.P. usa UNA sola familia de Mano de Obra a la vez. La familia vigente de
 // una versión de obra es la guardada en `familiaMO`, y si no hay ninguna
 // guardada (A.P. cargado sin tocar el switch, o anterior a v166) la de su

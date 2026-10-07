@@ -29,9 +29,13 @@
     <div class="card">
       <div class="card-header">
         <span class="card-title">Parámetros generales de esta obra</span>
-        <button class="btn btn-sm btn-outline" id="btn-importar-mo" data-solo-edicion>Importar de otra obra</button>
+        <div class="flex items-center gap-2">
+          <button class="btn btn-sm btn-outline" id="btn-uocra-mo" data-solo-edicion>Básicos UOCRA</button>
+          <button class="btn btn-sm btn-outline" id="btn-importar-mo" data-solo-edicion>Importar de otra obra</button>
+        </div>
       </div>
       <div class="card-body">
+        <p class="form-hint" id="uocra-mes-base" style="margin-top:0;"></p>
         <div class="form-row">
           <div class="form-group">
             <label for="param-asistencia">Asistencia perfecta (%)</label>
@@ -119,6 +123,28 @@
       <div class="modal-footer">
         <button class="btn btn-secondary" id="importar-mo-cancelar">Cancelar</button>
         <button class="btn btn-primary" id="importar-mo-confirmar" disabled>Importar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Básicos UOCRA (mes base de la obra) -->
+  <div class="modal-overlay hidden" id="modal-uocra">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">Básicos UOCRA</span>
+        <button class="modal-close" id="uocra-close"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="uocra-mes">Mes base</label>
+          <select id="uocra-mes" class="form-control" style="width:auto;"></select>
+        </div>
+        <div id="uocra-preview"></div>
+        <p class="form-hint" style="margin-top:.75rem;">Pisa el básico y el no remunerativo de las 6 categorías fijas (Arquitectura y Vial). El extra de cada categoría y las categorías propias de esta obra no se tocan. Después se puede seguir editando todo a mano.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="uocra-cancelar">Cancelar</button>
+        <button class="btn btn-primary" id="uocra-aplicar" disabled>Aplicar</button>
       </div>
     </div>
   </div>

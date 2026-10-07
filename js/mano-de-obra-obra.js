@@ -391,6 +391,140 @@ async function deleteRol(rol) {
   }
 }
 
+/* ===== Básicos UOCRA (mes base) =====
+   La tabla general por mes vive en /config/uocra (manoDeObra.js). Elegir un
+   mes acá COPIA su básico y no remunerativo a las 6 categorías fijas de esta
+   obra — arquitectura y vial toman el mismo básico, lo que cambia es el extra,
+   que no se toca — y anota el mes en obra.mesBaseUocra. Es una copia y no un
+   vínculo: cargar un mes nuevo no mueve la obra, y todo se sigue editando a
+   mano. Las categorías propias de la obra no se tocan. */
+
+let mesesUocra = [];   // [{ mes: 'YYYY-MM', ...nodo }] del más nuevo al más viejo
+
+async function cargarMesesUocra() {
+  try {
+    const data = await _fbGet('/config/uocra.json');
+    mesesUocra = Object.entries(data || {}).map(([mes, m]) => ({ mes, ...m }))
+      .sort((a, b) => b.mes.localeCompare(a.mes));
+  } catch (_) {
+    mesesUocra = [];
+  }
+}
+
+// Valor UOCRA de un rol fijo para un mes: { basico, noRemunerativoMensual } o null.
+function valorUocraDeRol(mesNodo, rolKey) {
+  const cat = window.CATEGORIAS_UOCRA.find(c => c.roles.includes(rolKey));
+  return (cat && mesNodo && mesNodo[cat.key]) || null;
+}
+
+function renderMesBase() {
+  const el = $('uocra-mes-base');
+  const base = obra && obra.mesBaseUocra;
+  if (!mesesUocra.length && !base) { el.textContent = ''; el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  let txt = base
+    ? `Básicos UOCRA de ${window.fmtMesUocra(base)} (después se pueden haber editado a mano).`
+    : 'Sin mes base UOCRA: los básicos se cargaron a mano.';
+  const ultimo = mesesUocra[0];
+  if (base && ultimo && ultimo.mes > base) {
+    const desde = mesesUocra.find(m => m.mes === base);
+    const a = ultimo.oficial && ultimo.oficial.basico;
+    const d = desde && desde.oficial && desde.oficial.basico;
+    const pct = a && d ? ` (Oficial ${a >= d ? '+' : ''}${fmtPct(a / d - 1)})` : '';
+    txt += ` Hay valores de ${window.fmtMesUocra(ultimo.mes)}${pct}.`;
+  }
+  el.textContent = txt;
+}
+
+function renderPreviewUocra() {
+  const mes = $('uocra-mes').value;
+  const nodo = mesesUocra.find(m => m.mes === mes);
+  const cont = $('uocra-preview');
+  if (!nodo) { cont.innerHTML = ''; $('uocra-aplicar').disabled = true; return; }
+  const flecha = (antes, despues) => {
+    const a = antes == null ? '—' : fmtARS(antes);
+    const d = despues == null ? '—' : fmtARS(despues);
+    return a === d ? d : `${a} → <strong>${d}</strong>`;
+  };
+  const filas = window.ROLES_FIJOS_MO.map(rf => {
+    const rol = allRoles.find(r => r.key === rf.key);
+    const v = valorUocraDeRol(nodo, rf.key);
+    if (!rol || !v) return '';
+    const antes = rol.basico ? calcCosto(rol.basico, rol.noRemunerativoMensual, rol.extraPct).costoHorario : null;
+    const despues = calcCosto(v.basico, v.noRemunerativoMensual, rol.extraPct).costoHorario;
+    return `<tr>
+      <td>${escHtml(rol.nombre)}${rol.extraPct ? ` <span class="form-hint">+${rol.extraPct}%</span>` : ''}</td>
+      <td class="num">${flecha(rol.basico ?? null, v.basico)}</td>
+      <td class="num">${flecha(rol.noRemunerativoMensual ?? null, v.noRemunerativoMensual ?? null)}</td>
+      <td class="num">${flecha(antes, despues)}</td>
+    </tr>`;
+  }).join('');
+  cont.innerHTML = `<div class="cmp-wrap"><table class="cmp-tabla">
+    <thead><tr><th>Categoría</th><th class="num">Básico $/hs</th><th class="num">No rem. $/mes</th><th class="num">Costo horario</th></tr></thead>
+    <tbody>${filas}</tbody>
+  </table></div>`;
+  cont.querySelectorAll('tbody tr').forEach(tr => { tr.style.cursor = 'default'; });
+  $('uocra-aplicar').disabled = !filas;
+}
+
+async function abrirModalUocra() {
+  await cargarMesesUocra();
+  renderMesBase();
+  if (!mesesUocra.length) {
+    showToast('Todavía no hay meses UOCRA cargados: se cargan en el menú principal, Mano de Obra.', 'error');
+    return;
+  }
+  const sel = mesesUocra[0].mes;   // por defecto, el más nuevo
+  $('uocra-mes').innerHTML = mesesUocra.map(m =>
+    `<option value="${escHtml(m.mes)}"${m.mes === sel ? ' selected' : ''}>${escHtml(window.fmtMesUocra(m.mes))}${m.mes === (obra && obra.mesBaseUocra) ? ' (actual)' : ''}</option>`).join('');
+  renderPreviewUocra();
+  $('modal-uocra').classList.remove('hidden');
+}
+
+function cerrarModalUocra() {
+  $('modal-uocra').classList.add('hidden');
+}
+
+async function aplicarUocra() {
+  if (guardBloqueoObra()) return;
+  const mes = $('uocra-mes').value;
+  const nodo = mesesUocra.find(m => m.mes === mes);
+  if (!nodo) return;
+  const btn = $('uocra-aplicar');
+  btn.disabled = true;
+  btn.textContent = 'Aplicando…';
+  try {
+    // Un solo Ctrl+Z deshace los 6 roles y el mes base juntos.
+    await window.undoAgrupar('Básicos UOCRA', null, async () => {
+      // PATCH por rol (no PUT del árbol de roles): cada nodo tiene campos
+      // propios — extra, orden, familia, creadoEn — que no hay que perder. Las
+      // fórmulas se limpian: si no, el campo seguiría mostrando la vieja.
+      await Promise.all(window.ROLES_FIJOS_MO.map(rf => {
+        const v = valorUocraDeRol(nodo, rf.key);
+        if (!v || !allRoles.some(r => r.key === rf.key)) return null;
+        return _fbPatch(`/obras/${obraKey}/roles/${rf.key}.json`, {
+          basico: v.basico,
+          noRemunerativoMensual: v.noRemunerativoMensual ?? null,
+          fecha: `${mes}-01`,
+          basicoFormula: null,
+          noRemunerativoMensualFormula: null,
+        });
+      }));
+      await _fbPatch(`/obras/${obraKey}.json`, { mesBaseUocra: mes });
+    });
+    obra = { ...(obra || {}), mesBaseUocra: mes };
+    cerrarModalUocra();
+    await loadRoles();
+    renderMesBase();
+    showToast(`Básicos de ${window.fmtMesUocra(mes)} aplicados.`);
+  } catch (_) {
+    showToast('Error al aplicar los básicos UOCRA.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Aplicar';
+  }
+}
+
 /* ===== Importar de otra obra =====
    Dos cosas independientes, cada una con su casilla: los parámetros generales
    (reemplazan a los de esta obra) y los roles con sus básicos. Un rol que ya
@@ -633,7 +767,8 @@ async function loadAll() {
   setModoObra(obraKey, obra, () => { fillParamsForm(); applyFilter(); });
   fillParamsForm();
   renderFamiliaSwitch();
-  await loadRoles();
+  await Promise.all([loadRoles(), cargarMesesUocra()]);
+  renderMesBase();
 
   $('main-loading').style.display = 'none';
   $('main-content').style.display = '';
@@ -668,6 +803,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('param-comida-monto').disabled = !$('param-comida-activo').checked;
     saveParams();
   });
+
+  $('btn-uocra-mo').addEventListener('click', abrirModalUocra);
+  $('uocra-close').addEventListener('click', cerrarModalUocra);
+  $('uocra-cancelar').addEventListener('click', cerrarModalUocra);
+  $('uocra-mes').addEventListener('change', renderPreviewUocra);
+  $('uocra-aplicar').addEventListener('click', aplicarUocra);
 
   $('btn-importar-mo').addEventListener('click', abrirModalImportarMo);
   $('importar-mo-close').addEventListener('click', cerrarModalImportarMo);
