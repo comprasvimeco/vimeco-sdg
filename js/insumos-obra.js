@@ -414,7 +414,8 @@ function fillMepPrecioFields(p) {
   setCalcFormula($('mep-precio-ars'), p && p.precioFormulaMoneda === 'ARS' ? p.precioFormula : null);
   $('mep-proveedor').value = p ? (p.proveedor || '') : '';
   $('mep-fecha').value = p ? (p.fecha || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
-  $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
+  $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
+  $('mep-comentario').value = p ? (p.comentario || '') : '';
 }
 
 // Traer un proveedor de otra obra lo carga en esta como el que usa, en el
@@ -434,7 +435,7 @@ function openEditarPrecioModal(mat) {
   mepFuenteSelect = montarTraerProveedorMep(mat);
   loadMepPrecioFields(mat, obraKey);
   const ro = !!window._soloLectura;
-  ['mep-nombre', 'mep-unidad', 'mep-precio-usd', 'mep-precio-ars', 'mep-proveedor', 'mep-fecha'].forEach(id => { $(id).disabled = ro; });
+  ['mep-nombre', 'mep-unidad', 'mep-precio-usd', 'mep-precio-ars', 'mep-proveedor', 'mep-fecha', 'mep-comentario'].forEach(id => { $(id).disabled = ro; });
   $('modal-mep-save').disabled = ro;
   $('modal-mep-error').classList.add('hidden');
   $('modal-material-editar-precio').classList.remove('hidden');
@@ -445,6 +446,7 @@ async function saveEditarPrecioModal() {
   const nombre = $('mep-nombre').value.trim();
   const unidad = $('mep-unidad').value.trim();
   const proveedor = $('mep-proveedor').value.trim();
+  const comentario = $('mep-comentario').value.trim();
   const fecha = $('mep-fecha').value || new Date().toISOString().slice(0, 10);
   const errEl = $('modal-mep-error');
 
@@ -473,7 +475,7 @@ async function saveEditarPrecioModal() {
   }
 
   const fc = getCalcFormulaConMoneda(usdInput, arsInput);
-  const precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada };
+  const precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada, comentario };
 
   try {
     const mat = modeloIns.catalogos.materiales.find(m => m.key === editingPrecioMaterialKey);

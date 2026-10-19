@@ -41,7 +41,7 @@
   // Lo que se guarda de un precio, sin los campos de armado de la comparativa.
   function limpio(p) {
     const out = {};
-    ['precioUSD', 'precioARS', 'precioFormula', 'precioFormulaMoneda', 'proveedor', 'fecha', 'cotizacionUsada', 'origenCotizacionKey']
+    ['precioUSD', 'precioARS', 'precioFormula', 'precioFormulaMoneda', 'proveedor', 'fecha', 'cotizacionUsada', 'origenCotizacionKey', 'comentario']
       .forEach(c => { if (p[c] !== undefined && p[c] !== null) out[c] = p[c]; });
     return out;
   }
@@ -108,6 +108,12 @@
     const eKey = elegidoKeyDe(elegido);
     const datos = limpio(precioData);
     const enProveedores = k => !!(((material.proveedores || {})[obraKey]) || {})[k];
+    // Quien guarda sin traer comentario (la carga de cotizaciones con IA) no
+    // borra el que ya tenía ese proveedor en la obra.
+    if (precioData.comentario === undefined) {
+      const previo = key === eKey ? elegido : (((material.proveedores || {})[obraKey]) || {})[key];
+      if (previo && previo.comentario) datos.comentario = previo.comentario;
+    }
 
     const esNuevo = !anterior && key !== eKey && !enProveedores(key);
     const esElegido = !elegido || esNuevo || key === eKey || (anterior && anterior === eKey) || opts.elegir;

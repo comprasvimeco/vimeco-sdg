@@ -181,7 +181,7 @@ function todayIso() {
 
 function onFuenteChange(material, obraKey) {
   const disabled = !obraKey;
-  ['material-precio-usd', 'material-precio-ars', 'material-proveedor', 'material-fecha'].forEach(id => { $(id).disabled = disabled; });
+  ['material-precio-usd', 'material-precio-ars', 'material-proveedor', 'material-fecha', 'material-comentario'].forEach(id => { $(id).disabled = disabled; });
   const filas = window.comparativaPrecios(material, obraKey);
   const elegido = filas.find(f => f.elegido) || null;
   provKeyEditando = elegido ? elegido.provKey : null;
@@ -196,7 +196,8 @@ function fillPrecioCampos(p) {
   setCalcFormula($('material-precio-ars'), p && p.precioFormulaMoneda === 'ARS' ? p.precioFormula : null);
   $('material-proveedor').value = p ? (p.proveedor || '') : '';
   $('material-fecha').value = p ? (p.fecha || todayIso()) : todayIso();
-  $('material-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
+  $('material-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
+  $('material-comentario').value = p ? (p.comentario || '') : '';
 }
 
 // Proveedores cargados para la obra elegida en "Fuente (obra)" — ver
@@ -300,6 +301,7 @@ async function saveMaterialModal() {
   let precioData = null;
   if (obraKey) {
     const proveedor = $('material-proveedor').value.trim();
+    const comentario = $('material-comentario').value.trim();
     const fecha = $('material-fecha').value || todayIso();
     const usdInput = $('material-precio-usd');
     const arsInput = $('material-precio-ars');
@@ -319,7 +321,7 @@ async function saveMaterialModal() {
       return;
     }
     const fc = getCalcFormulaConMoneda(usdInput, arsInput);
-    precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada };
+    precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada, comentario };
   }
 
   const saveBtn = $('modal-material-save');

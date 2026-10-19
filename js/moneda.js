@@ -414,7 +414,7 @@ window.attachDualPrecioInputs = function ({ usdInput, arsInput, notaEl }) {
   function actualizarNota() {
     if (!notaEl) return;
     const venta = window.dolarOficialVenta();
-    notaEl.textContent = venta ? `Cotización usada: USD = ${fmtARSFijo(venta)}` : '';
+    notaEl.textContent = venta ? `Cotización: USD = ${fmtARSFijo(venta)}` : '';
   }
 
   function recalcular(origen) {

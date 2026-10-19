@@ -81,6 +81,11 @@ body:not(.login-page) { background: var(--grad-app-bg); background-attachment: f
 .form-control:disabled { background: var(--gray-100); color: var(--gray-400); cursor: not-allowed; }
 .form-hint { display: block; font-size: .75rem; color: var(--gray-400); margin-top: .3rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+/* Precio en $ y en USD: un rótulo por columna, la cotización en pastilla sobre el USD */
+.precio-dual-head { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: end; }
+.precio-dual-usd { display: flex !important; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.precio-cotiz { text-transform: none; letter-spacing: 0; }
+.precio-cotiz:empty { display: none; }
 .ap-toggle-title { display: inline-flex; align-items: center; gap: .35rem; user-select: none; font-size: .82rem; font-weight: 600; color: var(--gray-600); text-transform: uppercase; letter-spacing: .04em; }
 .ap-chevron { display: inline-block; font-size: .7rem; color: var(--gray-500); transition: transform .15s ease; }
 .ap-toggle-title.expandido .ap-chevron { transform: rotate(90deg); }

@@ -1541,6 +1541,7 @@ function renderLineasSeccion(tipo, r) {
           <div class="linea-select-wrap">
             <div class="linea-select-container"></div>
             ${conBadge ? '<span class="linea-unidad-badge"></span>' : ''}
+            ${tipo === 'material' && l.tipo === 'material' ? '<span class="u-badge u-badge-neutro linea-comentario-badge"></span>' : ''}
           </div>
           <input type="text" class="form-control linea-cantidad" placeholder="Cantidad" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiquetaLinea(lineaKey) + ' · Cantidad')}" ${ro ? 'disabled' : ''}>
           <button type="button" class="ap-linea-costo-unit"${d ? calcAttrs(costoUnitVista, `ap:linea:${lineaKey}:costoUnit`, etiquetaLinea(lineaKey) + ' · Costo unit.') : ''}>${d ? fmtARS(costoUnitVista) : '—'}</button><span class="ap-linea-costo-total"${d && d.costoTotal != null ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiquetaLinea(lineaKey) + ' · Costo total') : ''}>${d && d.costoTotal != null ? fmtARS(d.costoTotal) : '—'}</span>
@@ -1623,6 +1624,11 @@ function renderLineasSeccion(tipo, r) {
       const mat = materiales.find(m => m.key === linea.refKey);
       const badge = row.querySelector('.linea-unidad-badge');
       badge.textContent = mat ? mat.unidad : '';
+      // Comentario del precio que usa la obra (Puesto en obra, Sin flete…):
+      // sólo para leer en el A.P., no sale en la exportación.
+      const comentario = ((mat && (mat.precios || {})[activeVersion]) || {}).comentario || '';
+      const pill = row.querySelector('.linea-comentario-badge');
+      if (pill) { pill.textContent = comentario; pill.title = comentario; }
       const costoUnit = row.querySelector('.ap-linea-costo-unit');
       if (costoUnit) {
         // Mirando una versión guardada el botón no lleva a ningún lado: su
@@ -2293,7 +2299,8 @@ function fillMepPrecioFields(p) {
   setCalcFormula($('mep-precio-ars'), p && p.precioFormulaMoneda === 'ARS' ? p.precioFormula : null);
   $('mep-proveedor').value = p ? (p.proveedor || '') : '';
   $('mep-fecha').value = p ? (p.fecha || new Date().toISOString().slice(0, 10)) : new Date().toISOString().slice(0, 10);
-  $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización usada: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
+  $('mep-precio-nota').textContent = p && p.cotizacionUsada ? `Cotización: USD = ${fmtARSFijo(p.cotizacionUsada)}` : '';
+  $('mep-comentario').value = p ? (p.comentario || '') : '';
 }
 
 // Traer un proveedor de otra obra lo carga en la obra activa como el que
@@ -2314,7 +2321,7 @@ function openEditarPrecioModal(mat) {
   mepFuenteSelect = montarTraerProveedorMep(mat);
   loadMepPrecioFields(mat, activeVersion);
   const ro = !!window._soloLectura;
-  ['mep-nombre', 'mep-unidad', 'mep-precio-usd', 'mep-precio-ars', 'mep-proveedor', 'mep-fecha'].forEach(id => { $(id).disabled = ro; });
+  ['mep-nombre', 'mep-unidad', 'mep-precio-usd', 'mep-precio-ars', 'mep-proveedor', 'mep-fecha', 'mep-comentario'].forEach(id => { $(id).disabled = ro; });
   $('modal-mep-save').disabled = ro;
   $('modal-mep-error').classList.add('hidden');
   $('modal-material-editar-precio').classList.remove('hidden');
@@ -2325,6 +2332,7 @@ async function saveEditarPrecioModal() {
   const nombre = $('mep-nombre').value.trim();
   const unidad = $('mep-unidad').value.trim();
   const proveedor = $('mep-proveedor').value.trim();
+  const comentario = $('mep-comentario').value.trim();
   const fecha = $('mep-fecha').value || new Date().toISOString().slice(0, 10);
   const errEl = $('modal-mep-error');
 
@@ -2354,7 +2362,7 @@ async function saveEditarPrecioModal() {
 
   const targetObraKey = activeVersion;
   const fc = getCalcFormulaConMoneda(usdInput, arsInput);
-  const precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada };
+  const precioData = { precioUSD, precioARS, precioFormula: fc.formula, precioFormulaMoneda: fc.moneda, proveedor, fecha, cotizacionUsada, comentario };
 
   try {
     const mat = materiales.find(m => m.key === editingPrecioMaterialKey);
