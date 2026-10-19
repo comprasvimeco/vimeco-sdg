@@ -21,7 +21,8 @@
       const it = l && l.itemKey && (items || {})[l.itemKey];
       const v = it && (it.versionesObra || {})[obraKey];
       if (v && (window.formulaTieneRefs(v.rendimientoFormula) ||
-                Object.values(v.lineas || {}).some(x => x && window.formulaTieneRefs(x.cantidadFormula)))) keys.add(l.itemKey);
+                Object.values(v.lineas || {}).some(x => x && (window.formulaTieneRefs(x.cantidadFormula) ||
+                  (x.tipo === 'porcentaje' && window.formulaTieneRefs(x.precioFormula)))))) keys.add(l.itemKey);
     });
     return [...keys];
   }

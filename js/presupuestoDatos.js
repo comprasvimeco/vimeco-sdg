@@ -307,6 +307,20 @@
              entidad de catálogo — se llama y se mide como el ítem, y su
              cantidad es 1. En el documento sale como una fila más de
              Materiales, que es donde se la ve en el A.P. */
+          /* Línea "%" (ej. Flete 10%, ver filaPorcentaje en item.js): tampoco
+             tiene entidad. Cantidad es el %, costo unitario la base. */
+          if (tipo === 'porcentaje') {
+            return {
+              refKey: null,
+              tipo,
+              esPorcentaje: true,
+              nombre: l.nombre || '',
+              unidad: '%',
+              cantidad: l.cantidad != null && !isNaN(l.cantidad) ? Number(l.cantidad) : null,
+              costoUnitario: d ? d.costoUnitario : null,
+              costoTotal: d ? d.costoTotal : null,
+            };
+          }
           if (tipo === 'directo') {
             return {
               refKey: null,
@@ -367,7 +381,7 @@
       // Un auxiliar usado como insumo aparece dentro de "Materiales" (mismo
       // bolsón de costo C, ver calcCostos.js), intercalado entre ellos en la
       // posición que el usuario le dio — es una fila más de esa sección.
-      materiales: filas('material', 'auxiliar', 'directo'),
+      materiales: filas('material', 'auxiliar', 'directo', 'porcentaje'),
       costoDiarioEquipos: r.costoDiarioEquipos,
       costoUnitarioEquipos: r.costoUnitarioEquipos,
       costoDiarioSeguridadCapataz: r.costoDiarioSeguridadCapataz,

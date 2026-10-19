@@ -315,6 +315,8 @@ function catalogoFor(tipo) {
   // El precio directo no sale de ningún catálogo: el número está en la propia
   // línea y el nombre/unidad son los del ítem (ver js/apDirecto.js).
   if (tipo === 'directo') return [];
+  // Tampoco la línea "%": su nombre y su base están en la propia línea.
+  if (tipo === 'porcentaje') return [];
   return roles;
 }
 
@@ -403,6 +405,7 @@ function etiquetaLinea(lineaKey) {
   const l = lineas[lineaKey];
   if (!l) return 'Línea';
   if (l.tipo === 'directo') return (item && item.nombre) || 'Ítem';
+  if (l.tipo === 'porcentaje') return l.nombre || 'Línea %';
   const entidad = catalogoFor(l.tipo).find(c => c.key === l.refKey);
   return entidad ? labelFor(l.tipo, entidad) : 'Línea sin elegir';
 }
@@ -1097,7 +1100,7 @@ function aplicarSnapshotRemoto(dataCruda) {
     // 'auxiliar' (ver renderLineasSeccion) — sin esto, editar un auxiliar
     // mientras llega un snapshot remoto lo pisaría con la versión vieja.
     const esDeLaSeccion = l => l.tipo === seccionEnEdicion ||
-      (seccionEnEdicion === 'material' && (l.tipo === 'auxiliar' || l.tipo === 'directo'));
+      (seccionEnEdicion === 'material' && (l.tipo === 'auxiliar' || l.tipo === 'directo' || l.tipo === 'porcentaje'));
     const propias = Object.fromEntries(Object.entries(lineas).filter(([, l]) => esDeLaSeccion(l)));
     const ajenas = Object.fromEntries(Object.entries(lineasRemotas).filter(([, l]) => !esDeLaSeccion(l)));
     lineas = { ...ajenas, ...propias };
@@ -1296,7 +1299,7 @@ function renderResumenCosto(r) {
   $('resumen').innerHTML = `
     <div class="ap-resumen-row"><span>Costo unitario de Equipos (A)</span><span${calcAttrs(r.costoUnitarioEquipos, 'ap:resumen:equipos', 'Costo unitario de Equipos (A)')}>${fmtARS(r.costoUnitarioEquipos)}</span></div>
     <div class="ap-resumen-row"><span>Costo unitario Mano de Obra (B)</span><span${calcAttrs(r.costoUnitarioMO, 'ap:resumen:manoDeObra', 'Costo unitario Mano de Obra (B)')}>${fmtARS(r.costoUnitarioMO)}</span></div>
-    <div class="ap-resumen-row"><span>Costo unitario de Materiales (C)</span><span${calcAttrs(r.costoMateriales, 'ap:resumen:materiales', 'Costo unitario de Materiales (C)')}>${fmtARS(r.costoMateriales)}</span></div>
+    <div class="ap-resumen-row"><span>Costo unitario de Insumos (C)</span><span${calcAttrs(r.costoMateriales, 'ap:resumen:materiales', 'Costo unitario de Insumos (C)')}>${fmtARS(r.costoMateriales)}</span></div>
     <div class="ap-resumen-row total"><span>SUBTOTAL (A+B+C)</span><span${calcAttrs(r.costoUnitario, 'ap:resumen:subtotal', 'SUBTOTAL (A+B+C)')}>${fmtARS(r.costoUnitario)}</span></div>
     <p class="form-hint" style="margin-top:.4rem;">Costo de referencia con precios generales — no incluye Gastos Generales ni beneficio.</p>
     ${precioUnitarioHtml}`;
@@ -1364,7 +1367,7 @@ async function toggleSinSeguridadCapataz(excluir) {
    Las recetas viejas no tienen `orden`: se siguen viendo como antes (ver
    window.lineasApOrdenadas) y se numeran enteras la primera vez que se mueve
    algo, así no queda media lista con orden y media sin. */
-const TIPOS_DE_SECCION = { material: ['material', 'auxiliar', 'directo'], equipo: ['equipo'] };
+const TIPOS_DE_SECCION = { material: ['material', 'auxiliar', 'directo', 'porcentaje'], equipo: ['equipo'] };
 
 function entradasSeccion(tipo) {
   return window.lineasApOrdenadas(lineas, TIPOS_DE_SECCION[tipo] || [tipo]);
@@ -1464,6 +1467,38 @@ function filaPrecioDirecto(lineaKey, l) {
     </div>`;
 }
 
+/* La línea "%" (ej. Flete 10%): un costo que es un porcentaje de otra cosa.
+   No sale de ningún catálogo —el nombre se escribe en la fila— y lee igual
+   que un material: Cantidad es el %, Costo unitario es la base y Costo total
+   es % / 100 × base. La base es libre por línea: un número, o una fórmula "="
+   que apunta a las celdas que se quieran (algunos materiales, uno solo, la
+   mano de obra) y se recalcula sola (refrescarFormulasVivas). La base, como
+   el precio directo, se edita sólo en vista $. */
+function filaPorcentaje(lineaKey, l, idx, total) {
+  const ro = !!window._soloLectura;
+  const base = l.precio != null && !isNaN(l.precio) ? Number(l.precio) : null;
+  const d = detallePorLineaActivo[lineaKey];
+  const etiqueta = etiquetaLinea(lineaKey);
+  const attrsBase = calcAttrs(base, `ap:linea:${lineaKey}:costoUnit`, etiqueta + ' · Costo unit.');
+  const celdaBase = (ro || window.monedaVista() === 'USD')
+    ? `<span class="ap-linea-costo-unit"${attrsBase}${ro ? '' : ' title="Pasá la vista a $ para editar la base"'}>${base != null ? fmtARS(base) : '—'}</span>`
+    : `<input type="text" class="form-control linea-precio-directo linea-base-pct" placeholder="Base" title="Sobre qué se calcula el %: un número, o = y clic en las celdas a sumar" data-calc-id="ap:linea:${escHtml(lineaKey)}:costoUnit" data-calc-label="${escHtml(etiqueta + ' · Costo unit.')}">`;
+  return `
+    <div class="ap-linea con-costo" data-key="${escHtml(lineaKey)}" draggable="${ro ? 'false' : 'true'}">
+      <div class="linea-select-wrap">
+        <input type="text" class="form-control linea-nombre-pct" placeholder="Descripción (ej. Flete)" ${ro ? 'disabled' : ''}>
+        <span class="linea-unidad-badge">%</span>
+      </div>
+      <input type="text" class="form-control linea-cantidad" placeholder="%" data-calc-id="ap:linea:${escHtml(lineaKey)}:cantidad" data-calc-label="${escHtml(etiqueta + ' · Cantidad')}" ${ro ? 'disabled' : ''}>
+      ${celdaBase}<span class="ap-linea-costo-total"${d && d.costoTotal != null ? calcAttrs(d.costoTotal, `ap:linea:${lineaKey}:costoTotal`, etiqueta + ' · Costo total') : ''}>${d && d.costoTotal != null ? fmtARS(d.costoTotal) : '—'}</span>
+      <span class="ap-linea-acciones">
+        <button class="ap-linea-mover" data-dir="-1" title="Subir" ${idx === 0 || ro ? 'disabled' : ''}>${icSvg('arrowUp')}</button>
+        <button class="ap-linea-mover" data-dir="1" title="Bajar" ${idx === total - 1 || ro ? 'disabled' : ''}>${icSvg('arrowDown')}</button>
+        <button class="ap-linea-del" title="Eliminar línea" ${ro ? 'disabled' : ''}>${icSvg('x')}</button>
+      </span>
+    </div>`;
+}
+
 function renderLineasSeccion(tipo, r) {
   const container = $(`lineas-${tipo}`);
   const cat = catalogoFor(tipo);
@@ -1492,6 +1527,7 @@ function renderLineasSeccion(tipo, r) {
     html += `<div class="ap-linea ap-linea-header con-costo"><span></span><span>${tituloCantidad}</span><span>Costo unitario</span><span>Costo total</span><span></span></div>`;
     html += entradas.map(([lineaKey, l], idx) => {
       if (l.tipo === 'directo') return filaPrecioDirecto(lineaKey, l);
+      if (l.tipo === 'porcentaje') return filaPorcentaje(lineaKey, l, idx, entradas.length);
       const d = detallePorLineaActivo[lineaKey];
       const conBadge = tipo === 'material' || l.tipo === 'auxiliar';
       const ro = !!window._soloLectura;
@@ -1518,7 +1554,7 @@ function renderLineasSeccion(tipo, r) {
   }
   if (r) {
     html += tipo === 'material'
-      ? `<div class="ap-subtotal-linea total"><span>Costo unitario de Materiales (C)</span><span${calcAttrs(r.costoMateriales, 'ap:costoMateriales', 'Costo unitario de Materiales (C)')}>${fmtARS(r.costoMateriales)}</span></div>`
+      ? `<div class="ap-subtotal-linea total"><span>Costo unitario de Insumos (C)</span><span${calcAttrs(r.costoMateriales, 'ap:costoMateriales', 'Costo unitario de Insumos (C)')}>${fmtARS(r.costoMateriales)}</span></div>`
       : `<div class="ap-subtotal-linea"><span>Costo ${unidadAP() === 'hs' ? 'por hora' : 'diario'} Equipos</span><span${calcAttrs(costoVista(r.costoDiarioEquipos), 'ap:costoDiarioEquipos', 'Costo diario Equipos')}>${fmtARS(costoVista(r.costoDiarioEquipos))}</span></div>
          <div class="ap-subtotal-linea total"><span>Costo unitario de Equipos (A)</span><span${calcAttrs(r.costoUnitarioEquipos, 'ap:costoUnitarioEquipos', 'Costo unitario de Equipos (A)')}>${fmtARS(r.costoUnitarioEquipos)}</span></div>`;
   }
@@ -1539,6 +1575,7 @@ function renderLineasSeccion(tipo, r) {
       draggedApKey = null;
       persistirOrdenDesdeDom(container);
     });
+    if (linea.tipo === 'porcentaje') { engancharFilaPorcentaje(row, tipo, lineaKey, linea); return; }
     // Cada línea de la sección Materiales resuelve su PROPIO catálogo/tipo —
     // una fila puede ser 'material' o 'auxiliar' aunque las dos vivan en la
     // misma sección visual (ver el filtro de `entradas` más arriba).
@@ -1683,6 +1720,49 @@ function engancharFilaDirecta(row, lineaKey, linea) {
   input.addEventListener('keydown', e => { if (e.key === 'Enter') input.blur(); });
 }
 
+function engancharFilaPorcentaje(row, tipo, lineaKey, linea) {
+  const nombreInput = row.querySelector('.linea-nombre-pct');
+  nombreInput.value = linea.nombre || '';
+  nombreInput.addEventListener('blur', () => {
+    const nombre = nombreInput.value.trim();
+    if (nombre === (linea.nombre || '')) return;
+    updateLinea(lineaKey, { nombre });
+  });
+
+  const pctInput = row.querySelector('.linea-cantidad');
+  pctInput.dataset.calcValor = linea.cantidad ?? 0;
+  attachCalcInput(pctInput, linea.cantidadFormula || null);
+  attachValorInput(pctInput, linea.cantidad ?? null);
+  pctInput.addEventListener('blur', () => {
+    const n = valorCampo(pctInput);
+    const formula = getCalcFormula(pctInput);
+    if (n === (linea.cantidad ?? null) && formula === (linea.cantidadFormula || null)) return;
+    updateLinea(lineaKey, { cantidad: n, cantidadFormula: formula });
+  });
+
+  const baseInput = row.querySelector('.linea-base-pct');
+  if (baseInput) {
+    const base = linea.precio != null && !isNaN(linea.precio) ? Number(linea.precio) : null;
+    baseInput.dataset.calcValor = base ?? 0;
+    attachCalcInput(baseInput, linea.precioFormula || null);
+    attachMoneyInput(baseInput);
+    attachValorInput(baseInput, base);
+    baseInput.addEventListener('blur', () => {
+      const n = valorCampo(baseInput);
+      const formula = getCalcFormula(baseInput);
+      if (n === base && formula === (linea.precioFormula || null)) return;
+      updateLinea(lineaKey, { precio: n, precioFormula: formula });
+    });
+  }
+
+  [nombreInput, pctInput, baseInput].filter(Boolean).forEach(inp =>
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); }));
+  row.querySelectorAll('.ap-linea-mover').forEach(btn => {
+    btn.addEventListener('click', () => moverLineaAp(tipo, lineaKey, parseInt(btn.dataset.dir, 10)));
+  });
+  row.querySelector('.ap-linea-del').addEventListener('click', () => deleteLinea(lineaKey));
+}
+
 /* Con insumos cargados no se le puede poner un precio a mano. Al revés sí:
    con el costo cargado a mano los "+" siguen andando, y el hint avisa que
    agregar un insumo pasa ese costo a ser un material. */
@@ -1695,7 +1775,7 @@ function actualizarBotonesInsumos() {
     btnDirecto.classList.toggle('hidden', !!Object.keys(lineas).length || !!window._soloLectura);
   }
   const hint = directo ? AVISO_DIRECTO_A_MATERIAL : '';
-  ['btn-add-linea-material', 'btn-add-linea-auxiliar', 'btn-add-linea-equipo'].forEach(id => {
+  ['btn-add-linea-material', 'btn-add-linea-auxiliar', 'btn-add-linea-porcentaje', 'btn-add-linea-equipo'].forEach(id => {
     const btn = $(id);
     if (!btn) return;
     btn.disabled = bloqueadoParaInsumos();
@@ -1843,6 +1923,17 @@ function refrescarFormulasVivas() {
       formula: v.formula,
       valor: aVista(l.cantidad ?? null, v.unidad),
       aplicar: valor => { lineas[lineaKey].cantidad = aDato(valor, v.unidad); cambioLineas = true; },
+    }));
+  // La base de una línea "%" con fórmula viva: se recalcula como una cantidad,
+  // salvo mientras se la está editando (repintar le sacaría el campo de abajo).
+  Object.entries(lineas)
+    .filter(([lineaKey, l]) => l.tipo === 'porcentaje' && window.formulaTieneRefs(l.precioFormula) &&
+      !(document.activeElement && document.activeElement.dataset &&
+        document.activeElement.dataset.calcId === `ap:linea:${lineaKey}:costoUnit`))
+    .forEach(([lineaKey, l]) => campos.push({
+      formula: l.precioFormula,
+      valor: l.precio ?? null,
+      aplicar: valor => { lineas[lineaKey].precio = valor; cambioLineas = true; },
     }));
   let cambioLineas = false;
   let cambioRendimiento = false;
@@ -1998,7 +2089,7 @@ async function addLinea(tipo) {
     return;
   }
   if (bloqueadoParaInsumos()) return;
-  if (tipo !== 'material' && !catalogoFor(tipo).length) {
+  if (tipo !== 'material' && tipo !== 'porcentaje' && !catalogoFor(tipo).length) {
     showToast('No hay nada cargado en ese catálogo todavía.', 'error');
     return;
   }
@@ -2006,13 +2097,21 @@ async function addLinea(tipo) {
   const lineaKey = 'linea_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
   const seccion = tipo === 'equipo' ? 'equipo' : 'material';
   const yaEnOrden = entradasSeccion(seccion).map(([k]) => k);
-  lineas[lineaKey] = { tipo, refKey: null, cantidad: null };
+  lineas[lineaKey] = tipo === 'porcentaje'
+    ? { tipo, nombre: '', cantidad: null, precio: null }
+    : { tipo, refKey: null, cantidad: null };
   // Va última de su sección (la de Materiales incluye a los auxiliares, ver
   // entradasSeccion). Se numera la sección entera y no sólo la nueva: en una
   // receta vieja sin `orden`, darle un 1 a la nueva la mandaría al principio,
   // porque las que no lo tienen van después (window.lineasApOrdenadas).
   [...yaEnOrden, lineaKey].forEach((k, i) => { lineas[k] = { ...lineas[k], orden: i + 1 }; });
   renderTodasLasLineas();
+  // La línea "%" se completa escribiendo: el foco va derecho a su descripción
+  // (y con foco en la sección, el eco del listener no la repinta).
+  if (tipo === 'porcentaje') {
+    const nombreInput = document.querySelector(`#lineas-material .ap-linea[data-key="${lineaKey}"] .linea-nombre-pct`);
+    if (nombreInput) nombreInput.focus();
+  }
   persistLineas();
 }
 
@@ -2562,6 +2661,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   $('btn-add-linea-directo').addEventListener('click', () => addLinea('directo'));
   $('btn-add-linea-material').addEventListener('click', () => addLinea('material'));
   $('btn-add-linea-auxiliar').addEventListener('click', () => addLinea('auxiliar'));
+  $('btn-add-linea-porcentaje').addEventListener('click', () => addLinea('porcentaje'));
   $('btn-add-linea-equipo').addEventListener('click', () => addLinea('equipo'));
   $('equipos-toggle').addEventListener('click', () => setEquiposExpandido($('lineas-equipo').classList.contains('hidden')));
 

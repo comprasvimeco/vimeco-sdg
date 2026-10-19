@@ -33,6 +33,8 @@
     .ap-linea-directa-nombre { font-size: .9rem; color: var(--gray-700); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .ap-linea-cantidad-fija { text-align: center; font-size: .85rem; color: var(--gray-500); }
     .linea-precio-directo { text-align: right; }
+    /* Línea "%" (ej. Flete 10%): nombre escrito en la fila, base libre (ver filaPorcentaje). */
+    .linea-nombre-pct { flex: 1; min-width: 0; }
     .ap-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
     .ap-section-acciones { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
     /* Cantidad con una fórmula escrita en la otra unidad: se sigue leyendo y
@@ -157,6 +159,7 @@
       }
       .ap-linea.con-costo .linea-select-wrap { grid-area: sel; }
       .ap-linea.con-costo .linea-cantidad { grid-area: cant; }
+      .ap-linea.con-costo .linea-base-pct { grid-area: unit; }
       .ap-linea.con-costo .ap-linea-costo-unit { grid-area: unit; text-align: left; }
       .ap-linea.con-costo .ap-linea-costo-unit::before { content: "Unit.: "; font-weight: 400; }
       .ap-linea.con-costo .ap-linea-costo-total { grid-area: total; }
@@ -245,7 +248,7 @@
       </div>
 
       <div class="card">
-        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Materiales</span><span><button class="btn btn-sm btn-outline hidden" id="btn-add-linea-directo" data-solo-edicion title="Cargar el costo del ítem a mano, sin analizarlo">+ Costo a mano</button> <button class="btn btn-sm btn-outline" id="btn-add-linea-auxiliar" data-solo-edicion>+ Agregar auxiliar</button> <button class="btn btn-sm btn-primary" id="btn-add-linea-material" data-solo-edicion>+ Agregar</button></span></span></div>
+        <div class="card-header"><span class="ap-section-header" style="width:100%"><span class="card-title">Insumos</span><span><button class="btn btn-sm btn-outline hidden" id="btn-add-linea-directo" data-solo-edicion title="Cargar el costo del ítem a mano, sin analizarlo">+ Costo Directo</button> <button class="btn btn-sm btn-outline" id="btn-add-linea-porcentaje" data-solo-edicion title="Un costo que es un % de otra cosa (ej. Flete 10% de los materiales)">+ %</button> <button class="btn btn-sm btn-outline" id="btn-add-linea-auxiliar" data-solo-edicion>+ Auxiliar</button> <button class="btn btn-sm btn-primary" id="btn-add-linea-material" data-solo-edicion>+ Material</button></span></span></div>
         <div class="card-body" id="lineas-material"></div>
       </div>
 

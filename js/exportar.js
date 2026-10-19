@@ -410,9 +410,9 @@ function analisisDeLinea(linea, sinCarga) {
           ${filaSubtotalAP('Costo diario Mano de Obra', ap.costoDiarioMO)}
           ${filaSubtotalAP('Costo unitario Mano de Obra (B)', ap.costoUnitarioMO, true)}
 
-          ${filaSeccionAP('C — Materiales')}
+          ${filaSeccionAP('C — Insumos')}
           ${ap.materiales.length ? ap.materiales.map(f => filaInsumo(f)).join('') : filaVaciaAP('Sin materiales.')}
-          ${filaSubtotalAP('Costo unitario de Materiales (C)', ap.costoMateriales, true)}
+          ${filaSubtotalAP('Costo unitario de Insumos (C)', ap.costoMateriales, true)}
 
           ${cierre}
         </tbody>

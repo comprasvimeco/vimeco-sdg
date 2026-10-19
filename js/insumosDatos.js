@@ -220,6 +220,58 @@
     };
   }
 
+  /* Líneas "%" de los A.P. (ej. Flete 10%, ver filaPorcentaje en item.js):
+     no son un insumo físico, son plata. Se suman a Materiales —donde viven en
+     el A.P.— agrupadas por nombre (todos los "Flete" en una fila), con el
+     mismo formato que la Capatacía: unidad '%', cantidad = el % si es el
+     mismo en todos lados, y el desglose por ítem en pesos (usadosMoneda).
+     Cada nivel aporta cantidad del Cómputo × % / 100 × base; los auxiliares
+     usados como insumo se recorren igual que en capatazDeNivel. */
+  function porcentajesDeNivel(modelo, version, multiplicador, nombreLineaTop, auxVisitados, grupos) {
+    Object.values(version.lineas || {}).forEach(rl => {
+      if (rl.tipo !== 'porcentaje' || rl.cantidad == null || isNaN(rl.cantidad) || rl.precio == null || isNaN(rl.precio)) return;
+      const monto = multiplicador * Number(rl.cantidad) / 100 * Number(rl.precio);
+      if (!monto) return;
+      const nombre = (rl.nombre || '').trim() || 'Línea %';
+      const key = 'pct:' + nombre.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+      if (!grupos[key]) grupos[key] = { key, nombre, pcts: new Set(), costoTotal: 0, usados: [] };
+      grupos[key].pcts.add(Number(rl.cantidad));
+      grupos[key].costoTotal += monto;
+      grupos[key].usados.push({ nombre: nombreLineaTop, cantidad: monto });
+    });
+    Object.values(version.lineas || {}).forEach(rl => {
+      if (rl.tipo !== 'auxiliar' || !rl.refKey || rl.cantidad == null || isNaN(rl.cantidad) || auxVisitados.has(rl.refKey)) return;
+      const auxVersion = versionDeAuxiliar(modelo, rl.refKey);
+      if (!auxVersion) return;
+      porcentajesDeNivel(modelo, auxVersion, multiplicador * rl.cantidad, nombreLineaTop,
+        new Set(auxVisitados).add(rl.refKey), grupos);
+    });
+  }
+
+  function calcularPorcentajes(modelo) {
+    const grupos = {};
+    Object.values(modelo.computo || {}).forEach(linea => {
+      if (!linea.itemKey || linea.cantidad == null || isNaN(linea.cantidad)) return;
+      const item = modelo.catalogos.items.find(i => i.key === linea.itemKey);
+      if (!item) return;
+      const version = versionDe(item, modelo.obraKey, modelo.catalogos.roles);
+      if (!version.lineas) return;
+      porcentajesDeNivel(modelo, version, linea.cantidad, linea.nombre || '(sin nombre)', new Set(), grupos);
+    });
+    return Object.values(grupos)
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+      .map(g => ({
+        key: g.key,
+        nombre: g.nombre,
+        unidad: '%',
+        cantidad: g.pcts.size === 1 ? [...g.pcts][0] : null,
+        costoUnitario: null,
+        costoTotal: g.costoTotal,
+        usados: g.usados,
+        usadosMoneda: true,
+      }));
+  }
+
   // Devuelve { materiales, equipos, manoDeObra }, cada uno
   // { filas: [{ key, nombre, unidad, cantidad, costoUnitario, costoTotal, usados }], costoTotal, faltaPrecio }.
   // manoDeObra.filas incluye, al final, la fila de Capatacía si el adicional
@@ -251,6 +303,12 @@
         unidad: 'día',
         costoUnitario: g.entidad.basico ? window.calcCostoManoDeObra(g.entidad, modelo.paramsMO).costoJornal : null,
       }));
+
+    // Las líneas "%" van al final de Materiales, como la Capatacía en Mano de Obra.
+    calcularPorcentajes(modelo).forEach(f => {
+      materiales.filas.push(f);
+      materiales.costoTotal += f.costoTotal;
+    });
 
     const capataz = calcularCapataz(modelo);
     if (capataz) {

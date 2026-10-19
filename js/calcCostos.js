@@ -230,6 +230,15 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
       if (linea.precio == null || isNaN(linea.precio)) return null;
       return { costoUnitario: Number(linea.precio), costoTotal: Number(linea.precio) };
     }
+    // Línea "%" (ej. Flete 10%): tampoco tiene entidad. La cantidad es el % y
+    // el costo unitario es la base, un número libre por línea (a mano o con
+    // fórmula viva que apunta a las celdas que se elijan) — ver item.js.
+    if (linea.tipo === 'porcentaje') {
+      if (linea.precio == null || isNaN(linea.precio)) return null;
+      const base = Number(linea.precio);
+      const pct = linea.cantidad != null && !isNaN(linea.cantidad) ? Number(linea.cantidad) : null;
+      return { costoUnitario: base, costoTotal: pct != null ? pct / 100 * base : null };
+    }
     const cat = catalogoFor(linea.tipo);
     const entidad = cat.find(c => c.key === linea.refKey);
     if (!entidad) return null;
@@ -260,7 +269,7 @@ window.calcCostoUnitarioItem = function (item, lineasItem, catalogos, paramsEqui
     const d = costoLineaDetalle(l);
     if (!d) return;
     detallePorLinea[lineaKey] = d;
-    if (l.tipo === 'material' || l.tipo === 'auxiliar' || l.tipo === 'directo') costoMateriales += d.costoTotal;
+    if (l.tipo === 'material' || l.tipo === 'auxiliar' || l.tipo === 'directo' || l.tipo === 'porcentaje') costoMateriales += d.costoTotal;
     else if (l.tipo === 'equipo') costoDiarioEquipos += d.costoTotal;
     else costoDiarioMORoles += d.costoTotal;
   });

@@ -747,7 +747,7 @@
       r += 2;
 
       /* C — Materiales. Precio y unidad salen de la hoja Materiales. */
-      ws.getCell(r, 2).value = 'C — Materiales';
+      ws.getCell(r, 2).value = 'C — Insumos';
       pintar(ws, r, 2, 9, GRIS_CABECERA);
       negrita(ws, r, 2, 9);
       r++;
@@ -773,6 +773,22 @@
             : 0;
           ws.getCell(r, 8).numFmt = FMT_ARS;
           ws.getCell(r, 9).value = f(`=+G${r}*H${r}`);
+          ws.getCell(r, 9).numFmt = FMT_ARS;
+          r++;
+          return;
+        }
+        if (fila.esPorcentaje) {
+          // Línea "%" (ej. Flete 10%): la cantidad es el % y el precio
+          // unitario la base, que va como número (sus referencias son a
+          // celdas de la pantalla, no de esta hoja).
+          ws.getCell(r, 3).value = fila.nombre;
+          ws.getCell(r, 6).value = '%';
+          ws.getCell(r, 6).alignment = { horizontal: 'center' };
+          ws.getCell(r, 7).value = num(fila.cantidad);
+          ws.getCell(r, 7).numFmt = FMT_CANT;
+          ws.getCell(r, 8).value = num(fila.costoUnitario) ?? 0;
+          ws.getCell(r, 8).numFmt = FMT_ARS;
+          ws.getCell(r, 9).value = f(`=+G${r}*H${r}/100`);
           ws.getCell(r, 9).numFmt = FMT_ARS;
           r++;
           return;
@@ -811,7 +827,7 @@
       bordear(ws, mat0 - 1, 3, r - 1, 9);
 
       const filaMat = r;
-      ws.getCell(r, 3).value = 'Costo unitario de Materiales (C)';
+      ws.getCell(r, 3).value = 'Costo unitario de Insumos (C)';
       ws.getCell(r, 9).value = matN >= mat0 ? f(`=SUM(I${mat0}:I${matN})`) : 0;
       ws.getCell(r, 9).numFmt = FMT_ARS;
       negrita(ws, r, 3, 9);
