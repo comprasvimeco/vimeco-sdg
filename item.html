@@ -76,7 +76,7 @@
     .linea-select-wrap { display: flex; align-items: center; gap: .5rem; min-width: 0; }
     .linea-select-container { flex: 1 1 0%; min-width: 0; }
     .linea-unidad-badge { font-size: .75rem; color: var(--gray-500); white-space: nowrap; flex-shrink: 0; }
-    .linea-comentario-badge { flex-shrink: 1; min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+    .linea-comentario-badge { position: absolute; right: .6rem; top: 50%; transform: translateY(-50%); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; pointer-events: none; }
     .linea-comentario-badge:empty { display: none; }
 
     .ap-linea-mo { display: grid; grid-template-columns: 1fr 110px; gap: .6rem; align-items: center; padding: .4rem 0; border-bottom: 1px solid var(--gray-200); }

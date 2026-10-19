@@ -1628,7 +1628,16 @@ function renderLineasSeccion(tipo, r) {
       // sólo para leer en el A.P., no sale en la exportación.
       const comentario = ((mat && (mat.precios || {})[activeVersion]) || {}).comentario || '';
       const pill = row.querySelector('.linea-comentario-badge');
-      if (pill) { pill.textContent = comentario; pill.title = comentario; }
+      // Va adentro de la caja del nombre, a la derecha: el input le deja lugar.
+      if (pill) {
+        pill.textContent = comentario;
+        pill.title = comentario;
+        const ssWrap = row.querySelector('.ss-wrap');
+        if (comentario && ssWrap) {
+          ssWrap.appendChild(pill);
+          ssWrap.querySelector('.ss-input').style.paddingRight = (pill.offsetWidth + 18) + 'px';
+        }
+      }
       const costoUnit = row.querySelector('.ap-linea-costo-unit');
       if (costoUnit) {
         // Mirando una versión guardada el botón no lleva a ningún lado: su
